@@ -33,9 +33,8 @@ replay_pid*
 # Maven settings (may contain credentials)
 settings.xml
 
+# Build output
+target/
+
 # Environment
 .env
-
-# Node / SvelteKit
-node_modules/
-.svelte-kit/
