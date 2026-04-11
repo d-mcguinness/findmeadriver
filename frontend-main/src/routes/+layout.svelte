@@ -13,7 +13,7 @@
 		Content,
 		SkipToContent
 	} from 'carbon-components-svelte';
-	import { LogoGithub, Login, Logout, UserAvatar, Dashboard } from 'carbon-icons-svelte';
+	import { LogoGithub, Login, Logout, UserAvatar, Dashboard, Time, Search, Document, Add, Enterprise, CertificateCheck } from 'carbon-icons-svelte';
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { auth } from '$lib/stores/auth.svelte';
@@ -57,6 +57,16 @@
 		<SideNavLink icon={LogoGithub} text="Home" href="/" />
 		{#if auth.isAuthenticated}
 			<SideNavLink icon={Dashboard} text="Dashboard" href="/dashboard" />
+			{#if auth.isDriver}
+				<SideNavLink icon={Time} text="Availability" href="/dashboard/driver?tab=availability" />
+				<SideNavLink icon={CertificateCheck} text="Compliance" href="/dashboard/driver?tab=compliance" />
+				<SideNavLink icon={Search} text="Browse Jobs" href="/dashboard/driver?tab=jobs" />
+				<SideNavLink icon={Document} text="My Applications" href="/dashboard/driver?tab=applications" />
+			{/if}
+			{#if auth.isEmployer}
+				<SideNavLink icon={Add} text="Post a Job" href="/dashboard/employer?tab=post" />
+				<SideNavLink icon={Enterprise} text="My Jobs" href="/dashboard/employer?tab=jobs" />
+			{/if}
 			<SideNavLink icon={Logout} text="Logout" on:click={handleLogout} />
 		{:else}
 			<SideNavLink icon={Login} text="Login" href="/login" />

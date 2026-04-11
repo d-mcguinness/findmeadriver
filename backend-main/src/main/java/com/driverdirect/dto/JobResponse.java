@@ -1,0 +1,51 @@
+package com.driverdirect.dto;
+
+import com.driverdirect.model.Driver;
+import com.driverdirect.model.Job;
+import com.driverdirect.model.JobStatus;
+import lombok.Data;
+
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+
+@Data
+public class JobResponse {
+    private Long id;
+    private String title;
+    private String description;
+    private String pickupLocation;
+    private String deliveryLocation;
+    private Double estimatedDurationHours;
+    private LocalDate dateNeeded;
+    private BigDecimal ratePerHour;
+    private Driver.CDLType requiredCdlType;
+    private JobStatus status;
+    private String employerCompanyName;
+    private Long assignedDriverId;
+    private String assignedDriverName;
+    private int applicationCount;
+    private LocalDateTime createdAt;
+
+    public static JobResponse from(Job job, int applicationCount) {
+        JobResponse r = new JobResponse();
+        r.setId(job.getId());
+        r.setTitle(job.getTitle());
+        r.setDescription(job.getDescription());
+        r.setPickupLocation(job.getPickupLocation());
+        r.setDeliveryLocation(job.getDeliveryLocation());
+        r.setEstimatedDurationHours(job.getEstimatedDurationHours());
+        r.setDateNeeded(job.getDateNeeded());
+        r.setRatePerHour(job.getRatePerHour());
+        r.setRequiredCdlType(job.getRequiredCdlType());
+        r.setStatus(job.getStatus());
+        r.setEmployerCompanyName(job.getEmployer().getCompanyName());
+        if (job.getAssignedDriver() != null) {
+            r.setAssignedDriverId(job.getAssignedDriver().getId());
+            r.setAssignedDriverName(job.getAssignedDriver().getFirstName() + " " + job.getAssignedDriver().getLastName());
+        }
+        r.setApplicationCount(applicationCount);
+        r.setCreatedAt(job.getCreatedAt());
+        return r;
+    }
+}
