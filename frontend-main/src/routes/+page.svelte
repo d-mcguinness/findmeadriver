@@ -8,7 +8,7 @@
 	<Grid>
 		<!-- Hero -->
 		<Row>
-			<Column lg={10} md={6} sm={4}>
+			<Column>
 				<div class="hero">
 					<h1>Your Spare Driving Hours, Put to Work</h1>
 					<p class="hero-subtitle">
@@ -177,6 +177,7 @@
 	}
 	.hero {
 		padding: 3rem 0 2rem;
+		text-align: center;
 	}
 	.hero h1 {
 		font-size: 2.5rem;
@@ -189,10 +190,13 @@
 		color: var(--cds-text-secondary);
 		margin-bottom: 2rem;
 		max-width: 600px;
+		margin-left: auto;
+		margin-right: auto;
 		line-height: 1.6;
 	}
 	.hero-actions {
 		display: flex;
+		justify-content: center;
 		gap: 1rem;
 		flex-wrap: wrap;
 	}

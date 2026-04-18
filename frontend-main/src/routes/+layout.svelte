@@ -5,7 +5,6 @@
 		Header,
 		HeaderUtilities,
 		HeaderAction,
-		HeaderNav,
 		HeaderNavItem,
 		SideNav,
 		SideNavItems,
@@ -31,16 +30,10 @@
 	}
 </script>
 
-<Header platformName="FindMeADriver" bind:isSideNavOpen>
+<Header platformName="FindMeADriver" href="/" bind:isSideNavOpen>
 	<svelte:fragment slot="skip-to-content">
 		<SkipToContent />
 	</svelte:fragment>
-	<HeaderNav>
-		<HeaderNavItem href="/" text="Home" />
-		{#if auth.isAuthenticated}
-			<HeaderNavItem href="/dashboard" text="Dashboard" />
-		{/if}
-	</HeaderNav>
 	<HeaderUtilities>
 		{#if auth.isAuthenticated}
 			<HeaderNavItem href="/dashboard" text={auth.user?.firstName ?? 'Account'} />
@@ -52,10 +45,10 @@
 	</HeaderUtilities>
 </Header>
 
-<SideNav bind:isOpen={isSideNavOpen}>
-	<SideNavItems>
-		<SideNavLink icon={LogoGithub} text="Home" href="/" />
-		{#if auth.isAuthenticated}
+{#if auth.isAuthenticated}
+	<SideNav bind:isOpen={isSideNavOpen}>
+		<SideNavItems>
+			<SideNavLink icon={LogoGithub} text="Home" href="/" />
 			<SideNavLink icon={Dashboard} text="Dashboard" href="/dashboard" />
 			{#if auth.isDriver}
 				<SideNavLink icon={Time} text="Availability" href="/dashboard/driver?tab=availability" />
@@ -64,16 +57,13 @@
 				<SideNavLink icon={Document} text="My Applications" href="/dashboard/driver?tab=applications" />
 			{/if}
 			{#if auth.isEmployer}
-				<SideNavLink icon={Add} text="Post a Job" href="/dashboard/employer?tab=post" />
-				<SideNavLink icon={Enterprise} text="My Jobs" href="/dashboard/employer?tab=jobs" />
+				<SideNavLink icon={Add} text="Post a Job" href="/dashboard/employer/jobs/post" />
+				<SideNavLink icon={Enterprise} text="My Jobs" href="/dashboard/employer" />
 			{/if}
 			<SideNavLink icon={Logout} text="Logout" on:click={handleLogout} />
-		{:else}
-			<SideNavLink icon={Login} text="Login" href="/login" />
-			<SideNavLink icon={UserAvatar} text="Register" href="/register" />
-		{/if}
-	</SideNavItems>
-</SideNav>
+		</SideNavItems>
+	</SideNav>
+{/if}
 
 <Content>
 	{@render children()}
