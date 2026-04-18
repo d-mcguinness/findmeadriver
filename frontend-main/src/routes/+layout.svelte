@@ -31,7 +31,7 @@
 	}
 </script>
 
-<Header platformName="Driver Direct" bind:isSideNavOpen>
+<Header platformName="FindMeADriver" bind:isSideNavOpen>
 	<svelte:fragment slot="skip-to-content">
 		<SkipToContent />
 	</svelte:fragment>
@@ -39,15 +39,15 @@
 		<HeaderNavItem href="/" text="Home" />
 		{#if auth.isAuthenticated}
 			<HeaderNavItem href="/dashboard" text="Dashboard" />
-		{:else}
-			<HeaderNavItem href="/login" text="Login" />
-			<HeaderNavItem href="/register" text="Register" />
 		{/if}
 	</HeaderNav>
 	<HeaderUtilities>
 		{#if auth.isAuthenticated}
 			<HeaderNavItem href="/dashboard" text={auth.user?.firstName ?? 'Account'} />
 			<HeaderNavItem on:click={handleLogout} text="Logout" />
+		{:else}
+			<HeaderNavItem href="/login" text="Login" />
+			<HeaderNavItem href="/register" text="Register" />
 		{/if}
 	</HeaderUtilities>
 </Header>

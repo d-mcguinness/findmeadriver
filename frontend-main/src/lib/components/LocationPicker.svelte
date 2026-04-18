@@ -23,6 +23,70 @@
 	let mapOpen = $state(false);
 	let mapInitialized = false;
 	let loadError = $state('');
+	let placeAutocompleteRef: HTMLElement | null = null;
+	let shadowInput: HTMLInputElement | null = null;
+
+	// Eircode: routing key (letter + 2 digits/chars) + optional space + 4 alphanumeric
+	const EIRCODE_REGEX = /^[A-Za-z]\d[\dWw]\s?[A-Za-z0-9]{4}$/;
+
+	function isEircode(val: string): boolean {
+		return EIRCODE_REGEX.test(val.trim());
+	}
+
+	function extractEircode(results: google.maps.GeocoderResult[]): string | null {
+		for (const result of results) {
+			for (const component of result.address_components) {
+				if (component.types.includes('postal_code') && isEircode(component.long_name)) {
+					return component.long_name;
+				}
+			}
+		}
+		return null;
+	}
+
+	function setAutocompleteInputValue(text: string) {
+		if (shadowInput) {
+			shadowInput.value = text;
+			return;
+		}
+		// Fallback: try open shadow root
+		if (placeAutocompleteRef) {
+			const inner = placeAutocompleteRef.shadowRoot?.querySelector('input');
+			if (inner) {
+				shadowInput = inner;
+				inner.value = text;
+			}
+		}
+	}
+
+	async function geocodeEircode(eircode: string) {
+		const g = await loadGoogleMaps();
+		const geocoder = new g.maps.Geocoder();
+		try {
+			const res = await geocoder.geocode({
+				address: eircode.trim(),
+				componentRestrictions: { country: 'IE' }
+			});
+			if (res.results[0]) {
+				const loc = res.results[0].geometry.location;
+				const lat = loc.lat();
+				const lng = loc.lng();
+				const address = res.results[0].formatted_address;
+				const resolvedEircode = extractEircode(res.results);
+				const display = resolvedEircode || address;
+
+				value = display;
+				setAutocompleteInputValue(display);
+				mapOpen = true;
+				await new Promise(r => setTimeout(r, 260));
+				if (!mapInitialized) await initMap();
+				setMarker(lat, lng);
+				onPlaceSelected({ address, lat, lng });
+			}
+		} catch (err) {
+			console.error('Eircode geocoding failed:', err);
+		}
+	}
 
 	async function initMap() {
 		if (mapInitialized || !mapsReady) return;
@@ -53,8 +117,12 @@
 				try {
 					const res = await geocoder.geocode({ location: { lat, lng } });
 					if (res.results[0]) {
-						value = res.results[0].formatted_address;
-						onPlaceSelected({ address: value, lat, lng });
+						const address = res.results[0].formatted_address;
+						const eircode = extractEircode(res.results);
+						const display = eircode || address;
+						value = display;
+						setAutocompleteInputValue(display);
+						onPlaceSelected({ address, lat, lng });
 					}
 				} catch { /* ignore */ }
 			});
@@ -119,6 +187,35 @@
 			// Style the inner input to match our design
 			placeAutocomplete.style.width = '100%';
 			autocompleteEl.appendChild(placeAutocomplete);
+			placeAutocompleteRef = placeAutocomplete;
+
+			// Capture the shadow DOM input reference from the first focusin event
+			autocompleteEl.addEventListener('focusin', (e: FocusEvent) => {
+				if (!shadowInput) {
+					const target = e.composedPath()[0];
+					if (target instanceof HTMLInputElement) {
+						shadowInput = target;
+					}
+				}
+			}, { once: true });
+
+			// Intercept Enter key to handle Eircode input directly
+			autocompleteEl.addEventListener('keydown', async (e: KeyboardEvent) => {
+				// Also capture shadow input from keyboard events as fallback
+				if (!shadowInput) {
+					const target = e.composedPath()[0];
+					if (target instanceof HTMLInputElement) shadowInput = target;
+				}
+				if (e.key === 'Enter') {
+					const actualTarget = (shadowInput || e.composedPath()[0]) as HTMLInputElement;
+					const inputValue = actualTarget?.value || '';
+					if (isEircode(inputValue)) {
+						e.preventDefault();
+						e.stopPropagation();
+						await geocodeEircode(inputValue);
+					}
+				}
+			});
 
 			placeAutocomplete.addEventListener('gmp-placeselect', async (evt: any) => {
 				const place = evt.place;

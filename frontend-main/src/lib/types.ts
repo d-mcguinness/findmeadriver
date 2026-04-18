@@ -79,3 +79,32 @@ export interface DriverComplianceSummary {
 	verifiedCount: number;
 	totalCount: number;
 }
+
+export interface AdminUser {
+	id: number;
+	email: string;
+	firstName: string;
+	lastName: string;
+	phone: string;
+	enabled: boolean;
+	roles: string[];
+	userType: string;
+	licenseNumber?: string;
+	cdlType?: string;
+	yearsExperience?: number;
+	companyName?: string;
+	industry?: string;
+}
+
+export interface PlatformStats {
+	totalUsers: number;
+	totalDrivers: number;
+	totalEmployers: number;
+	totalJobs: number;
+	openJobs: number;
+	assignedJobs: number;
+	inProgressJobs: number;
+	completedJobs: number;
+	cancelledJobs: number;
+	pendingDocuments: number;
+}
