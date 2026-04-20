@@ -48,6 +48,50 @@
 	let industry = $state('');
 	let companyWebsite = $state('');
 
+	const isDev = import.meta.env.DEV;
+
+	const firstNames = ['Liam', 'Sean', 'Conor', 'Ciara', 'Aoife', 'Niamh', 'Oisin', 'Roisin', 'Padraig', 'Sinead'];
+	const lastNames = ['Murphy', 'Kelly', 'Byrne', 'Ryan', 'Walsh', 'Sullivan', 'Doyle', 'Gallagher', 'Nolan', 'Brennan'];
+	const counties = ['Dublin', 'Cork', 'Galway', 'Limerick', 'Waterford', 'Kerry', 'Wexford', 'Donegal', 'Meath', 'Kildare'];
+	const cdlTypes = ['CLASS_A', 'CLASS_B', 'CLASS_C', 'NON_CDL'];
+	const industries = ['LOGISTICS', 'TRANSPORTATION', 'MANUFACTURING', 'RETAIL', 'CONSTRUCTION', 'FOOD_SERVICE'];
+	const companyPrefixes = ['Swift', 'Emerald', 'Celtic', 'Atlantic', 'Premier', 'Express', 'Rapid', 'National'];
+	const companySuffixes = ['Logistics', 'Transport', 'Haulage', 'Freight', 'Deliveries', 'Distribution'];
+
+	function pick<T>(arr: T[]): T { return arr[Math.floor(Math.random() * arr.length)]; }
+	function randInt(min: number, max: number) { return Math.floor(Math.random() * (max - min + 1)) + min; }
+	function randPhone() { return '08' + randInt(1, 9) + String(randInt(1000000, 9999999)); }
+	function randId() { return String(randInt(10000, 99999)); }
+
+	function fillDriver() {
+		const first = pick(firstNames);
+		const last = pick(lastNames);
+		driverFirstName = first;
+		driverLastName = last;
+		driverEmail = `${first.toLowerCase()}.${last.toLowerCase()}${randInt(1, 999)}@test.com`;
+		driverPassword = 'password123';
+		driverPhone = randPhone();
+		licenseNumber = 'DL-' + randId();
+		licenseExpiration = `${randInt(2026, 2030)}-${String(randInt(1, 12)).padStart(2, '0')}-${String(randInt(1, 28)).padStart(2, '0')}`;
+		cdlType = pick(cdlTypes);
+		yearsExperience = randInt(1, 25);
+		licenseState = pick(counties);
+	}
+
+	function fillEmployer() {
+		const first = pick(firstNames);
+		const last = pick(lastNames);
+		const company = `${pick(companyPrefixes)} ${pick(companySuffixes)}`;
+		employerFirstName = first;
+		employerLastName = last;
+		employerEmail = `${first.toLowerCase()}.${last.toLowerCase()}${randInt(1, 999)}@test.com`;
+		employerPassword = 'password123';
+		employerPhone = randPhone();
+		companyName = company;
+		industry = pick(industries);
+		companyWebsite = `https://${company.toLowerCase().replace(/\s/g, '')}.ie`;
+	}
+
 	async function registerDriver() {
 		error = '';
 		success = '';
@@ -129,6 +173,11 @@
 						<svelte:fragment slot="content">
 							<TabContent>
 								<form onsubmit={(e: Event) => { e.preventDefault(); registerDriver(); }}>
+									{#if isDev}
+										<div class="dev-fill">
+											<Button size="small" kind="ghost" on:click={fillDriver}>Dev: Fill Driver</Button>
+										</div>
+									{/if}
 									<h4>Personal Information</h4>
 									<div class="form-row">
 										<div class="form-field">
@@ -189,6 +238,11 @@
 							</TabContent>
 							<TabContent>
 								<form onsubmit={(e: Event) => { e.preventDefault(); registerEmployer(); }}>
+									{#if isDev}
+										<div class="dev-fill">
+											<Button size="small" kind="ghost" on:click={fillEmployer}>Dev: Fill Employer</Button>
+										</div>
+									{/if}
 									<h4>Personal Information</h4>
 									<div class="form-row">
 										<div class="form-field">
