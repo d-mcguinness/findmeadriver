@@ -28,6 +28,8 @@
 	let ratingComment = $state('');
 	let ratingError = $state('');
 
+
+
 	async function loadJobs() {
 		jobsLoading = true;
 		try {
@@ -150,7 +152,7 @@
 		<Column>
 			<div class="section-header">
 				<h2>My Posted Jobs</h2>
-				<Button href="/dashboard/employer/jobs/post" icon={Add}>Post a Job</Button>
+				<Button href="/dashboard/jobs/post" icon={Add}>Post a Job</Button>
 			</div>
 
 			{#if jobsLoading}

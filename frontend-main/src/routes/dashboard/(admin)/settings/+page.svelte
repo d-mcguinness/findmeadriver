@@ -70,7 +70,7 @@
 	<Row>
 		<Column>
 			<div class="page-header">
-				<Button kind="ghost" size="small" href="/dashboard/admin" icon={ArrowLeft}>
+				<Button kind="ghost" size="small" href="/dashboard" icon={ArrowLeft}>
 					Back
 				</Button>
 				<h1><Settings size={24} /> Settings</h1>

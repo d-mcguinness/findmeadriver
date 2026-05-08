@@ -30,15 +30,7 @@
 		loading = true;
 		try {
 			await auth.login(email, password);
-			if (auth.isAdmin) {
-				goto('/dashboard/admin');
-			} else if (auth.isEmployer) {
-				goto('/dashboard/employer');
-			} else if (auth.isDriver) {
-				goto('/dashboard/driver');
-			} else {
-				goto('/dashboard');
-			}
+			goto('/dashboard');
 		} catch (e: any) {
 			error = e?.error || 'Login failed. Please check your credentials.';
 		} finally {

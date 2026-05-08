@@ -70,7 +70,7 @@
 				ratePerHour: jobForm.ratePerHour
 			});
 			postSuccess = 'Job posted successfully! Redirecting...';
-			setTimeout(() => goto('/dashboard/employer'), 1500);
+			setTimeout(() => goto('/dashboard'), 1500);
 		} catch (e: any) {
 			postError = e.message || 'Failed to post job';
 		} finally {
@@ -83,7 +83,7 @@
 	<Row>
 		<Column>
 			<div class="page-header">
-				<Button kind="ghost" size="small" href="/dashboard/employer" icon={ArrowLeft}>
+				<Button kind="ghost" size="small" href="/dashboard" icon={ArrowLeft}>
 					Back to My Jobs
 				</Button>
 				<h1><Add size={24} /> Post a Delivery Job</h1>
