@@ -6,9 +6,13 @@
 	} from 'carbon-components-svelte';
 	import { ArrowLeft, Add } from 'carbon-icons-svelte';
 	import { api } from '$lib/api';
+	import { auth } from '$lib/stores/auth.svelte';
 	import { goto } from '$app/navigation';
+	import { onMount } from 'svelte';
 	import LocationPicker from '$lib/components/LocationPicker.svelte';
 	import { calculateRoute, type RouteInfo } from '$lib/google-maps';
+
+	type EmployerOption = { id: number; companyName: string; email: string };
 
 	let jobForm = $state({
 		title: '',
@@ -23,6 +27,20 @@
 	let postError = $state('');
 	let postSuccess = $state('');
 	let postLoading = $state(false);
+
+	let employers = $state<EmployerOption[]>([]);
+	let selectedEmployerId = $state<string>('');
+
+	onMount(async () => {
+		if (auth.isAdmin) {
+			try {
+				employers = await api.get<EmployerOption[]>('/api/admin/employers');
+				if (employers.length > 0) selectedEmployerId = String(employers[0].id);
+			} catch {
+				employers = [];
+			}
+		}
+	});
 
 	let pickupCoords = $state<{ lat: number; lng: number } | null>(null);
 	let deliveryCoords = $state<{ lat: number; lng: number } | null>(null);
@@ -65,10 +83,22 @@
 		postSuccess = '';
 		postLoading = true;
 		try {
-			await api.post('/api/employer/jobs', {
-				...jobForm,
-				ratePerHour: jobForm.ratePerHour
-			});
+			if (auth.isAdmin) {
+				if (!selectedEmployerId) {
+					postError = 'Please choose an employer to post the job under.';
+					postLoading = false;
+					return;
+				}
+				await api.post(
+					`/api/admin/jobs?employerId=${encodeURIComponent(selectedEmployerId)}`,
+					{ ...jobForm, ratePerHour: jobForm.ratePerHour }
+				);
+			} else {
+				await api.post('/api/employer/jobs', {
+					...jobForm,
+					ratePerHour: jobForm.ratePerHour
+				});
+			}
 			postSuccess = 'Job posted successfully! Redirecting...';
 			setTimeout(() => goto('/dashboard'), 1500);
 		} catch (e: any) {
@@ -103,6 +133,16 @@
 			{/if}
 
 			<div class="form-grid">
+				{#if auth.isAdmin}
+					<Select bind:selected={selectedEmployerId}
+						labelText="Post Job On Behalf Of (Employer)">
+						{#each employers as emp}
+							<SelectItem value={String(emp.id)}
+								text="{emp.companyName} ({emp.email})" />
+						{/each}
+					</Select>
+				{/if}
+
 				<TextInput bind:value={jobForm.title}
 					labelText="Job Title" placeholder="e.g. Dublin to Cork delivery" />
 

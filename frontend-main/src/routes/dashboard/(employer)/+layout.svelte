@@ -7,7 +7,7 @@
 	let allowed = $state(false);
 
 	onMount(() => {
-		if (!auth.isEmployer) {
+		if (!auth.isEmployer && !auth.isAdmin) {
 			goto('/dashboard');
 		} else {
 			allowed = true;

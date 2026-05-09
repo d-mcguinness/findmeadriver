@@ -1,7 +1,20 @@
 <script lang="ts">
-	import { Grid, Row, Column, ClickableTile } from 'carbon-components-svelte';
-	import { UserAdmin, UserMultiple, Van, Document, Settings } from 'carbon-icons-svelte';
+	import { Grid, Row, Column, ClickableTile, Tag } from 'carbon-components-svelte';
+	import { UserAdmin, Van, Document, Settings } from 'carbon-icons-svelte';
 	import { auth } from '$lib/stores/auth.svelte';
+	import { api } from '$lib/api';
+	import type { PlatformStats } from '$lib/types';
+	import { onMount } from 'svelte';
+
+	let stats = $state<PlatformStats | null>(null);
+
+	onMount(async () => {
+		try {
+			stats = await api.get<PlatformStats>('/api/admin/stats');
+		} catch {
+			stats = null;
+		}
+	});
 </script>
 
 <Grid>
@@ -18,33 +31,49 @@
 				<div class="feature-tile">
 					<UserAdmin size={32} />
 					<h3>Manage Users</h3>
+					{#if stats}
+						<div class="tile-stat">{stats.totalUsers}</div>
+						<div class="tile-breakdown">
+							<Tag type="blue" size="sm">{stats.totalDrivers} drivers</Tag>
+							<Tag type="green" size="sm">{stats.totalEmployers} employers</Tag>
+						</div>
+					{/if}
 					<p>View, edit, and manage all registered drivers and employers.</p>
 				</div>
 			</ClickableTile>
 		</Column>
 		<Column lg={5} md={4} sm={4}>
-			<ClickableTile class="dashboard-tile" href="/dashboard/analytics#users">
-				<div class="feature-tile">
-					<UserMultiple size={32} />
-					<h3>User Analytics</h3>
-					<p>Registration breakdown by driver, employer, and admin accounts.</p>
-				</div>
-			</ClickableTile>
-		</Column>
-		<Column lg={5} md={4} sm={4}>
-			<ClickableTile class="dashboard-tile" href="/dashboard/analytics#jobs">
+			<ClickableTile class="dashboard-tile" href="/dashboard/jobs">
 				<div class="feature-tile">
 					<Van size={32} />
 					<h3>Job Analytics</h3>
+					{#if stats}
+						<div class="tile-stat">{stats.totalJobs}</div>
+						<div class="tile-breakdown">
+							<Tag type="green" size="sm">{stats.openJobs} open</Tag>
+							<Tag type="blue" size="sm">{stats.assignedJobs} assigned</Tag>
+							<Tag type="cyan" size="sm">{stats.inProgressJobs} in progress</Tag>
+							<Tag type="gray" size="sm">{stats.completedJobs} completed</Tag>
+							<Tag type="red" size="sm">{stats.cancelledJobs} cancelled</Tag>
+						</div>
+					{/if}
 					<p>All posted jobs with status, applications, and route details.</p>
 				</div>
 			</ClickableTile>
 		</Column>
 		<Column lg={5} md={4} sm={4}>
-			<ClickableTile class="dashboard-tile" href="/dashboard/analytics#documents">
+			<ClickableTile class="dashboard-tile" href="/dashboard/documents">
 				<div class="feature-tile">
 					<Document size={32} />
 					<h3>Document Compliance</h3>
+					{#if stats}
+						<div class="tile-stat">{stats.pendingDocuments}</div>
+						<div class="tile-breakdown">
+							<Tag type={stats.pendingDocuments > 0 ? 'red' : 'green'} size="sm">
+								{stats.pendingDocuments > 0 ? 'Needs review' : 'All clear'}
+							</Tag>
+						</div>
+					{/if}
 					<p>Review pending licences, insurance, CPC and tachograph cards.</p>
 				</div>
 			</ClickableTile>
@@ -60,3 +89,17 @@
 		</Column>
 	</Row>
 </Grid>
+
+<style>
+	.tile-stat {
+		font-size: 2rem;
+		font-weight: 600;
+		margin: 0.25rem 0;
+	}
+	.tile-breakdown {
+		display: flex;
+		gap: 0.25rem;
+		flex-wrap: wrap;
+		margin-bottom: 0.5rem;
+	}
+</style>

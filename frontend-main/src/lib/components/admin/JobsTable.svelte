@@ -1,8 +1,20 @@
 <script lang="ts">
-	import { DataTable, Tag } from 'carbon-components-svelte';
+	import {
+		DataTable, Tag, Toolbar, ToolbarContent, Button
+	} from 'carbon-components-svelte';
+	import { Add } from 'carbon-icons-svelte';
+	import type { Snippet } from 'svelte';
 	import type { Job } from '$lib/types';
 
-	let { jobs }: { jobs: Job[] } = $props();
+	let {
+		jobs,
+		actions,
+		addHref
+	}: {
+		jobs: Job[];
+		actions?: Snippet<[Job]>;
+		addHref?: string;
+	} = $props();
 
 	function statusKind(status: string): 'blue' | 'green' | 'red' | 'gray' | 'cyan' {
 		switch (status) {
@@ -15,7 +27,7 @@
 		}
 	}
 
-	const headers = [
+	let baseHeaders = [
 		{ key: 'id', value: 'ID' },
 		{ key: 'title', value: 'Title' },
 		{ key: 'employerCompanyName', value: 'Employer' },
@@ -26,6 +38,10 @@
 		{ key: 'applicationCount', value: 'Applications' }
 	];
 
+	let headers = $derived(actions
+		? [...baseHeaders, { key: 'actions', value: 'Actions' }]
+		: baseHeaders);
+
 	let rows = $derived(jobs.map(j => ({
 		id: String(j.id),
 		title: j.title,
@@ -34,8 +50,11 @@
 		deliveryLocation: j.deliveryLocation || '—',
 		dateNeeded: j.dateNeeded,
 		status: j.status,
-		applicationCount: j.applicationCount
+		applicationCount: j.applicationCount,
+		actions: ''
 	})));
+
+	let jobsById = $derived(new Map(jobs.map(j => [String(j.id), j])));
 </script>
 
 <DataTable
@@ -44,9 +63,21 @@
 	sortable
 	size="short"
 >
-	<svelte:fragment slot="cell" let:cell>
+	{#if addHref}
+		<Toolbar>
+			<ToolbarContent>
+				<Button href={addHref} icon={Add} size="small">Add Job</Button>
+			</ToolbarContent>
+		</Toolbar>
+	{/if}
+	<svelte:fragment slot="cell" let:row let:cell>
 		{#if cell.key === 'status'}
 			<Tag type={statusKind(cell.value)} size="sm">{cell.value}</Tag>
+		{:else if cell.key === 'actions' && actions}
+			{@const job = jobsById.get(row.id)}
+			{#if job}
+				{@render actions(job)}
+			{/if}
 		{:else}
 			{cell.value}
 		{/if}

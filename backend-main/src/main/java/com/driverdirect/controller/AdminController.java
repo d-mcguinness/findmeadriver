@@ -2,8 +2,10 @@ package com.driverdirect.controller;
 
 import com.driverdirect.dto.AdminUserResponse;
 import com.driverdirect.dto.ComplianceDocumentResponse;
+import com.driverdirect.dto.CreateJobRequest;
 import com.driverdirect.dto.JobResponse;
 import com.driverdirect.dto.PlatformStatsResponse;
+import com.driverdirect.model.Employer;
 import com.driverdirect.model.Job;
 import com.driverdirect.model.JobStatus;
 import com.driverdirect.model.User;
@@ -13,7 +15,9 @@ import com.driverdirect.repository.JobApplicationRepository;
 import com.driverdirect.repository.JobRepository;
 import com.driverdirect.service.AdminService;
 import com.driverdirect.service.ComplianceService;
+import com.driverdirect.service.JobService;
 import lombok.AllArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -28,6 +32,7 @@ public class AdminController {
 
     private final AdminService adminService;
     private final ComplianceService complianceService;
+    private final JobService jobService;
     private final JobRepository jobRepository;
     private final JobApplicationRepository jobApplicationRepository;
     private final DriverRepository driverRepository;
@@ -73,6 +78,29 @@ public class AdminController {
 
     // ---- Jobs ----
 
+    @GetMapping("/employers")
+    public ResponseEntity<List<Map<String, Object>>> getAllEmployers() {
+        List<Map<String, Object>> response = employerRepository.findAll().stream()
+                .map(e -> {
+                    Map<String, Object> m = new java.util.LinkedHashMap<>();
+                    m.put("id", e.getId());
+                    m.put("companyName", e.getCompanyName());
+                    m.put("email", e.getEmail());
+                    return m;
+                })
+                .toList();
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/jobs")
+    public ResponseEntity<JobResponse> createJobAsAdmin(
+            @RequestParam Long employerId,
+            @RequestBody CreateJobRequest request) {
+        Employer employer = employerRepository.findById(employerId)
+                .orElseThrow(() -> new IllegalArgumentException("Employer not found: " + employerId));
+        return ResponseEntity.status(HttpStatus.CREATED).body(jobService.createJob(employer, request));
+    }
+
     @GetMapping("/jobs")
     public ResponseEntity<List<JobResponse>> getAllJobs() {
         List<Job> jobs = jobRepository.findAll();
@@ -80,6 +108,18 @@ public class AdminController {
                 .map(job -> JobResponse.from(job, jobApplicationRepository.findByJob(job).size()))
                 .toList();
         return ResponseEntity.ok(response);
+    }
+
+    @PutMapping("/jobs/{id}/cancel")
+    public ResponseEntity<JobResponse> cancelJob(@PathVariable Long id) {
+        Job job = jobRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Job not found"));
+        if (job.getStatus() == JobStatus.COMPLETED || job.getStatus() == JobStatus.CANCELLED) {
+            throw new IllegalArgumentException("Cannot cancel a " + job.getStatus() + " job");
+        }
+        job.setStatus(JobStatus.CANCELLED);
+        job = jobRepository.save(job);
+        return ResponseEntity.ok(JobResponse.from(job, jobApplicationRepository.findByJob(job).size()));
     }
 
     // ---- Compliance ----

@@ -4,16 +4,12 @@
 	} from 'carbon-components-svelte';
 	import { ArrowLeft, Analytics, UserMultiple, Van, Document } from 'carbon-icons-svelte';
 	import { api } from '$lib/api';
-	import type { PlatformStats, Job, AdminUser, ComplianceDocument } from '$lib/types';
+	import type { PlatformStats, Job } from '$lib/types';
 	import { onMount } from 'svelte';
-	import UsersTable from '$lib/components/admin/UsersTable.svelte';
 	import JobsTable from '$lib/components/admin/JobsTable.svelte';
-	import DocumentsTable from '$lib/components/admin/DocumentsTable.svelte';
 
 	let stats = $state<PlatformStats | null>(null);
 	let jobs = $state<Job[]>([]);
-	let users = $state<AdminUser[]>([]);
-	let documents = $state<ComplianceDocument[]>([]);
 	let loading = $state(true);
 	let error = $state('');
 
@@ -21,16 +17,12 @@
 		loading = true;
 		error = '';
 		try {
-			const [s, j, u, d] = await Promise.all([
+			const [s, j] = await Promise.all([
 				api.get<PlatformStats>('/api/admin/stats'),
-				api.get<Job[]>('/api/admin/jobs'),
-				api.get<AdminUser[]>('/api/admin/users'),
-				api.get<ComplianceDocument[]>('/api/admin/compliance/pending')
+				api.get<Job[]>('/api/admin/jobs')
 			]);
 			stats = s;
 			jobs = j;
-			users = u;
-			documents = d;
 		} catch (e: any) {
 			error = e.message || 'Failed to load analytics';
 		} finally {
@@ -133,27 +125,6 @@
 			</Column>
 		</Row>
 
-		<Row>
-			<Column>
-				<h2 id="users" class="section-heading">All Users</h2>
-				{#if users.length === 0}
-					<InlineNotification kind="info" title="No users" subtitle="No users registered yet." hideCloseButton />
-				{:else}
-					<UsersTable {users} searchable={false} />
-				{/if}
-			</Column>
-		</Row>
-
-		<Row>
-			<Column>
-				<h2 id="documents" class="section-heading">Pending Documents</h2>
-				{#if documents.length === 0}
-					<InlineNotification kind="info" title="No pending documents" subtitle="All compliance documents have been reviewed." hideCloseButton />
-				{:else}
-					<DocumentsTable {documents} />
-				{/if}
-			</Column>
-		</Row>
 	{/if}
 </Grid>
 

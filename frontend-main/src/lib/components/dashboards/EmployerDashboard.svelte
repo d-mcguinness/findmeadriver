@@ -9,6 +9,7 @@
 	import { api } from '$lib/api';
 	import type { Job, JobApplication } from '$lib/types';
 	import { onMount } from 'svelte';
+	import JobsTable from '$lib/components/admin/JobsTable.svelte';
 
 	// My Jobs state
 	let jobs = $state<Job[]>([]);
@@ -138,6 +139,35 @@
 	onMount(loadJobs);
 </script>
 
+{#snippet employerActions(job: Job)}
+	<div class="row-actions">
+		{#if job.applicationCount > 0}
+			<Button size="small" kind="secondary"
+				on:click={() => viewApplications(job)}>
+				Applications ({job.applicationCount})
+			</Button>
+		{/if}
+		{#if job.status === 'ASSIGNED'}
+			<Button size="small" kind="primary"
+				on:click={() => startJob(job.id)}>
+				Start
+			</Button>
+		{/if}
+		{#if job.status === 'IN_PROGRESS'}
+			<Button size="small" kind="primary"
+				on:click={() => completeJob(job.id, job.title)}>
+				Complete
+			</Button>
+		{/if}
+		{#if job.status === 'OPEN' || job.status === 'ASSIGNED'}
+			<Button size="small" kind="danger-tertiary"
+				on:click={() => cancelJob(job.id)}>
+				Cancel
+			</Button>
+		{/if}
+	</div>
+{/snippet}
+
 <Grid>
 	<Row>
 		<Column>
@@ -150,10 +180,7 @@
 
 	<Row>
 		<Column>
-			<div class="section-header">
-				<h2>My Posted Jobs</h2>
-				<Button href="/dashboard/jobs/post" icon={Add}>Post a Job</Button>
-			</div>
+			<h2>My Posted Jobs</h2>
 
 			{#if jobsLoading}
 				<p>Loading jobs...</p>
@@ -161,54 +188,9 @@
 				<InlineNotification kind="info" title="No jobs yet"
 					subtitle="Post your first job to start finding drivers."
 					hideCloseButton />
+				<Button href="/dashboard/jobs/post" icon={Add}>Post a Job</Button>
 			{:else}
-				<div class="job-list">
-					{#each jobs as job}
-						<Tile class="job-tile">
-							<div class="job-header">
-								<h4>{job.title}</h4>
-								<Tag type={statusKind(job.status)}>{job.status}</Tag>
-							</div>
-							{#if job.assignedDriverName}
-								<p class="assigned-driver">Assigned to: <strong>{job.assignedDriverName}</strong></p>
-							{/if}
-							<div class="job-details">
-								<span><strong>Route:</strong> {job.pickupLocation} &rarr; {job.deliveryLocation}</span>
-								<span><strong>Date:</strong> {job.dateNeeded}</span>
-								<span><strong>Duration:</strong> {job.estimatedDurationHours}h</span>
-								<span><strong>Rate:</strong> &euro;{job.ratePerHour}/hr</span>
-								<span><strong>CDL:</strong> {job.requiredCdlType}</span>
-								<span><strong>Applications:</strong> {job.applicationCount}</span>
-							</div>
-							<div class="job-actions">
-								{#if job.applicationCount > 0}
-									<Button size="small" kind="secondary"
-										on:click={() => viewApplications(job)}>
-										View Applications ({job.applicationCount})
-									</Button>
-								{/if}
-								{#if job.status === 'ASSIGNED'}
-									<Button size="small" kind="primary"
-										on:click={() => startJob(job.id)}>
-										Start Job
-									</Button>
-								{/if}
-								{#if job.status === 'IN_PROGRESS'}
-									<Button size="small" kind="primary"
-										on:click={() => completeJob(job.id, job.title)}>
-										Mark Complete
-									</Button>
-								{/if}
-								{#if job.status === 'OPEN' || job.status === 'ASSIGNED'}
-									<Button size="small" kind="danger-tertiary"
-										on:click={() => cancelJob(job.id)}>
-										Cancel Job
-									</Button>
-								{/if}
-							</div>
-						</Tile>
-					{/each}
-				</div>
+				<JobsTable {jobs} actions={employerActions} addHref="/dashboard/jobs/post" />
 			{/if}
 		</Column>
 	</Row>
@@ -312,39 +294,26 @@
 		color: var(--cds-text-secondary);
 		margin-bottom: 1.5rem;
 	}
-	.section-header {
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		margin-bottom: 1rem;
-	}
-	.job-list, .applications-list {
+	.applications-list {
 		display: flex;
 		flex-direction: column;
 		gap: 1rem;
 	}
-	.job-header, .app-header {
+	.app-header {
 		display: flex;
 		justify-content: space-between;
 		align-items: center;
 		margin-bottom: 0.5rem;
 	}
-	.assigned-driver {
-		color: var(--cds-text-secondary);
-		margin-bottom: 0.5rem;
-		font-size: 0.875rem;
-	}
-	.job-details {
-		display: flex;
-		flex-wrap: wrap;
-		gap: 1rem;
-		margin: 0.75rem 0;
-		font-size: 0.875rem;
-	}
-	.job-actions, .app-actions {
+	.app-actions {
 		display: flex;
 		gap: 0.5rem;
 		margin-top: 0.5rem;
+	}
+	.row-actions {
+		display: flex;
+		gap: 0.25rem;
+		flex-wrap: wrap;
 	}
 	.driver-info {
 		display: flex;
