@@ -2,14 +2,17 @@
 	import {
 		DataTable, Tag, Toolbar, ToolbarContent, ToolbarSearch
 	} from 'carbon-components-svelte';
+	import type { Snippet } from 'svelte';
 	import type { AdminUser } from '$lib/types';
 
 	let {
 		users,
-		searchable = true
+		searchable = true,
+		actions
 	}: {
 		users: AdminUser[];
 		searchable?: boolean;
+		actions?: Snippet<[AdminUser]>;
 	} = $props();
 
 	function roleKind(role: string): 'blue' | 'green' | 'red' | 'cyan' | 'gray' {
@@ -34,7 +37,7 @@
 		}
 	}
 
-	const headers = [
+	let baseHeaders = [
 		{ key: 'id', value: 'ID' },
 		{ key: 'name', value: 'Name' },
 		{ key: 'email', value: 'Email' },
@@ -43,6 +46,10 @@
 		{ key: 'roles', value: 'Roles' },
 		{ key: 'enabled', value: 'Status' }
 	];
+
+	let headers = $derived(actions
+		? [...baseHeaders, { key: 'actions', value: 'Actions' }]
+		: baseHeaders);
 
 	let rows = $derived(users.map(u => ({
 		id: String(u.id),
@@ -55,8 +62,11 @@
 				? u.companyName || '—'
 				: '—',
 		roles: u.roles,
-		enabled: u.enabled
+		enabled: u.enabled,
+		actions: ''
 	})));
+
+	let usersById = $derived(new Map(users.map(u => [String(u.id), u])));
 </script>
 
 <DataTable
@@ -72,7 +82,7 @@
 			</ToolbarContent>
 		</Toolbar>
 	{/if}
-	<svelte:fragment slot="cell" let:cell>
+	<svelte:fragment slot="cell" let:row let:cell>
 		{#if cell.key === 'userType'}
 			<Tag type={typeKind(cell.value)} size="sm">{cell.value}</Tag>
 		{:else if cell.key === 'roles'}
@@ -85,6 +95,11 @@
 			<Tag type={cell.value ? 'green' : 'red'} size="sm">
 				{cell.value ? 'Active' : 'Disabled'}
 			</Tag>
+		{:else if cell.key === 'actions' && actions}
+			{@const u = usersById.get(row.id)}
+			{#if u}
+				{@render actions(u)}
+			{/if}
 		{:else}
 			{cell.value}
 		{/if}

@@ -3,8 +3,11 @@ package com.driverdirect.controller;
 import com.driverdirect.dto.AdminUserResponse;
 import com.driverdirect.dto.ComplianceDocumentResponse;
 import com.driverdirect.dto.CreateJobRequest;
+import com.driverdirect.dto.JobApplicationRequest;
+import com.driverdirect.dto.JobApplicationResponse;
 import com.driverdirect.dto.JobResponse;
 import com.driverdirect.dto.PlatformStatsResponse;
+import com.driverdirect.model.Driver;
 import com.driverdirect.model.Employer;
 import com.driverdirect.model.Job;
 import com.driverdirect.model.JobStatus;
@@ -15,6 +18,7 @@ import com.driverdirect.repository.JobApplicationRepository;
 import com.driverdirect.repository.JobRepository;
 import com.driverdirect.service.AdminService;
 import com.driverdirect.service.ComplianceService;
+import com.driverdirect.service.JobApplicationService;
 import com.driverdirect.service.JobService;
 import lombok.AllArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -33,6 +37,7 @@ public class AdminController {
     private final AdminService adminService;
     private final ComplianceService complianceService;
     private final JobService jobService;
+    private final JobApplicationService jobApplicationService;
     private final JobRepository jobRepository;
     private final JobApplicationRepository jobApplicationRepository;
     private final DriverRepository driverRepository;
@@ -108,6 +113,29 @@ public class AdminController {
                 .map(job -> JobResponse.from(job, jobApplicationRepository.findByJob(job).size()))
                 .toList();
         return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/drivers/{driverId}/applications")
+    public ResponseEntity<List<JobApplicationResponse>> getApplicationsForDriver(@PathVariable Long driverId) {
+        Driver driver = driverRepository.findById(driverId)
+                .orElseThrow(() -> new IllegalArgumentException("Driver not found: " + driverId));
+        List<JobApplicationResponse> apps = jobApplicationRepository
+                .findByDriverOrderByAppliedAtDesc(driver).stream()
+                .map(JobApplicationResponse::from)
+                .toList();
+        return ResponseEntity.ok(apps);
+    }
+
+    @PostMapping("/applications")
+    public ResponseEntity<JobApplicationResponse> applyOnBehalfOfDriver(
+            @RequestParam Long driverId,
+            @RequestParam Long jobId,
+            @RequestBody(required = false) JobApplicationRequest request) {
+        Driver driver = driverRepository.findById(driverId)
+                .orElseThrow(() -> new IllegalArgumentException("Driver not found: " + driverId));
+        if (request == null) request = new JobApplicationRequest();
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(jobApplicationService.applyForJob(driver, jobId, request));
     }
 
     @PutMapping("/jobs/{id}/cancel")

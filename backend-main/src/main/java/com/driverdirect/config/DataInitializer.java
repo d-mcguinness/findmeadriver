@@ -1,11 +1,25 @@
 package com.driverdirect.config;
 
+    import com.driverdirect.model.ApplicationStatus;
+import com.driverdirect.model.ComplianceDocument;
+import com.driverdirect.model.DocumentStatus;
+import com.driverdirect.model.DocumentType;
 import com.driverdirect.model.Driver;
+import com.driverdirect.model.DriverAvailability;
 import com.driverdirect.model.Employer;
+import com.driverdirect.model.Job;
+import com.driverdirect.model.JobApplication;
+import com.driverdirect.model.JobStatus;
+import com.driverdirect.model.Rating;
 import com.driverdirect.model.Role;
 import com.driverdirect.model.User;
+import com.driverdirect.repository.ComplianceDocumentRepository;
+import com.driverdirect.repository.DriverAvailabilityRepository;
 import com.driverdirect.repository.DriverRepository;
 import com.driverdirect.repository.EmployerRepository;
+import com.driverdirect.repository.JobApplicationRepository;
+import com.driverdirect.repository.JobRepository;
+import com.driverdirect.repository.RatingRepository;
 import com.driverdirect.repository.RoleRepository;
 import com.driverdirect.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -13,32 +27,34 @@ import org.springframework.boot.CommandLineRunner;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 @Component
 public class DataInitializer implements CommandLineRunner {
 
-    @Autowired
-    private RoleRepository roleRepository;
-
-    @Autowired
-    private UserRepository userRepository;
-
-    @Autowired
-    private DriverRepository driverRepository;
-
-    @Autowired
-    private EmployerRepository employerRepository;
-
-    @Autowired
-    private PasswordEncoder passwordEncoder;
+    @Autowired private RoleRepository roleRepository;
+    @Autowired private UserRepository userRepository;
+    @Autowired private DriverRepository driverRepository;
+    @Autowired private EmployerRepository employerRepository;
+    @Autowired private JobRepository jobRepository;
+    @Autowired private JobApplicationRepository jobApplicationRepository;
+    @Autowired private ComplianceDocumentRepository complianceDocumentRepository;
+    @Autowired private RatingRepository ratingRepository;
+    @Autowired private DriverAvailabilityRepository driverAvailabilityRepository;
+    @Autowired private PasswordEncoder passwordEncoder;
 
     @Override
     public void run(String... args) throws Exception {
         initRoles();
-        createTestUsers();
+        if (userRepository.count() == 0) {
+            createTestUsers();
+            createDemoData();
+        }
     }
 
     private void initRoles() {
@@ -50,44 +66,317 @@ public class DataInitializer implements CommandLineRunner {
     }
 
     private void createTestUsers() {
-        if (userRepository.count() == 0) {
-            // Admin user (plain User — no subclass needed)
-            User admin = new User("admin@driverdirect.com", passwordEncoder.encode("admin123"));
-            admin.setFirstName("Admin");
-            admin.setLastName("User");
-            admin.setRoles(rolesOf(Role.RoleType.ROLE_ADMIN));
-            userRepository.save(admin);
+        User admin = new User("admin@driverdirect.com", passwordEncoder.encode("admin123"));
+        admin.setFirstName("Admin");
+        admin.setLastName("User");
+        admin.setRoles(rolesOf(Role.RoleType.ROLE_ADMIN));
+        userRepository.save(admin);
 
-            // Employer user — must be Employer entity so EmployerRepository can find it
-            Employer employer = new Employer(
-                    "employer@company.com",
-                    passwordEncoder.encode("employer123"),
-                    "Acme Logistics"
-            );
-            employer.setFirstName("Employer");
-            employer.setLastName("User");
-            employer.setPhone("01234567890");
-            employer.setIndustry(Employer.Industry.LOGISTICS);
-            employer.setCompanySize(50);
-            employer.setHeadquartersLocation("Dublin");
-            employer.setRoles(rolesOf(Role.RoleType.ROLE_EMPLOYER));
-            employerRepository.save(employer);
+        Employer employer = new Employer(
+                "employer@company.com",
+                passwordEncoder.encode("employer123"),
+                "Acme Logistics"
+        );
+        employer.setFirstName("Employer");
+        employer.setLastName("User");
+        employer.setPhone("01234567890");
+        employer.setIndustry(Employer.Industry.LOGISTICS);
+        employer.setCompanySize(50);
+        employer.setHeadquartersLocation("Dublin");
+        employer.setRoles(rolesOf(Role.RoleType.ROLE_EMPLOYER));
+        employerRepository.save(employer);
 
-            // Driver user — must be Driver entity so DriverRepository can find it
-            Driver driver = new Driver(
-                    "driver@example.com",
-                    passwordEncoder.encode("driver123"),
-                    "DL-12345-IE",
-                    LocalDate.now().plusYears(2)
-            );
-            driver.setFirstName("Driver");
-            driver.setLastName("User");
-            driver.setPhone("09876543210");
-            driver.setCdlType(Driver.CDLType.CLASS_A);
-            driver.setYearsExperience(5);
-            driver.setRoles(rolesOf(Role.RoleType.ROLE_DRIVER));
-            driverRepository.save(driver);
+        Driver driver = new Driver(
+                "driver@example.com",
+                passwordEncoder.encode("driver123"),
+                "DL-12345-IE",
+                LocalDate.now().plusYears(2)
+        );
+        driver.setFirstName("Driver");
+        driver.setLastName("User");
+        driver.setPhone("09876543210");
+        driver.setCdlType(Driver.CDLType.CLASS_A);
+        driver.setYearsExperience(5);
+        driver.setRoles(rolesOf(Role.RoleType.ROLE_DRIVER));
+        driverRepository.save(driver);
+    }
+
+    private void createDemoData() {
+        // ---- Additional employers ----
+        Employer murphy = createEmployer("contact@murphyhaulage.ie", "Murphy Haulage Ltd",
+                "Sean", "Murphy", "0851234567",
+                Employer.Industry.TRANSPORTATION, 25, "Cork");
+        Employer fresh = createEmployer("ops@freshfoods.ie", "Fresh Foods Distribution",
+                "Aoife", "Kelly", "0867654321",
+                Employer.Industry.FOOD_SERVICE, 120, "Galway");
+        Employer buildwell = createEmployer("yard@buildwell.ie", "Buildwell Construction",
+                "Liam", "Walsh", "0871112233",
+                Employer.Industry.CONSTRUCTION, 80, "Limerick");
+
+        Employer acme = employerRepository.findByEmail("employer@company.com").orElseThrow();
+
+        // ---- Additional drivers ----
+        Driver liamByrne = createDriver("liam.byrne@example.com", "DL-22301-IE",
+                "Liam", "Byrne", "0851000001",
+                Driver.CDLType.CLASS_A, 8, LocalDate.now().plusYears(3));
+        Driver mairead = createDriver("mairead.osullivan@example.com", "DL-22302-IE",
+                "Mairead", "O'Sullivan", "0851000002",
+                Driver.CDLType.CLASS_B, 4, LocalDate.now().plusMonths(6));
+        Driver kieran = createDriver("kieran.doyle@example.com", "DL-22303-IE",
+                "Kieran", "Doyle", "0851000003",
+                Driver.CDLType.CLASS_A, 12, LocalDate.now().plusYears(1));
+        Driver siobhan = createDriver("siobhan.kennedy@example.com", "DL-22304-IE",
+                "Siobhan", "Kennedy", "0851000004",
+                Driver.CDLType.CLASS_C, 2, LocalDate.now().plusYears(4));
+        Driver patrick = createDriver("patrick.fitzgerald@example.com", "DL-22305-IE",
+                "Patrick", "Fitzgerald", "0851000005",
+                Driver.CDLType.CLASS_B, 6, LocalDate.now().plusMonths(9));
+
+        Driver seedDriver = driverRepository.findByEmail("driver@example.com").orElseThrow();
+
+        // ---- Jobs across all statuses ----
+        Job j1 = createJob(acme, "Pallet run Dublin → Cork",
+                "Standard pallet delivery, 4 stops along the route.",
+                "Dublin Port", "Cork City",
+                3.5, LocalDate.now().plusDays(2), new BigDecimal("28.00"),
+                Driver.CDLType.CLASS_A, JobStatus.OPEN, null);
+
+        Job j2 = createJob(acme, "Refrigerated Dublin → Limerick",
+                "Time-sensitive chilled goods, must arrive before 11am.",
+                "Naas Distribution Centre", "Limerick Cold Store",
+                4.0, LocalDate.now().plusDays(4), new BigDecimal("32.00"),
+                Driver.CDLType.CLASS_A, JobStatus.OPEN, null);
+
+        Job j3 = createJob(murphy, "Equipment haul Cork → Galway",
+                "Heavy plant equipment transport for civil engineering project.",
+                "Cork Industrial Estate", "Galway Site B",
+                5.5, LocalDate.now().plusDays(7), new BigDecimal("35.00"),
+                Driver.CDLType.CLASS_A, JobStatus.OPEN, null);
+
+        Job j4 = createJob(fresh, "Daily produce run",
+                "Morning produce delivery to restaurants across Galway city centre.",
+                "Galway Wholesale Market", "Galway City Centre",
+                2.0, LocalDate.now().plusDays(1), new BigDecimal("22.00"),
+                Driver.CDLType.CLASS_C, JobStatus.OPEN, null);
+
+        Job j5 = createJob(buildwell, "Concrete blocks to site",
+                "Building materials delivery, forklift access on site.",
+                "Buildwell Yard, Limerick", "Mungret Site",
+                1.5, LocalDate.now().plusDays(3), new BigDecimal("24.00"),
+                Driver.CDLType.CLASS_B, JobStatus.ASSIGNED, mairead);
+
+        Job j6 = createJob(acme, "Long-haul Dublin → Belfast",
+                "Cross-border pallet delivery, customs paperwork prepared.",
+                "Dublin Port", "Belfast Distribution Hub",
+                4.5, LocalDate.now().plusDays(5), new BigDecimal("38.00"),
+                Driver.CDLType.CLASS_A, JobStatus.ASSIGNED, liamByrne);
+
+        Job j7 = createJob(murphy, "Cork ferry collection",
+                "Container collection from Ringaskiddy ferry terminal.",
+                "Ringaskiddy Port", "Mahon Distribution",
+                2.5, LocalDate.now(), new BigDecimal("30.00"),
+                Driver.CDLType.CLASS_A, JobStatus.IN_PROGRESS, kieran);
+
+        Job j8 = createJob(fresh, "Restaurant route — south Galway",
+                "Multi-drop chilled goods delivery, 8 stops.",
+                "Fresh Foods Depot", "Salthill and Barna restaurants",
+                3.0, LocalDate.now(), new BigDecimal("26.00"),
+                Driver.CDLType.CLASS_C, JobStatus.IN_PROGRESS, siobhan);
+
+        Job j9 = createJob(acme, "Dublin → Waterford completed",
+                "Pallet delivery completed on schedule.",
+                "Dublin Port", "Waterford Industrial Estate",
+                3.0, LocalDate.now().minusDays(3), new BigDecimal("28.00"),
+                Driver.CDLType.CLASS_A, JobStatus.COMPLETED, seedDriver);
+
+        Job j10 = createJob(murphy, "Cork → Wexford completed",
+                "Heavy haulage completed without issue.",
+                "Cork Industrial Estate", "Wexford Yard",
+                4.0, LocalDate.now().minusDays(7), new BigDecimal("33.00"),
+                Driver.CDLType.CLASS_A, JobStatus.COMPLETED, kieran);
+
+        Job j11 = createJob(fresh, "Galway → Sligo produce",
+                "Refrigerated produce, delivered.",
+                "Galway Wholesale Market", "Sligo Distribution",
+                3.5, LocalDate.now().minusDays(10), new BigDecimal("25.00"),
+                Driver.CDLType.CLASS_B, JobStatus.COMPLETED, patrick);
+
+        Job j12 = createJob(buildwell, "Cancelled construction haul",
+                "Job cancelled — site delays.",
+                "Limerick Yard", "Ennis Site",
+                2.0, LocalDate.now().minusDays(2), new BigDecimal("24.00"),
+                Driver.CDLType.CLASS_B, JobStatus.CANCELLED, null);
+
+        Job j13 = createJob(acme, "Cancelled Dublin run",
+                "Customer cancelled the order.",
+                "Dublin Port", "Drogheda Warehouse",
+                1.5, LocalDate.now().plusDays(8), new BigDecimal("26.00"),
+                Driver.CDLType.CLASS_A, JobStatus.CANCELLED, null);
+
+        // ---- Job applications ----
+        createApplication(j1, liamByrne, ApplicationStatus.PENDING,
+                "12 years on Class A, regular Dublin–Cork runs.");
+        createApplication(j1, kieran, ApplicationStatus.PENDING,
+                "Available all of next week, own GPS tracking.");
+        createApplication(j2, liamByrne, ApplicationStatus.PENDING,
+                "Refrigerated experience with previous chilled goods runs.");
+        createApplication(j3, kieran, ApplicationStatus.PENDING,
+                "Heavy haulage specialist, can supply own straps.");
+        createApplication(j4, siobhan, ApplicationStatus.PENDING,
+                "Know the Galway routes well, careful with fresh produce.");
+        createApplication(j5, mairead, ApplicationStatus.ACCEPTED,
+                "Available on the day, familiar with Mungret area.");
+        createApplication(j5, patrick, ApplicationStatus.REJECTED,
+                "Could swap shifts if needed.");
+        createApplication(j6, liamByrne, ApplicationStatus.ACCEPTED,
+                "Cross-border paperwork experience, current TIR.");
+        createApplication(j6, kieran, ApplicationStatus.REJECTED,
+                "Available but no recent NI runs.");
+        createApplication(j2, mairead, ApplicationStatus.WITHDRAWN,
+                "Found another conflicting booking, sorry.");
+
+        // ---- Compliance documents ----
+        createDocument(liamByrne, DocumentType.DRIVING_LICENCE, "DL-LB-2024-001",
+                LocalDate.now().plusYears(4), DocumentStatus.VERIFIED);
+        createDocument(liamByrne, DocumentType.CPC_CARD, "CPC-LB-7788",
+                LocalDate.now().plusYears(2), DocumentStatus.VERIFIED);
+        createDocument(liamByrne, DocumentType.TACHOGRAPH_CARD, "TACH-LB-9912",
+                LocalDate.now().plusYears(1), DocumentStatus.VERIFIED);
+        createDocument(liamByrne, DocumentType.INSURANCE, "INS-LB-2026",
+                LocalDate.now().plusMonths(8), DocumentStatus.VERIFIED);
+
+        createDocument(kieran, DocumentType.DRIVING_LICENCE, "DL-KD-2023-019",
+                LocalDate.now().plusYears(2), DocumentStatus.VERIFIED);
+        createDocument(kieran, DocumentType.CPC_CARD, "CPC-KD-1144",
+                LocalDate.now().plusMonths(11), DocumentStatus.PENDING);
+
+        createDocument(mairead, DocumentType.DRIVING_LICENCE, "DL-MOS-2025-007",
+                LocalDate.now().plusYears(3), DocumentStatus.PENDING);
+        createDocument(mairead, DocumentType.INSURANCE, "INS-MOS-2025",
+                LocalDate.now().plusMonths(4), DocumentStatus.PENDING);
+
+        createDocument(siobhan, DocumentType.DRIVING_LICENCE, "DL-SK-2024-033",
+                LocalDate.now().plusYears(5), DocumentStatus.PENDING);
+
+        createDocument(patrick, DocumentType.DRIVING_LICENCE, "DL-PF-2022-099",
+                LocalDate.now().minusMonths(2), DocumentStatus.EXPIRED);
+        createDocument(patrick, DocumentType.TACHOGRAPH_CARD, "TACH-PF-3344",
+                LocalDate.now().plusYears(1), DocumentStatus.VERIFIED);
+
+        createDocument(seedDriver, DocumentType.DRIVING_LICENCE, "DL-12345-IE",
+                LocalDate.now().plusYears(2), DocumentStatus.VERIFIED);
+        createDocument(seedDriver, DocumentType.CPC_CARD, "CPC-DD-0001",
+                LocalDate.now().plusYears(2), DocumentStatus.VERIFIED);
+
+        // ---- Ratings on completed jobs (both directions) ----
+        createRating(j9, acme, seedDriver, 5, "Excellent communication, on time.");
+        createRating(j9, seedDriver, acme, 4, "Clear instructions, would work with again.");
+        createRating(j10, murphy, kieran, 5, "Top-tier haulage, immaculate paperwork.");
+        createRating(j10, kieran, murphy, 5, "Fair rate, prompt payment.");
+        createRating(j11, fresh, patrick, 3, "Delivery completed but ~40 mins late.");
+
+        // ---- Driver availability for the next 14 days ----
+        // EU tachograph caps: 9h/day standard, 10h up to twice/week.
+        seedAvailability(seedDriver, new double[]{8, 9, 0, 9, 9, 6, 0,  9, 10, 0, 9, 9, 8, 0});
+        seedAvailability(liamByrne,  new double[]{9, 9, 9, 9, 10, 0, 0, 9, 9, 9, 10, 0, 0, 8});
+        seedAvailability(kieran,     new double[]{10, 9, 9, 0, 0, 9, 9, 10, 9, 9, 0, 0, 9, 9});
+        seedAvailability(mairead,    new double[]{8, 8, 0, 8, 8, 0, 0,  8, 8, 0, 8, 8, 6, 0});
+        seedAvailability(siobhan,    new double[]{6, 0, 6, 6, 6, 0, 0,  6, 6, 0, 6, 6, 6, 0});
+        seedAvailability(patrick,    new double[]{0, 0, 8, 8, 8, 0, 0,  8, 8, 8, 8, 0, 0, 8});
+    }
+
+    private void seedAvailability(Driver driver, double[] hoursForNext14Days) {
+        LocalDate start = LocalDate.now();
+        for (int i = 0; i < hoursForNext14Days.length; i++) {
+            double h = hoursForNext14Days[i];
+            if (h <= 0) continue;
+            driverAvailabilityRepository.save(
+                    new DriverAvailability(driver, start.plusDays(i), h));
         }
+    }
+
+    // ---- helpers ----
+
+    private Employer createEmployer(String email, String company,
+                                    String firstName, String lastName, String phone,
+                                    Employer.Industry industry, int size, String hq) {
+        Employer e = new Employer(email, passwordEncoder.encode("password123"), company);
+        e.setFirstName(firstName);
+        e.setLastName(lastName);
+        e.setPhone(phone);
+        e.setIndustry(industry);
+        e.setCompanySize(size);
+        e.setHeadquartersLocation(hq);
+        e.setRoles(rolesOf(Role.RoleType.ROLE_EMPLOYER));
+        return employerRepository.save(e);
+    }
+
+    private Driver createDriver(String email, String licenseNumber,
+                                String firstName, String lastName, String phone,
+                                Driver.CDLType cdl, int years, LocalDate licenceExpiry) {
+        Driver d = new Driver(email, passwordEncoder.encode("password123"),
+                licenseNumber, licenceExpiry);
+        d.setFirstName(firstName);
+        d.setLastName(lastName);
+        d.setPhone(phone);
+        d.setCdlType(cdl);
+        d.setYearsExperience(years);
+        d.setRoles(rolesOf(Role.RoleType.ROLE_DRIVER));
+        return driverRepository.save(d);
+    }
+
+    private Job createJob(Employer employer, String title, String description,
+                          String pickup, String delivery,
+                          double hours, LocalDate dateNeeded, BigDecimal rate,
+                          Driver.CDLType cdl, JobStatus status, Driver assigned) {
+        Job j = new Job();
+        j.setEmployer(employer);
+        j.setTitle(title);
+        j.setDescription(description);
+        j.setPickupLocation(pickup);
+        j.setDeliveryLocation(delivery);
+        j.setEstimatedDurationHours(hours);
+        j.setDateNeeded(dateNeeded);
+        j.setRatePerHour(rate);
+        j.setRequiredCdlType(cdl);
+        j.setStatus(status);
+        j.setAssignedDriver(assigned);
+        return jobRepository.save(j);
+    }
+
+    private void createApplication(Job job, Driver driver, ApplicationStatus status, String note) {
+        JobApplication a = new JobApplication();
+        a.setJob(job);
+        a.setDriver(driver);
+        a.setStatus(status);
+        a.setCoverNote(note);
+        a.setAppliedAt(LocalDateTime.now().minusDays(2));
+        jobApplicationRepository.save(a);
+    }
+
+    private void createDocument(Driver driver, DocumentType type, String number,
+                                LocalDate expiry, DocumentStatus status) {
+        ComplianceDocument doc = new ComplianceDocument();
+        doc.setDriver(driver);
+        doc.setDocumentType(type);
+        doc.setDocumentNumber(number);
+        doc.setExpiryDate(expiry);
+        doc.setStatus(status);
+        doc.setUploadedAt(LocalDateTime.now().minusDays(5));
+        if (status == DocumentStatus.VERIFIED) {
+            doc.setVerifiedAt(LocalDateTime.now().minusDays(2));
+        }
+        complianceDocumentRepository.save(doc);
+    }
+
+    private void createRating(Job job, User reviewer, User reviewee, int score, String comment) {
+        Rating r = new Rating();
+        r.setJob(job);
+        r.setReviewer(reviewer);
+        r.setReviewee(reviewee);
+        r.setScore(score);
+        r.setComment(comment);
+        ratingRepository.save(r);
     }
 
     private Set<Role> rolesOf(Role.RoleType... roleTypes) {

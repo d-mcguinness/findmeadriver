@@ -4,7 +4,7 @@
 		Button, NumberInput, InlineNotification, Tag,
 		Modal, TextArea, TextInput, Select, SelectItem
 	} from 'carbon-components-svelte';
-	import { Time, Search, Document, Checkmark, StarFilled, Star, CertificateCheck } from 'carbon-icons-svelte';
+	import { Time, Search, Document, Checkmark, Close, Undo, StarFilled, Star, CertificateCheck } from 'carbon-icons-svelte';
 	import { auth } from '$lib/stores/auth.svelte';
 	import { api } from '$lib/api';
 	import type { AvailabilityResponse, Job, JobApplication, DriverComplianceSummary } from '$lib/types';
@@ -52,6 +52,7 @@
 	// Applications state
 	let applications = $state<JobApplication[]>([]);
 	let applicationsLoading = $state(false);
+	let applicationByJobId = $derived(new Map(applications.map(a => [a.jobId, a])));
 
 	// Rating state
 	let ratingModalOpen = $state(false);
@@ -193,6 +194,7 @@
 		try {
 			await api.put(`/api/driver/applications/${id}/withdraw`, {});
 			loadApplications();
+			loadJobs();
 		} catch { /* ignore */ }
 	}
 
@@ -220,12 +222,32 @@
 		}
 	}
 
-	function appStatusKind(status: string): 'blue' | 'green' | 'red' | 'gray' {
+	function appStatusKind(status: string): 'blue' | 'green' | 'red' | 'magenta' | 'gray' {
 		switch (status) {
 			case 'PENDING': return 'blue';
 			case 'ACCEPTED': return 'green';
 			case 'REJECTED': return 'red';
+			case 'WITHDRAWN': return 'magenta';
 			default: return 'gray';
+		}
+	}
+
+	function appStatusIcon(status: string) {
+		switch (status) {
+			case 'ACCEPTED': return Checkmark;
+			case 'REJECTED': return Close;
+			case 'WITHDRAWN': return Undo;
+			default: return undefined;
+		}
+	}
+
+	function appStatusLabel(status: string): string {
+		switch (status) {
+			case 'PENDING': return 'Pending';
+			case 'ACCEPTED': return 'Accepted';
+			case 'REJECTED': return 'Rejected';
+			case 'WITHDRAWN': return 'Withdrawn';
+			default: return status;
 		}
 	}
 
@@ -249,7 +271,7 @@
 
 	$effect(() => {
 		if (selectedTab === 1) loadCompliance();
-		if (selectedTab === 2) loadJobs();
+		if (selectedTab === 2) { loadJobs(); loadApplications(); }
 		if (selectedTab === 3) loadApplications();
 	});
 
@@ -413,10 +435,20 @@
 							{:else}
 								<div class="job-list">
 									{#each jobs as job}
+										{@const existing = applicationByJobId.get(job.id)}
+										{@const isWithdrawn = existing?.status === 'WITHDRAWN'}
+										{@const blocksApply = !!existing && !isWithdrawn}
 										<Tile class="job-tile">
 											<div class="job-header">
 												<h4>{job.title}</h4>
-												<Tag type="blue">{job.requiredCdlType || 'Any CDL'}</Tag>
+												<div class="header-tags">
+													<Tag type="blue">{job.requiredCdlType || 'Any CDL'}</Tag>
+													{#if isWithdrawn}
+														<Tag type="magenta" icon={Undo}>Withdrawn</Tag>
+													{:else if blocksApply}
+														<Tag type="green" icon={Checkmark}>Applied</Tag>
+													{/if}
+												</div>
 											</div>
 											<p class="job-company">{job.employerCompanyName}</p>
 											<p>{job.description}</p>
@@ -426,7 +458,10 @@
 												<span><strong>Duration:</strong> {job.estimatedDurationHours}h</span>
 												<span><strong>Rate:</strong> &euro;{job.ratePerHour}/hr</span>
 											</div>
-											<Button size="small" on:click={() => openApplyModal(job)}>Apply</Button>
+											<Button size="small" disabled={blocksApply}
+												on:click={() => openApplyModal(job)}>
+												{blocksApply ? 'Already applied' : isWithdrawn ? 'Re-apply' : 'Apply'}
+											</Button>
 										</Tile>
 									{/each}
 								</div>
@@ -452,7 +487,9 @@
 											<div class="app-header">
 												<h4>{app.jobTitle}</h4>
 												<div class="app-tags">
-													<Tag type={appStatusKind(app.status)}>{app.status}</Tag>
+													<Tag type={appStatusKind(app.status)} icon={appStatusIcon(app.status)}>
+														{appStatusLabel(app.status)}
+													</Tag>
 													{#if app.jobStatus && app.jobStatus !== 'OPEN'}
 														<Tag type="gray">Job: {app.jobStatus}</Tag>
 													{/if}
@@ -640,6 +677,11 @@
 		justify-content: space-between;
 		align-items: center;
 		margin-bottom: 0.5rem;
+	}
+	.header-tags {
+		display: flex;
+		gap: 0.25rem;
+		flex-wrap: wrap;
 	}
 	.app-tags {
 		display: flex;

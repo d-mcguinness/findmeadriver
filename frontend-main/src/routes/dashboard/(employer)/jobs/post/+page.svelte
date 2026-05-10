@@ -8,6 +8,7 @@
 	import { api } from '$lib/api';
 	import { auth } from '$lib/stores/auth.svelte';
 	import { goto } from '$app/navigation';
+	import { page } from '$app/state';
 	import { onMount } from 'svelte';
 	import LocationPicker from '$lib/components/LocationPicker.svelte';
 	import { calculateRoute, type RouteInfo } from '$lib/google-maps';
@@ -35,7 +36,12 @@
 		if (auth.isAdmin) {
 			try {
 				employers = await api.get<EmployerOption[]>('/api/admin/employers');
-				if (employers.length > 0) selectedEmployerId = String(employers[0].id);
+				const hinted = page.url.searchParams.get('employerId');
+				if (hinted && employers.some(e => String(e.id) === hinted)) {
+					selectedEmployerId = hinted;
+				} else if (employers.length > 0) {
+					selectedEmployerId = String(employers[0].id);
+				}
 			} catch {
 				employers = [];
 			}

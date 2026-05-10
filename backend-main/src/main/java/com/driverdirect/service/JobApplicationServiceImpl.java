@@ -32,7 +32,10 @@ public class JobApplicationServiceImpl implements JobApplicationService {
             throw new IllegalArgumentException("This job is no longer accepting applications");
         }
 
-        if (applicationRepository.existsByJobAndDriver(job, driver)) {
+        // Active application (non-withdrawn) blocks re-applying; withdrawn applications
+        // can be revived so the driver gets a fresh attempt.
+        JobApplication existing = applicationRepository.findByJobAndDriver(job, driver).orElse(null);
+        if (existing != null && existing.getStatus() != ApplicationStatus.WITHDRAWN) {
             throw new IllegalArgumentException("You have already applied for this job");
         }
 
@@ -50,7 +53,7 @@ public class JobApplicationServiceImpl implements JobApplicationService {
                     job.getDateNeeded() + " but only have " + available + "h set");
         }
 
-        JobApplication application = new JobApplication();
+        JobApplication application = existing != null ? existing : new JobApplication();
         application.setJob(job);
         application.setDriver(driver);
         application.setStatus(ApplicationStatus.PENDING);
