@@ -16,6 +16,20 @@
 	let jobs = $derived(employerState.jobs);
 	let jobsLoading = $state(false);
 
+	// Aggregate metrics for the summary row above the table.
+	let metrics = $derived.by(() => {
+		let applications = 0, hours = 0, value = 0, completedSpend = 0;
+		for (const j of jobs) {
+			applications += j.applicationCount ?? 0;
+			const h = j.estimatedDurationHours ?? 0;
+			const r = Number(j.ratePerHour ?? 0);
+			hours += h;
+			value += h * r;
+			if (j.status === 'COMPLETED') completedSpend += h * r;
+		}
+		return { applications, hours, value, completedSpend };
+	});
+
 	// Applications state
 	let selectedJobForApps = $state<Job | null>(null);
 	let applications = $state<JobApplication[]>([]);
@@ -180,6 +194,24 @@
 					hideCloseButton />
 				<Button href="/dashboard/jobs/post" icon={Add}>Post a Job</Button>
 			{:else}
+				<div class="metrics-row">
+					<div class="metric">
+						<div class="metric-value">{metrics.applications}</div>
+						<div class="metric-label">Applications received</div>
+					</div>
+					<div class="metric">
+						<div class="metric-value">{metrics.hours.toFixed(1)}h</div>
+						<div class="metric-label">Hours posted</div>
+					</div>
+					<div class="metric">
+						<div class="metric-value">&euro;{metrics.value.toFixed(0)}</div>
+						<div class="metric-label">Total job value</div>
+					</div>
+					<div class="metric">
+						<div class="metric-value">&euro;{metrics.completedSpend.toFixed(0)}</div>
+						<div class="metric-label">Completed spend</div>
+					</div>
+				</div>
 				<JobsTable {jobs} actions={employerActions} addHref="/dashboard/jobs/post" />
 			{/if}
 		</Column>
@@ -275,6 +307,26 @@
 </Modal>
 
 <style>
+	.metrics-row {
+		display: flex;
+		gap: 2rem;
+		flex-wrap: wrap;
+		padding: 1rem;
+		margin-bottom: 0.5rem;
+		background: var(--cds-layer, #f4f4f4);
+		border-left: 3px solid var(--cds-interactive, #0f62fe);
+	}
+	.metric {
+		min-width: 8rem;
+	}
+	.metric-value {
+		font-size: 1.5rem;
+		font-weight: 600;
+	}
+	.metric-label {
+		font-size: 0.75rem;
+		color: var(--cds-text-secondary);
+	}
 	.applications-list {
 		display: flex;
 		flex-direction: column;

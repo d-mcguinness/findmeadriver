@@ -31,6 +31,15 @@
 	// Availability state
 	let availability = $state<AvailabilityResponse | null>(null);
 	let weekDays = $state<{ date: string; dayName: string; hours: number }[]>([]);
+
+	// Calendar view state
+	let calendarMonth = $state(new Date(new Date().getFullYear(), new Date().getMonth(), 1));
+	let monthEntries = $state<Map<string, number>>(new Map());
+	let dayModalOpen = $state(false);
+	let dayModalDate = $state<string>('');
+	let dayModalHours = $state<number>(0);
+	let dayModalError = $state('');
+	let dayModalSaving = $state(false);
 	let availError = $state('');
 	let availSuccess = $state('');
 	let availLoading = $state(false);
@@ -116,6 +125,88 @@
 			availError = e.message || 'Failed to save availability';
 		} finally {
 			availLoading = false;
+		}
+	}
+
+	// ---- Calendar helpers ----
+
+	type CalendarCell = { date: string; day: number; inMonth: boolean; hours: number };
+
+	let calendarGrid = $derived.by<CalendarCell[]>(() => {
+		const year = calendarMonth.getFullYear();
+		const month = calendarMonth.getMonth();
+		const first = new Date(year, month, 1);
+		const start = new Date(first);
+		// Start grid on Monday: getDay() is 0=Sun..6=Sat
+		const offset = (first.getDay() + 6) % 7;
+		start.setDate(first.getDate() - offset);
+		const cells: CalendarCell[] = [];
+		for (let i = 0; i < 42; i++) {
+			const d = new Date(start);
+			d.setDate(start.getDate() + i);
+			const iso = formatDate(d);
+			cells.push({
+				date: iso,
+				day: d.getDate(),
+				inMonth: d.getMonth() === month,
+				hours: monthEntries.get(iso) ?? 0
+			});
+		}
+		return cells;
+	});
+
+	let calendarMonthLabel = $derived(
+		calendarMonth.toLocaleDateString('en-IE', { month: 'long', year: 'numeric' })
+	);
+
+	async function loadCalendarMonth() {
+		const year = calendarMonth.getFullYear();
+		const month = calendarMonth.getMonth();
+		const first = new Date(year, month, 1);
+		const offset = (first.getDay() + 6) % 7;
+		const gridStart = new Date(first);
+		gridStart.setDate(first.getDate() - offset);
+		const gridEnd = new Date(gridStart);
+		gridEnd.setDate(gridStart.getDate() + 41);
+		try {
+			const res = await api.get<AvailabilityResponse>(
+				`/api/driver/availability?start=${formatDate(gridStart)}&end=${formatDate(gridEnd)}`
+			);
+			monthEntries = new Map(res.days.map(d => [d.date, d.availableHours]));
+		} catch {
+			monthEntries = new Map();
+		}
+	}
+
+	function shiftMonth(delta: number) {
+		const m = new Date(calendarMonth);
+		m.setMonth(m.getMonth() + delta);
+		calendarMonth = m;
+		loadCalendarMonth();
+	}
+
+	function openDayModal(cell: CalendarCell) {
+		dayModalDate = cell.date;
+		dayModalHours = cell.hours;
+		dayModalError = '';
+		dayModalOpen = true;
+	}
+
+	async function saveDayModal() {
+		dayModalError = '';
+		dayModalSaving = true;
+		try {
+			await api.put<AvailabilityResponse>('/api/driver/availability', {
+				entries: [{ date: dayModalDate, availableHours: dayModalHours }]
+			});
+			// Update local map + refresh weekly totals
+			monthEntries = new Map(monthEntries).set(dayModalDate, dayModalHours);
+			await loadAvailability();
+			dayModalOpen = false;
+		} catch (e: any) {
+			dayModalError = e?.error || e?.message || 'Failed to save hours';
+		} finally {
+			dayModalSaving = false;
 		}
 	}
 
@@ -277,6 +368,7 @@
 
 	onMount(() => {
 		loadAvailability();
+		loadCalendarMonth();
 	});
 </script>
 
@@ -313,22 +405,40 @@
 									on:close={() => availSuccess = ''} />
 							{/if}
 
-							<div class="week-grid">
-								{#each weekDays as day, i}
-									<div class="day-card">
-										<div class="day-label">{day.dayName}</div>
-										<div class="day-date">{day.date}</div>
-										<NumberInput
-											bind:value={weekDays[i].hours}
-											min={0}
-											max={10}
-											step={0.5}
-											size="sm"
-											hideLabel
-											label="Hours"
-										/>
-									</div>
-								{/each}
+							<div class="calendar">
+								<div class="calendar-header">
+									<Button size="small" kind="ghost"
+										on:click={() => shiftMonth(-1)}>
+										&larr; Prev
+									</Button>
+									<div class="calendar-title">{calendarMonthLabel}</div>
+									<Button size="small" kind="ghost"
+										on:click={() => shiftMonth(1)}>
+										Next &rarr;
+									</Button>
+								</div>
+
+								<div class="calendar-weekdays">
+									{#each ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'] as wd}
+										<div class="calendar-weekday">{wd}</div>
+									{/each}
+								</div>
+
+								<div class="calendar-grid">
+									{#each calendarGrid as cell}
+										<!-- svelte-ignore a11y_click_events_have_key_events -->
+										<!-- svelte-ignore a11y_no_static_element_interactions -->
+										<div class="calendar-cell"
+											class:other-month={!cell.inMonth}
+											class:has-hours={cell.hours > 0}
+											on:click={() => openDayModal(cell)}>
+											<div class="calendar-day">{cell.day}</div>
+											{#if cell.hours > 0}
+												<div class="calendar-hours">{cell.hours}h</div>
+											{/if}
+										</div>
+									{/each}
+								</div>
 							</div>
 
 							{#if availability}
@@ -343,10 +453,6 @@
 									</Tile>
 								</div>
 							{/if}
-
-							<Button on:click={saveAvailability} disabled={availLoading}>
-								{availLoading ? 'Saving...' : 'Save Availability'}
-							</Button>
 						</div>
 					</TabContent>
 
@@ -585,6 +691,30 @@
 	/>
 </Modal>
 
+<!-- Day Availability Modal -->
+<Modal
+	bind:open={dayModalOpen}
+	modalHeading={dayModalDate ? `Available hours — ${dayModalDate}` : 'Available hours'}
+	primaryButtonText="Save"
+	secondaryButtonText="Cancel"
+	primaryButtonDisabled={dayModalSaving}
+	on:click:button--primary={saveDayModal}
+	on:click:button--secondary={() => dayModalOpen = false}
+>
+	{#if dayModalError}
+		<InlineNotification kind="error" title="Error" subtitle={dayModalError}
+			on:close={() => dayModalError = ''} />
+	{/if}
+	<p class="modal-hint">EU cap: max 9h/day standard (10h up to twice/week).</p>
+	<NumberInput
+		bind:value={dayModalHours}
+		min={0}
+		max={10}
+		step={0.5}
+		label="Hours"
+	/>
+</Modal>
+
 <style>
 	.dashboard-subtitle {
 		color: var(--cds-text-secondary);
@@ -604,26 +734,68 @@
 		margin-bottom: 1rem;
 		font-size: 0.875rem;
 	}
-	.week-grid {
-		display: grid;
-		grid-template-columns: repeat(7, 1fr);
-		gap: 0.75rem;
+	.calendar {
 		margin-bottom: 1rem;
 	}
-	.day-card {
-		text-align: center;
-		padding: 0.75rem;
-		background: var(--cds-layer);
-		border: 1px solid var(--cds-border-subtle);
+	.calendar-header {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		margin-bottom: 0.5rem;
 	}
-	.day-label {
+	.calendar-title {
 		font-weight: 600;
+		font-size: 1rem;
+	}
+	.calendar-weekdays {
+		display: grid;
+		grid-template-columns: repeat(7, 1fr);
+		gap: 0.25rem;
 		margin-bottom: 0.25rem;
 	}
-	.day-date {
+	.calendar-weekday {
+		text-align: center;
 		font-size: 0.75rem;
+		font-weight: 600;
 		color: var(--cds-text-secondary);
-		margin-bottom: 0.5rem;
+		padding: 0.25rem 0;
+	}
+	.calendar-grid {
+		display: grid;
+		grid-template-columns: repeat(7, 1fr);
+		gap: 0.25rem;
+	}
+	.calendar-cell {
+		min-height: 4rem;
+		padding: 0.5rem;
+		background: var(--cds-layer, #f4f4f4);
+		border: 1px solid var(--cds-border-subtle, #e0e0e0);
+		cursor: pointer;
+		transition: background 120ms ease;
+	}
+	.calendar-cell:hover {
+		background: var(--cds-layer-hover, #e5e5e5);
+	}
+	.calendar-cell.other-month {
+		opacity: 0.4;
+	}
+	.calendar-cell.has-hours {
+		border-left: 3px solid var(--cds-interactive, #0f62fe);
+	}
+	.calendar-day {
+		font-size: 0.875rem;
+		font-weight: 500;
+	}
+	.calendar-hours {
+		margin-top: 0.25rem;
+		font-size: 0.9375rem;
+		font-weight: 600;
+		color: var(--cds-interactive, #0f62fe);
+	}
+	.modal-hint {
+		font-size: 0.875rem;
+		color: var(--cds-text-secondary);
+		margin-bottom: 0.75rem;
 	}
 	.totals {
 		display: flex;
@@ -731,9 +903,6 @@
 		font-weight: 600;
 	}
 	@media (max-width: 672px) {
-		.week-grid {
-			grid-template-columns: repeat(2, 1fr);
-		}
 		.totals {
 			flex-direction: column;
 		}

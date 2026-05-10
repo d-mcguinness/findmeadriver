@@ -35,24 +35,41 @@
 		{ key: 'deliveryLocation', value: 'To' },
 		{ key: 'dateNeeded', value: 'Date' },
 		{ key: 'status', value: 'Status' },
-		{ key: 'applicationCount', value: 'Applications' }
+		{ key: 'applicationCount', value: 'Applications' },
+		{ key: 'hours', value: 'Hours' },
+		{ key: 'ratePerHour', value: 'Rate' },
+		{ key: 'value', value: 'Value' },
+		{ key: 'completedSpend', value: 'Completed spend' }
 	];
 
 	let headers = $derived(actions
 		? [...baseHeaders, { key: 'actions', value: 'Actions' }]
 		: baseHeaders);
 
-	let rows = $derived(jobs.map(j => ({
-		id: String(j.id),
-		title: j.title,
-		employerCompanyName: j.employerCompanyName,
-		pickupLocation: j.pickupLocation || '—',
-		deliveryLocation: j.deliveryLocation || '—',
-		dateNeeded: j.dateNeeded,
-		status: j.status,
-		applicationCount: j.applicationCount,
-		actions: ''
-	})));
+	function jobValue(j: Job): number {
+		const h = j.estimatedDurationHours ?? 0;
+		const r = Number(j.ratePerHour ?? 0);
+		return h * r;
+	}
+
+	let rows = $derived(jobs.map(j => {
+		const v = jobValue(j);
+		return {
+			id: String(j.id),
+			title: j.title,
+			employerCompanyName: j.employerCompanyName,
+			pickupLocation: j.pickupLocation || '—',
+			deliveryLocation: j.deliveryLocation || '—',
+			dateNeeded: j.dateNeeded,
+			status: j.status,
+			applicationCount: j.applicationCount,
+			hours: j.estimatedDurationHours != null ? `${j.estimatedDurationHours.toFixed(1)}h` : '—',
+			ratePerHour: j.ratePerHour != null ? `€${Number(j.ratePerHour).toFixed(0)}/h` : '—',
+			value: v > 0 ? `€${v.toFixed(0)}` : '—',
+			completedSpend: j.status === 'COMPLETED' && v > 0 ? `€${v.toFixed(0)}` : '—',
+			actions: ''
+		};
+	}));
 
 	let jobsById = $derived(new Map(jobs.map(j => [String(j.id), j])));
 </script>
