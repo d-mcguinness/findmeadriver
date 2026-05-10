@@ -6,6 +6,7 @@ import com.driverdirect.model.DocumentStatus;
 import com.driverdirect.model.DocumentType;
 import com.driverdirect.model.Driver;
 import com.driverdirect.model.DriverAvailability;
+import com.driverdirect.model.DriverTimeSlot;
 import com.driverdirect.model.Employer;
 import com.driverdirect.model.Job;
 import com.driverdirect.model.JobApplication;
@@ -16,6 +17,7 @@ import com.driverdirect.model.User;
 import com.driverdirect.repository.ComplianceDocumentRepository;
 import com.driverdirect.repository.DriverAvailabilityRepository;
 import com.driverdirect.repository.DriverRepository;
+import com.driverdirect.repository.DriverTimeSlotRepository;
 import com.driverdirect.repository.EmployerRepository;
 import com.driverdirect.repository.JobApplicationRepository;
 import com.driverdirect.repository.JobRepository;
@@ -30,6 +32,7 @@ import org.springframework.stereotype.Component;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -46,6 +49,7 @@ public class DataInitializer implements CommandLineRunner {
     @Autowired private ComplianceDocumentRepository complianceDocumentRepository;
     @Autowired private RatingRepository ratingRepository;
     @Autowired private DriverAvailabilityRepository driverAvailabilityRepository;
+    @Autowired private DriverTimeSlotRepository driverTimeSlotRepository;
     @Autowired private PasswordEncoder passwordEncoder;
 
     @Override
@@ -290,8 +294,28 @@ public class DataInitializer implements CommandLineRunner {
         for (int i = 0; i < hoursForNext14Days.length; i++) {
             double h = hoursForNext14Days[i];
             if (h <= 0) continue;
-            driverAvailabilityRepository.save(
-                    new DriverAvailability(driver, start.plusDays(i), h));
+            LocalDate date = start.plusDays(i);
+            driverAvailabilityRepository.save(new DriverAvailability(driver, date, h));
+            seedTimeSlotsForDay(driver, date, h);
+        }
+    }
+
+    private void seedTimeSlotsForDay(Driver driver, LocalDate date, double totalHours) {
+        // Split into one or two realistic windows so the calendar looks lived-in.
+        // <= 5h: single morning slot. > 5h: morning + afternoon either side of lunch.
+        if (totalHours <= 5) {
+            LocalTime startT = LocalTime.of(9, 0);
+            LocalTime endT = startT.plusMinutes((long) Math.round(totalHours * 60));
+            driverTimeSlotRepository.save(new DriverTimeSlot(driver, date, startT, endT));
+        } else {
+            double morning = Math.min(4, totalHours / 2);
+            double afternoon = totalHours - morning;
+            LocalTime mStart = LocalTime.of(9, 0);
+            LocalTime mEnd = mStart.plusMinutes((long) Math.round(morning * 60));
+            LocalTime aStart = LocalTime.of(13, 30);
+            LocalTime aEnd = aStart.plusMinutes((long) Math.round(afternoon * 60));
+            driverTimeSlotRepository.save(new DriverTimeSlot(driver, date, mStart, mEnd));
+            driverTimeSlotRepository.save(new DriverTimeSlot(driver, date, aStart, aEnd));
         }
     }
 

@@ -8,7 +8,7 @@
 	import { auth } from '$lib/stores/auth.svelte';
 	import { api } from '$lib/api';
 	import { driverState } from '$lib/stores/driverState.svelte';
-	import type { AvailabilityResponse, Job, JobApplication, DriverComplianceSummary } from '$lib/types';
+	import type { AvailabilityResponse, Job, JobApplication, DriverComplianceSummary, TimeSlot } from '$lib/types';
 	import { onMount } from 'svelte';
 	import { page } from '$app/state';
 
@@ -34,12 +34,24 @@
 
 	// Calendar view state
 	let calendarMonth = $state(new Date(new Date().getFullYear(), new Date().getMonth(), 1));
-	let monthEntries = $state<Map<string, number>>(new Map());
+	let monthSlots = $state<TimeSlot[]>([]);
 	let dayModalOpen = $state(false);
 	let dayModalDate = $state<string>('');
-	let dayModalHours = $state<number>(0);
 	let dayModalError = $state('');
 	let dayModalSaving = $state(false);
+	let newSlotStart = $state('09:00');
+	let newSlotEnd = $state('17:00');
+
+	let slotsByDate = $derived.by(() => {
+		const m = new Map<string, TimeSlot[]>();
+		for (const s of monthSlots) {
+			if (!m.has(s.date)) m.set(s.date, []);
+			m.get(s.date)!.push(s);
+		}
+		return m;
+	});
+
+	let dayModalSlots = $derived(slotsByDate.get(dayModalDate) ?? []);
 	let availError = $state('');
 	let availSuccess = $state('');
 	let availLoading = $state(false);
@@ -130,7 +142,7 @@
 
 	// ---- Calendar helpers ----
 
-	type CalendarCell = { date: string; day: number; inMonth: boolean; hours: number };
+	type CalendarCell = { date: string; day: number; inMonth: boolean; slots: TimeSlot[] };
 
 	let calendarGrid = $derived.by<CalendarCell[]>(() => {
 		const year = calendarMonth.getFullYear();
@@ -149,11 +161,15 @@
 				date: iso,
 				day: d.getDate(),
 				inMonth: d.getMonth() === month,
-				hours: monthEntries.get(iso) ?? 0
+				slots: slotsByDate.get(iso) ?? []
 			});
 		}
 		return cells;
 	});
+
+	function formatSlotShort(s: TimeSlot): string {
+		return `${s.startTime.slice(0,5)}–${s.endTime.slice(0,5)}`;
+	}
 
 	let calendarMonthLabel = $derived(
 		calendarMonth.toLocaleDateString('en-IE', { month: 'long', year: 'numeric' })
@@ -169,12 +185,11 @@
 		const gridEnd = new Date(gridStart);
 		gridEnd.setDate(gridStart.getDate() + 41);
 		try {
-			const res = await api.get<AvailabilityResponse>(
-				`/api/driver/availability?start=${formatDate(gridStart)}&end=${formatDate(gridEnd)}`
+			monthSlots = await api.get<TimeSlot[]>(
+				`/api/driver/timeslots?start=${formatDate(gridStart)}&end=${formatDate(gridEnd)}`
 			);
-			monthEntries = new Map(res.days.map(d => [d.date, d.availableHours]));
 		} catch {
-			monthEntries = new Map();
+			monthSlots = [];
 		}
 	}
 
@@ -187,26 +202,43 @@
 
 	function openDayModal(cell: CalendarCell) {
 		dayModalDate = cell.date;
-		dayModalHours = cell.hours;
 		dayModalError = '';
+		newSlotStart = '09:00';
+		newSlotEnd = '17:00';
 		dayModalOpen = true;
 	}
 
-	async function saveDayModal() {
+	async function addSlot() {
+		if (!dayModalDate) return;
+		if (newSlotEnd <= newSlotStart) {
+			dayModalError = 'End time must be after start time.';
+			return;
+		}
 		dayModalError = '';
 		dayModalSaving = true;
 		try {
-			await api.put<AvailabilityResponse>('/api/driver/availability', {
-				entries: [{ date: dayModalDate, availableHours: dayModalHours }]
+			const created = await api.post<TimeSlot>('/api/driver/timeslots', {
+				date: dayModalDate,
+				startTime: newSlotStart,
+				endTime: newSlotEnd
 			});
-			// Update local map + refresh weekly totals
-			monthEntries = new Map(monthEntries).set(dayModalDate, dayModalHours);
+			monthSlots = [...monthSlots, created];
 			await loadAvailability();
-			dayModalOpen = false;
 		} catch (e: any) {
-			dayModalError = e?.error || e?.message || 'Failed to save hours';
+			dayModalError = e?.error || e?.message || 'Failed to add slot';
 		} finally {
 			dayModalSaving = false;
+		}
+	}
+
+	async function deleteSlot(id: number) {
+		dayModalError = '';
+		try {
+			await api.delete(`/api/driver/timeslots/${id}`);
+			monthSlots = monthSlots.filter(s => s.id !== id);
+			await loadAvailability();
+		} catch (e: any) {
+			dayModalError = e?.error || e?.message || 'Failed to delete slot';
 		}
 	}
 
@@ -430,12 +462,12 @@
 										<!-- svelte-ignore a11y_no_static_element_interactions -->
 										<div class="calendar-cell"
 											class:other-month={!cell.inMonth}
-											class:has-hours={cell.hours > 0}
+											class:has-hours={cell.slots.length > 0}
 											on:click={() => openDayModal(cell)}>
 											<div class="calendar-day">{cell.day}</div>
-											{#if cell.hours > 0}
-												<div class="calendar-hours">{cell.hours}h</div>
-											{/if}
+											{#each cell.slots as slot}
+												<div class="calendar-slot">{formatSlotShort(slot)}</div>
+											{/each}
 										</div>
 									{/each}
 								</div>
@@ -691,28 +723,49 @@
 	/>
 </Modal>
 
-<!-- Day Availability Modal -->
+<!-- Day Time-Slots Modal -->
 <Modal
 	bind:open={dayModalOpen}
-	modalHeading={dayModalDate ? `Available hours — ${dayModalDate}` : 'Available hours'}
-	primaryButtonText="Save"
-	secondaryButtonText="Cancel"
-	primaryButtonDisabled={dayModalSaving}
-	on:click:button--primary={saveDayModal}
-	on:click:button--secondary={() => dayModalOpen = false}
+	modalHeading={dayModalDate ? `Time slots — ${dayModalDate}` : 'Time slots'}
+	passiveModal
 >
 	{#if dayModalError}
 		<InlineNotification kind="error" title="Error" subtitle={dayModalError}
 			on:close={() => dayModalError = ''} />
 	{/if}
 	<p class="modal-hint">EU cap: max 9h/day standard (10h up to twice/week).</p>
-	<NumberInput
-		bind:value={dayModalHours}
-		min={0}
-		max={10}
-		step={0.5}
-		label="Hours"
-	/>
+
+	{#if dayModalSlots.length === 0}
+		<p class="modal-hint">No slots yet for this day. Add one below.</p>
+	{:else}
+		<ul class="slot-list">
+			{#each dayModalSlots as slot}
+				<li class="slot-row">
+					<span class="slot-time">{formatSlotShort(slot)}</span>
+					<span class="slot-hours">{slot.hours.toFixed(1)}h</span>
+					<Button kind="danger-tertiary" size="small"
+						on:click={() => deleteSlot(slot.id)}>
+						Remove
+					</Button>
+				</li>
+			{/each}
+		</ul>
+	{/if}
+
+	<div class="add-slot">
+		<label class="slot-label">
+			<span>Start</span>
+			<input type="time" bind:value={newSlotStart} class="time-input" />
+		</label>
+		<label class="slot-label">
+			<span>End</span>
+			<input type="time" bind:value={newSlotEnd} class="time-input" />
+		</label>
+		<Button kind="primary" size="small" disabled={dayModalSaving}
+			on:click={addSlot}>
+			{dayModalSaving ? 'Adding...' : 'Add slot'}
+		</Button>
+	</div>
 </Modal>
 
 <style>
@@ -786,16 +839,65 @@
 		font-size: 0.875rem;
 		font-weight: 500;
 	}
-	.calendar-hours {
-		margin-top: 0.25rem;
-		font-size: 0.9375rem;
-		font-weight: 600;
+	.calendar-slot {
+		margin-top: 0.125rem;
+		font-size: 0.6875rem;
+		font-weight: 500;
 		color: var(--cds-interactive, #0f62fe);
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
 	}
 	.modal-hint {
 		font-size: 0.875rem;
 		color: var(--cds-text-secondary);
 		margin-bottom: 0.75rem;
+	}
+	.slot-list {
+		list-style: none;
+		padding: 0;
+		margin: 0 0 1rem;
+	}
+	.slot-row {
+		display: flex;
+		align-items: center;
+		gap: 1rem;
+		padding: 0.5rem 0.75rem;
+		background: var(--cds-layer, #f4f4f4);
+		margin-bottom: 0.25rem;
+	}
+	.slot-time {
+		font-weight: 600;
+		min-width: 7rem;
+	}
+	.slot-hours {
+		flex: 1;
+		color: var(--cds-text-secondary);
+	}
+	.add-slot {
+		display: flex;
+		align-items: end;
+		gap: 1rem;
+		flex-wrap: wrap;
+	}
+	.slot-label {
+		display: flex;
+		flex-direction: column;
+		gap: 0.25rem;
+		font-size: 0.75rem;
+		color: var(--cds-text-secondary);
+	}
+	.time-input {
+		font-size: 0.875rem;
+		height: 2.5rem;
+		padding: 0 0.75rem;
+		border: none;
+		border-bottom: 1px solid var(--cds-border-strong, #8d8d8d);
+		background-color: var(--cds-field, #f4f4f4);
+	}
+	.time-input:focus {
+		outline: 2px solid var(--cds-focus, #0f62fe);
+		outline-offset: -2px;
 	}
 	.totals {
 		display: flex;

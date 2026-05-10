@@ -2,7 +2,11 @@ package com.driverdirect.controller;
 
 import com.driverdirect.dto.*;
 import com.driverdirect.model.Driver;
+import com.driverdirect.model.DriverAvailability;
+import com.driverdirect.model.DriverTimeSlot;
+import com.driverdirect.repository.DriverAvailabilityRepository;
 import com.driverdirect.repository.DriverRepository;
+import com.driverdirect.repository.DriverTimeSlotRepository;
 import com.driverdirect.service.AvailabilityService;
 import com.driverdirect.service.JobApplicationService;
 import com.driverdirect.service.JobService;
@@ -10,11 +14,13 @@ import com.driverdirect.service.ComplianceService;
 import com.driverdirect.service.RatingService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.DayOfWeek;
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.temporal.TemporalAdjusters;
 import java.util.List;
@@ -31,6 +37,8 @@ public class DriverController {
     private final JobApplicationService applicationService;
     private final RatingService ratingService;
     private final ComplianceService complianceService;
+    private final DriverTimeSlotRepository timeSlotRepository;
+    private final DriverAvailabilityRepository availabilityRepository;
 
     @PutMapping("/availability")
     public ResponseEntity<AvailabilityResponse> setWeeklyAvailability(
@@ -138,6 +146,66 @@ public class DriverController {
         Driver driver = getDriver(auth);
         complianceService.deleteDocument(id, driver);
         return ResponseEntity.noContent().build();
+    }
+
+    // ---- Time slots ----
+
+    @GetMapping("/timeslots")
+    public ResponseEntity<List<TimeSlotResponse>> getTimeSlots(
+            Authentication auth,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate start,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate end) {
+        Driver driver = getDriver(auth);
+        List<TimeSlotResponse> slots = timeSlotRepository
+                .findByDriverAndDateBetweenOrderByDateAscStartTimeAsc(driver, start, end)
+                .stream().map(TimeSlotResponse::from).toList();
+        return ResponseEntity.ok(slots);
+    }
+
+    @PostMapping("/timeslots")
+    public ResponseEntity<TimeSlotResponse> addTimeSlot(
+            Authentication auth,
+            @RequestBody TimeSlotRequest request) {
+        Driver driver = getDriver(auth);
+        if (request.getStartTime() == null || request.getEndTime() == null
+                || !request.getEndTime().isAfter(request.getStartTime())) {
+            throw new IllegalArgumentException("Slot end time must be after start time");
+        }
+        DriverTimeSlot saved = timeSlotRepository.save(
+                new DriverTimeSlot(driver, request.getDate(),
+                        request.getStartTime(), request.getEndTime()));
+        recomputeDayHours(driver, request.getDate());
+        return ResponseEntity.status(HttpStatus.CREATED).body(TimeSlotResponse.from(saved));
+    }
+
+    @DeleteMapping("/timeslots/{id}")
+    public ResponseEntity<Void> deleteTimeSlot(Authentication auth, @PathVariable Long id) {
+        Driver driver = getDriver(auth);
+        DriverTimeSlot slot = timeSlotRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Time slot not found"));
+        if (!slot.getDriver().getId().equals(driver.getId())) {
+            throw new IllegalArgumentException("Not your time slot");
+        }
+        LocalDate date = slot.getDate();
+        timeSlotRepository.delete(slot);
+        recomputeDayHours(driver, date);
+        return ResponseEntity.noContent().build();
+    }
+
+    private void recomputeDayHours(Driver driver, LocalDate date) {
+        List<DriverTimeSlot> slots = timeSlotRepository
+                .findByDriverAndDateOrderByStartTimeAsc(driver, date);
+        double hours = slots.stream()
+                .mapToDouble(s -> Duration.between(s.getStartTime(), s.getEndTime()).toMinutes() / 60.0)
+                .sum();
+        DriverAvailability existing = availabilityRepository.findByDriverAndDate(driver, date)
+                .orElse(null);
+        if (existing != null) {
+            existing.setAvailableHours(hours);
+            availabilityRepository.save(existing);
+        } else if (hours > 0) {
+            availabilityRepository.save(new DriverAvailability(driver, date, hours));
+        }
     }
 
     private Driver getDriver(Authentication auth) {

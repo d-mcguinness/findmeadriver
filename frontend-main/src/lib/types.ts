@@ -108,3 +108,11 @@ export interface PlatformStats {
 	cancelledJobs: number;
 	pendingDocuments: number;
 }
+
+export interface TimeSlot {
+	id: number;
+	date: string;
+	startTime: string;
+	endTime: string;
+	hours: number;
+}
