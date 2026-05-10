@@ -35,6 +35,22 @@
 		return c;
 	});
 
+	let employerMetrics = $derived.by(() => {
+		let applications = 0;
+		let hours = 0;
+		let value = 0;
+		let completedSpend = 0;
+		for (const j of employerJobs) {
+			applications += j.applicationCount ?? 0;
+			const h = j.estimatedDurationHours ?? 0;
+			const r = Number(j.ratePerHour ?? 0);
+			hours += h;
+			value += h * r;
+			if (j.status === 'COMPLETED') completedSpend += h * r;
+		}
+		return { applications, hours, value, completedSpend };
+	});
+
 	let driverAppCounts = $derived.by(() => {
 		const c = { pending: 0, accepted: 0, rejected: 0, withdrawn: 0 };
 		for (const a of driverApplications) {
@@ -129,40 +145,40 @@
 	</Row>
 {:else if auth.isEmployer}
 	<Row>
-		<Column lg={4} md={4} sm={4}>
+		<Column>
 			<Tile class="stat-tile">
 				<div class="stat-card">
 					<Van size={24} />
 					<div class="stat-value">{employerJobs.length}</div>
 					<div class="stat-label">My Jobs</div>
+					<div class="metrics-row">
+						<div class="metric">
+							<div class="metric-value">{employerMetrics.applications}</div>
+							<div class="metric-label">Applications received</div>
+						</div>
+						<div class="metric">
+							<div class="metric-value">{employerMetrics.hours.toFixed(1)}h</div>
+							<div class="metric-label">Hours posted</div>
+						</div>
+						<div class="metric">
+							<div class="metric-value">&euro;{employerMetrics.value.toFixed(0)}</div>
+							<div class="metric-label">Total job value</div>
+						</div>
+						<div class="metric">
+							<div class="metric-value">&euro;{employerMetrics.completedSpend.toFixed(0)}</div>
+							<div class="metric-label">Completed spend</div>
+						</div>
+					</div>
 					<div class="stat-breakdown">
 						<Tag type="green" size="sm">{employerCounts.open} open</Tag>
 						<Tag type="blue" size="sm">{employerCounts.assigned} assigned</Tag>
 						<Tag type="cyan" size="sm">{employerCounts.inProgress} in progress</Tag>
-					</div>
-				</div>
-			</Tile>
-		</Column>
-		<Column lg={4} md={4} sm={4}>
-			<Tile class="stat-tile">
-				<div class="stat-card">
-					<CheckmarkOutline size={24} />
-					<div class="stat-value">{employerCounts.completed}</div>
-					<div class="stat-label">Completed</div>
-					<div class="stat-breakdown">
+						<Tag type="gray" size="sm">{employerCounts.completed} completed</Tag>
 						<Tag type="red" size="sm">{employerCounts.cancelled} cancelled</Tag>
+						<Tag type="warm-gray" size="sm" icon={StarFilled}>
+							{employerAvgRating != null ? `${employerAvgRating.toFixed(1)} avg rating` : 'No ratings'}
+						</Tag>
 					</div>
-				</div>
-			</Tile>
-		</Column>
-		<Column lg={4} md={4} sm={4}>
-			<Tile class="stat-tile">
-				<div class="stat-card">
-					<StarFilled size={24} />
-					<div class="stat-value">
-						{employerAvgRating != null ? employerAvgRating.toFixed(1) : '—'}
-					</div>
-					<div class="stat-label">Avg Rating</div>
 				</div>
 			</Tile>
 		</Column>
@@ -244,5 +260,24 @@
 		justify-content: center;
 		gap: 0.25rem;
 		flex-wrap: wrap;
+	}
+	.metrics-row {
+		display: flex;
+		justify-content: center;
+		gap: 2rem;
+		flex-wrap: wrap;
+		margin: 0.5rem 0 0.75rem;
+	}
+	.metric {
+		text-align: center;
+		min-width: 6rem;
+	}
+	.metric-value {
+		font-size: 1.5rem;
+		font-weight: 600;
+	}
+	.metric-label {
+		font-size: 0.75rem;
+		color: var(--cds-text-secondary);
 	}
 </style>

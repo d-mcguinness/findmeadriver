@@ -170,15 +170,6 @@
 <Grid>
 	<Row>
 		<Column>
-			<div class="page-header">
-				<h1><Enterprise size={24} /> Welcome, {auth.user?.firstName}!</h1>
-				<p class="dashboard-subtitle">Your employer dashboard</p>
-			</div>
-		</Column>
-	</Row>
-
-	<Row>
-		<Column>
 			<h2>My Posted Jobs</h2>
 
 			{#if jobsLoading}
@@ -284,15 +275,6 @@
 </Modal>
 
 <style>
-	.page-header h1 {
-		display: flex;
-		align-items: center;
-		gap: 0.5rem;
-	}
-	.dashboard-subtitle {
-		color: var(--cds-text-secondary);
-		margin-bottom: 1.5rem;
-	}
 	.applications-list {
 		display: flex;
 		flex-direction: column;
