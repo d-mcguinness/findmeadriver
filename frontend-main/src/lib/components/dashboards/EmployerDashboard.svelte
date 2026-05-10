@@ -7,12 +7,13 @@
 	import { Enterprise, Add, Checkmark, Close, StarFilled, Star } from 'carbon-icons-svelte';
 	import { auth } from '$lib/stores/auth.svelte';
 	import { api } from '$lib/api';
+	import { employerState } from '$lib/stores/employerState.svelte';
 	import type { Job, JobApplication } from '$lib/types';
 	import { onMount } from 'svelte';
 	import JobsTable from '$lib/components/admin/JobsTable.svelte';
 
-	// My Jobs state
-	let jobs = $state<Job[]>([]);
+	// My Jobs state — backed by the shared store so mutations refresh StatsRow too.
+	let jobs = $derived(employerState.jobs);
 	let jobsLoading = $state(false);
 
 	// Applications state
@@ -34,9 +35,7 @@
 	async function loadJobs() {
 		jobsLoading = true;
 		try {
-			jobs = await api.get<Job[]>('/api/employer/jobs');
-		} catch {
-			jobs = [];
+			await employerState.reloadJobs();
 		} finally {
 			jobsLoading = false;
 		}

@@ -2,21 +2,26 @@
 	import { Row, Column, Tile, Tag } from 'carbon-components-svelte';
 	import {
 		UserMultiple, Van, Document as DocumentIcon, CheckmarkOutline,
-		Time, Search, StarFilled, CertificateCheck
+		Search, StarFilled, CertificateCheck
 	} from 'carbon-icons-svelte';
 	import { auth } from '$lib/stores/auth.svelte';
 	import { api } from '$lib/api';
+	import { driverState } from '$lib/stores/driverState.svelte';
+	import { employerState } from '$lib/stores/employerState.svelte';
 	import type {
-		PlatformStats, Job, JobApplication, DriverComplianceSummary
+		PlatformStats, Job, DriverComplianceSummary
 	} from '$lib/types';
 	import { onMount } from 'svelte';
 
 	let platformStats = $state<PlatformStats | null>(null);
-	let employerJobs = $state<Job[]>([]);
-	let employerAvgRating = $state<number | null>(null);
-	let driverApplications = $state<JobApplication[]>([]);
 	let driverAvailableJobs = $state<Job[]>([]);
 	let driverCompliance = $state<DriverComplianceSummary | null>(null);
+
+	// Both employer and driver data come from shared stores so dashboard actions
+	// (apply/withdraw, accept/reject, status updates) refresh these tiles reactively.
+	let driverApplications = $derived(driverState.applications);
+	let employerJobs = $derived(employerState.jobs);
+	let employerAvgRating = $derived(employerState.averageRating);
 
 	let employerCounts = $derived.by(() => {
 		const c = { open: 0, assigned: 0, inProgress: 0, completed: 0, cancelled: 0 };
@@ -46,21 +51,17 @@
 			if (auth.isAdmin) {
 				platformStats = await api.get<PlatformStats>('/api/admin/stats');
 			} else if (auth.isEmployer) {
-				const [jobs, ratings] = await Promise.all([
-					api.get<Job[]>('/api/employer/jobs'),
-					api.get<{ averageRating: number; totalRatings: number }>('/api/employer/ratings')
-						.catch(() => ({ averageRating: 0, totalRatings: 0 }))
+				await Promise.all([
+					employerState.reloadJobs(),
+					employerState.reloadRatings()
 				]);
-				employerJobs = jobs;
-				employerAvgRating = ratings.totalRatings > 0 ? ratings.averageRating : null;
 			} else if (auth.isDriver) {
-				const [apps, jobs, compliance] = await Promise.all([
-					api.get<JobApplication[]>('/api/driver/applications'),
+				const [, jobs, compliance] = await Promise.all([
+					driverState.reloadApplications(),
 					api.get<Job[]>('/api/driver/jobs').catch(() => [] as Job[]),
 					api.get<DriverComplianceSummary>('/api/driver/compliance')
 						.catch(() => null)
 				]);
-				driverApplications = apps;
 				driverAvailableJobs = jobs;
 				driverCompliance = compliance;
 			}
@@ -137,16 +138,8 @@
 					<div class="stat-breakdown">
 						<Tag type="green" size="sm">{employerCounts.open} open</Tag>
 						<Tag type="blue" size="sm">{employerCounts.assigned} assigned</Tag>
+						<Tag type="cyan" size="sm">{employerCounts.inProgress} in progress</Tag>
 					</div>
-				</div>
-			</Tile>
-		</Column>
-		<Column lg={4} md={4} sm={4}>
-			<Tile class="stat-tile">
-				<div class="stat-card">
-					<Time size={24} />
-					<div class="stat-value">{employerCounts.inProgress}</div>
-					<div class="stat-label">In Progress</div>
 				</div>
 			</Tile>
 		</Column>
@@ -189,11 +182,16 @@
 			<Tile class="stat-tile">
 				<div class="stat-card">
 					<DocumentIcon size={24} />
-					<div class="stat-value">{driverApplications.length}</div>
-					<div class="stat-label">My Applications</div>
+					<div class="stat-value">
+						{driverAppCounts.pending + driverAppCounts.accepted + driverAppCounts.rejected}
+					</div>
+					<div class="stat-label">Active Applications</div>
 					<div class="stat-breakdown">
 						<Tag type="blue" size="sm">{driverAppCounts.pending} pending</Tag>
 						<Tag type="green" size="sm">{driverAppCounts.accepted} accepted</Tag>
+						{#if driverAppCounts.withdrawn > 0}
+							<Tag type="magenta" size="sm">{driverAppCounts.withdrawn} withdrawn</Tag>
+						{/if}
 					</div>
 				</div>
 			</Tile>

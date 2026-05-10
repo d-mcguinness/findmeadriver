@@ -7,6 +7,7 @@
 	import { Time, Search, Document, Checkmark, Close, Undo, StarFilled, Star, CertificateCheck } from 'carbon-icons-svelte';
 	import { auth } from '$lib/stores/auth.svelte';
 	import { api } from '$lib/api';
+	import { driverState } from '$lib/stores/driverState.svelte';
 	import type { AvailabilityResponse, Job, JobApplication, DriverComplianceSummary } from '$lib/types';
 	import { onMount } from 'svelte';
 	import { page } from '$app/state';
@@ -50,8 +51,9 @@
 	let applyError = $state('');
 
 	// Applications state
-	let applications = $state<JobApplication[]>([]);
 	let applicationsLoading = $state(false);
+	// Backed by the shared store so apply/withdraw is reflected in StatsRow too.
+	let applications = $derived(driverState.applications);
 	let applicationByJobId = $derived(new Map(applications.map(a => [a.jobId, a])));
 
 	// Rating state
@@ -182,9 +184,7 @@
 	async function loadApplications() {
 		applicationsLoading = true;
 		try {
-			applications = await api.get<JobApplication[]>('/api/driver/applications');
-		} catch {
-			applications = [];
+			await driverState.reloadApplications();
 		} finally {
 			applicationsLoading = false;
 		}
