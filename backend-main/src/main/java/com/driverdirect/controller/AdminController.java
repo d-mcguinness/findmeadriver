@@ -6,7 +6,10 @@ import com.driverdirect.dto.CreateJobRequest;
 import com.driverdirect.dto.JobApplicationRequest;
 import com.driverdirect.dto.JobApplicationResponse;
 import com.driverdirect.dto.JobResponse;
+import com.driverdirect.dto.LocationResponse;
+import com.driverdirect.dto.OrderResponse;
 import com.driverdirect.dto.PlatformStatsResponse;
+import com.driverdirect.dto.ShipmentResponse;
 import com.driverdirect.model.Driver;
 import com.driverdirect.model.Employer;
 import com.driverdirect.model.Job;
@@ -16,6 +19,9 @@ import com.driverdirect.repository.DriverRepository;
 import com.driverdirect.repository.EmployerRepository;
 import com.driverdirect.repository.JobApplicationRepository;
 import com.driverdirect.repository.JobRepository;
+import com.driverdirect.repository.LocationRepository;
+import com.driverdirect.repository.ShipmentRepository;
+import com.driverdirect.repository.TransportOrderRepository;
 import com.driverdirect.service.AdminService;
 import com.driverdirect.service.ComplianceService;
 import com.driverdirect.service.JobApplicationService;
@@ -42,6 +48,9 @@ public class AdminController {
     private final JobApplicationRepository jobApplicationRepository;
     private final DriverRepository driverRepository;
     private final EmployerRepository employerRepository;
+    private final TransportOrderRepository transportOrderRepository;
+    private final ShipmentRepository shipmentRepository;
+    private final LocationRepository locationRepository;
 
     // ---- Users ----
 
@@ -163,5 +172,46 @@ public class AdminController {
             @RequestBody(required = false) Map<String, String> body) {
         String notes = body != null ? body.get("notes") : null;
         return ResponseEntity.ok(complianceService.verifyDocument(id, notes));
+    }
+
+    // ---- TMS read-only endpoints (Phase 0 step 5) ----
+
+    @GetMapping("/orders")
+    public ResponseEntity<List<OrderResponse>> getAllOrders() {
+        return ResponseEntity.ok(transportOrderRepository.findAll().stream()
+                .map(OrderResponse::from).toList());
+    }
+
+    @GetMapping("/orders/{id}")
+    public ResponseEntity<OrderResponse> getOrder(@PathVariable Long id) {
+        return ResponseEntity.ok(transportOrderRepository.findById(id)
+                .map(OrderResponse::from)
+                .orElseThrow(() -> new IllegalArgumentException("Order not found: " + id)));
+    }
+
+    @GetMapping("/shipments")
+    public ResponseEntity<List<ShipmentResponse>> getAllShipments() {
+        return ResponseEntity.ok(shipmentRepository.findAll().stream()
+                .map(ShipmentResponse::from).toList());
+    }
+
+    @GetMapping("/shipments/{id}")
+    public ResponseEntity<ShipmentResponse> getShipment(@PathVariable Long id) {
+        return ResponseEntity.ok(shipmentRepository.findById(id)
+                .map(ShipmentResponse::from)
+                .orElseThrow(() -> new IllegalArgumentException("Shipment not found: " + id)));
+    }
+
+    @GetMapping("/locations")
+    public ResponseEntity<List<LocationResponse>> getAllLocations() {
+        return ResponseEntity.ok(locationRepository.findAll().stream()
+                .map(LocationResponse::from).toList());
+    }
+
+    @GetMapping("/locations/{id}")
+    public ResponseEntity<LocationResponse> getLocation(@PathVariable Long id) {
+        return ResponseEntity.ok(locationRepository.findById(id)
+                .map(LocationResponse::from)
+                .orElseThrow(() -> new IllegalArgumentException("Location not found: " + id)));
     }
 }

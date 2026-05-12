@@ -3,9 +3,12 @@ package com.driverdirect.model;
 import jakarta.persistence.*;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import lombok.ToString;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * The physical move. One or more TransportOrders attach via ShipmentLine;
@@ -58,6 +61,17 @@ public class Shipment {
 
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
+
+    // Read-only collections so JobResponse can navigate the tree without an
+    // extra repo round-trip. @ToString.Exclude prevents Lombok from looping.
+    @OneToMany(mappedBy = "shipment", fetch = FetchType.LAZY)
+    @OrderBy("sequence ASC")
+    @ToString.Exclude
+    private List<Stop> stops = new ArrayList<>();
+
+    @OneToMany(mappedBy = "shipment", fetch = FetchType.LAZY)
+    @ToString.Exclude
+    private List<ShipmentLine> shipmentLines = new ArrayList<>();
 
     @PrePersist
     protected void onCreate() {

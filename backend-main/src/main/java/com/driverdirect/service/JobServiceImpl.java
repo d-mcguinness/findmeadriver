@@ -24,31 +24,27 @@ public class JobServiceImpl implements JobService {
     private final JobRepository jobRepository;
     private final JobApplicationRepository applicationRepository;
     private final AvailabilityService availabilityService;
+    private final TmsTreeService tmsTreeService;
 
     @Override
     @Transactional
     public JobResponse createJob(Employer employer, CreateJobRequest request) {
+        // Load-level fields only — customer-facing metadata lives on the tree.
         Job job = new Job();
         job.setEmployer(employer);
-        job.setTitle(request.getTitle());
-        job.setDescription(request.getDescription());
-        job.setPickupLocation(request.getPickupLocation());
-        job.setDeliveryLocation(request.getDeliveryLocation());
         job.setEstimatedDurationHours(request.getEstimatedDurationHours());
-        job.setDateNeeded(request.getDateNeeded());
         job.setRatePerHour(request.getRatePerHour());
         job.setRequiredLicenceCategory(request.getRequiredLicenceCategory());
-
-        // International defaults: inherit from the employer unless the
-        // request explicitly overrides (e.g. cross-border IE → GB).
-        String employerCountry = employer.getCountry() != null ? employer.getCountry() : "IE";
-        String employerCurrency = employer.getCurrency() != null ? employer.getCurrency() : "EUR";
-        job.setCurrency(request.getCurrency() != null ? request.getCurrency() : employerCurrency);
-        job.setPickupCountry(request.getPickupCountry() != null ? request.getPickupCountry() : employerCountry);
-        job.setDeliveryCountry(request.getDeliveryCountry() != null ? request.getDeliveryCountry() : employerCountry);
-
+        String currency = request.getCurrency() != null
+                ? request.getCurrency()
+                : (employer.getCurrency() != null ? employer.getCurrency() : "EUR");
+        job.setCurrency(currency);
         job.setStatus(JobStatus.OPEN);
+        job = jobRepository.save(job);
 
+        // Compose the TMS tree around the bare Job. Country defaults inherit
+        // from the employer unless the request explicitly overrides.
+        tmsTreeService.createTreeFor(job, TmsTreeService.TmsOrderInput.fromRequest(request, employer));
         job = jobRepository.save(job);
         return JobResponse.from(job, 0);
     }

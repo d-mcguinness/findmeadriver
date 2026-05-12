@@ -8,6 +8,11 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
+/**
+ * Wire shape stays Job-shaped for backwards compatibility; reads now flow
+ * entirely through the Phase-0 TMS tree (Job → Shipment → Order / Stops /
+ * Locations) via the navigation getters on Job.
+ */
 @Data
 public class JobResponse {
     private Long id;
@@ -47,7 +52,8 @@ public class JobResponse {
         r.setEmployerCompanyName(job.getEmployer().getCompanyName());
         if (job.getAssignedDriver() != null) {
             r.setAssignedDriverId(job.getAssignedDriver().getId());
-            r.setAssignedDriverName(job.getAssignedDriver().getFirstName() + " " + job.getAssignedDriver().getLastName());
+            r.setAssignedDriverName(job.getAssignedDriver().getFirstName() + " " +
+                    job.getAssignedDriver().getLastName());
         }
         r.setApplicationCount(applicationCount);
         r.setCreatedAt(job.getCreatedAt());
