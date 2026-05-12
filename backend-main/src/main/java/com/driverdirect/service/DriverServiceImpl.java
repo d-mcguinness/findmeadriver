@@ -47,7 +47,7 @@ public class DriverServiceImpl implements DriverService {
         // Set driver properties
         driver.setFirstName(registrationRequest.getFirstName());
         driver.setLastName(registrationRequest.getLastName());
-        driver.setCdlType(registrationRequest.getCdlType());
+        driver.setLicenceCategory(registrationRequest.getLicenceCategory());
         driver.setYearsExperience(registrationRequest.getYearsExperience());
 
         // Set driver role

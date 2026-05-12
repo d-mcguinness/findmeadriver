@@ -21,7 +21,12 @@ export interface Job {
 	estimatedDurationHours: number;
 	dateNeeded: string;
 	ratePerHour: number;
-	requiredCdlType: string;
+	currency?: string;
+	pickupCountry?: string;
+	deliveryCountry?: string;
+	requiredLicenceCategory?: string;
+	/** @deprecated kept for legacy callers; mirror of requiredLicenceCategory. */
+	requiredCdlType?: string;
 	status: string;
 	employerCompanyName: string;
 	assignedDriverId?: number;
@@ -90,6 +95,8 @@ export interface AdminUser {
 	roles: string[];
 	userType: string;
 	licenseNumber?: string;
+	licenceCategory?: string;
+	/** @deprecated mirror of licenceCategory; backend keeps it populated. */
 	cdlType?: string;
 	yearsExperience?: number;
 	companyName?: string;

@@ -39,10 +39,12 @@ public class JobApplicationServiceImpl implements JobApplicationService {
             throw new IllegalArgumentException("You have already applied for this job");
         }
 
-        // Validate CDL type matches
-        if (job.getRequiredCdlType() != null && driver.getCdlType() != null
-                && job.getRequiredCdlType() != driver.getCdlType()) {
-            throw new IllegalArgumentException("Your CDL type does not match the job requirement");
+        // Validate licence category matches (free-form string match — country-
+        // aware values like "C+E" or "CLASS_A" are equality-compared).
+        String required = job.getRequiredLicenceCategory();
+        String have = driver.getLicenceCategory();
+        if (required != null && have != null && !required.equals(have)) {
+            throw new IllegalArgumentException("Your licence category does not match the job requirement");
         }
 
         // Validate driver has enough available hours

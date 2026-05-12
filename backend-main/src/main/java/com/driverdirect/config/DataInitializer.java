@@ -2,6 +2,7 @@ package com.driverdirect.config;
 
     import com.driverdirect.model.ApplicationStatus;
 import com.driverdirect.model.ComplianceDocument;
+import com.driverdirect.model.Customer;
 import com.driverdirect.model.DocumentStatus;
 import com.driverdirect.model.DocumentType;
 import com.driverdirect.model.Driver;
@@ -11,18 +12,29 @@ import com.driverdirect.model.Employer;
 import com.driverdirect.model.Job;
 import com.driverdirect.model.JobApplication;
 import com.driverdirect.model.JobStatus;
+import com.driverdirect.model.Location;
 import com.driverdirect.model.Rating;
 import com.driverdirect.model.Role;
+import com.driverdirect.model.Shipment;
+import com.driverdirect.model.ShipmentLine;
+import com.driverdirect.model.Stop;
+import com.driverdirect.model.TransportOrder;
 import com.driverdirect.model.User;
 import com.driverdirect.repository.ComplianceDocumentRepository;
+import com.driverdirect.repository.CustomerRepository;
 import com.driverdirect.repository.DriverAvailabilityRepository;
 import com.driverdirect.repository.DriverRepository;
 import com.driverdirect.repository.DriverTimeSlotRepository;
 import com.driverdirect.repository.EmployerRepository;
 import com.driverdirect.repository.JobApplicationRepository;
 import com.driverdirect.repository.JobRepository;
+import com.driverdirect.repository.LocationRepository;
 import com.driverdirect.repository.RatingRepository;
 import com.driverdirect.repository.RoleRepository;
+import com.driverdirect.repository.ShipmentLineRepository;
+import com.driverdirect.repository.ShipmentRepository;
+import com.driverdirect.repository.StopRepository;
+import com.driverdirect.repository.TransportOrderRepository;
 import com.driverdirect.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.CommandLineRunner;
@@ -50,6 +62,12 @@ public class DataInitializer implements CommandLineRunner {
     @Autowired private RatingRepository ratingRepository;
     @Autowired private DriverAvailabilityRepository driverAvailabilityRepository;
     @Autowired private DriverTimeSlotRepository driverTimeSlotRepository;
+    @Autowired private CustomerRepository customerRepository;
+    @Autowired private LocationRepository locationRepository;
+    @Autowired private TransportOrderRepository transportOrderRepository;
+    @Autowired private ShipmentRepository shipmentRepository;
+    @Autowired private ShipmentLineRepository shipmentLineRepository;
+    @Autowired private StopRepository stopRepository;
     @Autowired private PasswordEncoder passwordEncoder;
 
     @Override
@@ -287,6 +305,107 @@ public class DataInitializer implements CommandLineRunner {
         seedAvailability(mairead,    new double[]{8, 8, 0, 8, 8, 0, 0,  8, 8, 0, 8, 8, 6, 0});
         seedAvailability(siobhan,    new double[]{6, 0, 6, 6, 6, 0, 0,  6, 6, 0, 6, 6, 6, 0});
         seedAvailability(patrick,    new double[]{0, 0, 8, 8, 8, 0, 0,  8, 8, 8, 8, 0, 0, 8});
+
+        // ---- Phase 0 TMS data model: backfill Customer / TransportOrder /
+        // Shipment / Stops / Location alongside the existing Job rows. The
+        // Job-shaped API stays the source of truth until the façade is swapped.
+        backfillTmsTree();
+    }
+
+    private void backfillTmsTree() {
+        // One default Customer per Employer.
+        java.util.Map<Long, Customer> customerByEmployer = new java.util.HashMap<>();
+        for (Employer e : employerRepository.findAll()) {
+            Customer c = customerRepository.findFirstByEmployerOrderByIdAsc(e).orElseGet(() ->
+                    customerRepository.save(new Customer(e, e.getCompanyName() + " (default)")));
+            customerByEmployer.put(e.getId(), c);
+        }
+
+        for (Job job : jobRepository.findAll()) {
+            // Locations: look up by name+country, else create as ad-hoc.
+            Location pickupLoc = upsertLocation(job.getPickupLocation(), job.getPickupCountry());
+            Location deliveryLoc = upsertLocation(job.getDeliveryLocation(), job.getDeliveryCountry());
+
+            // TransportOrder mirroring the Job's customer-facing metadata.
+            TransportOrder order = new TransportOrder();
+            order.setEmployer(job.getEmployer());
+            order.setCustomer(customerByEmployer.get(job.getEmployer().getId()));
+            order.setTitle(job.getTitle());
+            order.setDescription(job.getDescription());
+            order.setDateNeeded(job.getDateNeeded());
+            order.setCurrency(job.getCurrency());
+            order.setStatus(mapOrderStatus(job.getStatus()));
+            order = transportOrderRepository.save(order);
+
+            // Shipment mirroring the physical move.
+            Shipment shipment = new Shipment();
+            shipment.setEmployer(job.getEmployer());
+            shipment.setMode(Shipment.Mode.ROAD);
+            shipment.setStatus(mapShipmentStatus(job.getStatus()));
+            shipment.setCurrency(job.getCurrency());
+            shipment.setOriginCountry(job.getPickupCountry());
+            shipment.setDestinationCountry(job.getDeliveryCountry());
+            shipment = shipmentRepository.save(shipment);
+
+            // Two ordered stops.
+            Stop pickup = new Stop();
+            pickup.setShipment(shipment);
+            pickup.setSequence(1);
+            pickup.setType(Stop.StopType.PICKUP);
+            pickup.setLocation(pickupLoc);
+            pickup.setEarliestAt(job.getDateNeeded() != null ? job.getDateNeeded().atTime(8, 0) : null);
+            pickup.setLatestAt(job.getDateNeeded() != null ? job.getDateNeeded().atTime(11, 0) : null);
+            stopRepository.save(pickup);
+
+            Stop delivery = new Stop();
+            delivery.setShipment(shipment);
+            delivery.setSequence(2);
+            delivery.setType(Stop.StopType.DELIVERY);
+            delivery.setLocation(deliveryLoc);
+            delivery.setEarliestAt(job.getDateNeeded() != null ? job.getDateNeeded().atTime(13, 0) : null);
+            delivery.setLatestAt(job.getDateNeeded() != null ? job.getDateNeeded().atTime(18, 0) : null);
+            stopRepository.save(delivery);
+
+            // Link order to shipment.
+            ShipmentLine line = new ShipmentLine();
+            line.setShipment(shipment);
+            line.setOrder(order);
+            shipmentLineRepository.save(line);
+        }
+    }
+
+    private Location upsertLocation(String name, String country) {
+        if (name == null || name.isBlank()) return null;
+        String iso = country == null ? "IE" : country;
+        return locationRepository.findFirstByNameIgnoreCaseAndCountry(name, iso).orElseGet(() -> {
+            Location loc = new Location();
+            loc.setName(name);
+            loc.setAddressLine(name); // free-text source — same string is the best we have
+            loc.setCountry(iso);
+            return locationRepository.save(loc);
+        });
+    }
+
+    private TransportOrder.OrderStatus mapOrderStatus(JobStatus js) {
+        switch (js) {
+            case OPEN:        return TransportOrder.OrderStatus.NEW;
+            case ASSIGNED:    return TransportOrder.OrderStatus.PLANNED;
+            case IN_PROGRESS: return TransportOrder.OrderStatus.IN_EXECUTION;
+            case COMPLETED:   return TransportOrder.OrderStatus.COMPLETED;
+            case CANCELLED:   return TransportOrder.OrderStatus.CANCELLED;
+            default:          return TransportOrder.OrderStatus.NEW;
+        }
+    }
+
+    private Shipment.ShipmentStatus mapShipmentStatus(JobStatus js) {
+        switch (js) {
+            case OPEN:        return Shipment.ShipmentStatus.PLANNED;
+            case ASSIGNED:    return Shipment.ShipmentStatus.ACCEPTED;
+            case IN_PROGRESS: return Shipment.ShipmentStatus.IN_TRANSIT;
+            case COMPLETED:   return Shipment.ShipmentStatus.DELIVERED;
+            case CANCELLED:   return Shipment.ShipmentStatus.CANCELLED;
+            default:          return Shipment.ShipmentStatus.PLANNED;
+        }
     }
 
     private void seedAvailability(Driver driver, double[] hoursForNext14Days) {

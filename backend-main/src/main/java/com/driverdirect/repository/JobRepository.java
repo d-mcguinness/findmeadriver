@@ -1,6 +1,5 @@
 package com.driverdirect.repository;
 
-import com.driverdirect.model.Driver;
 import com.driverdirect.model.Employer;
 import com.driverdirect.model.Job;
 import com.driverdirect.model.JobStatus;
@@ -14,7 +13,7 @@ public interface JobRepository extends JpaRepository<Job, Long> {
 
     List<Job> findByEmployerOrderByCreatedAtDesc(Employer employer);
 
-    List<Job> findByStatusAndRequiredCdlTypeOrderByDateNeededAsc(JobStatus status, Driver.CDLType cdlType);
+    List<Job> findByStatusAndRequiredLicenceCategoryOrderByDateNeededAsc(JobStatus status, String licenceCategory);
 
     List<Job> findByStatusOrderByDateNeededAsc(JobStatus status);
 }

@@ -580,7 +580,7 @@
 											<div class="job-header">
 												<h4>{job.title}</h4>
 												<div class="header-tags">
-													<Tag type="blue">{job.requiredCdlType || 'Any CDL'}</Tag>
+													<Tag type="blue">{job.requiredLicenceCategory ?? job.requiredCdlType ?? 'Any licence'}</Tag>
 													{#if isWithdrawn}
 														<Tag type="magenta" icon={Undo}>Withdrawn</Tag>
 													{:else if blocksApply}

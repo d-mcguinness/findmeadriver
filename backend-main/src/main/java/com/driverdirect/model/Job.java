@@ -43,9 +43,37 @@ public class Job {
     @Column(name = "rate_per_hour", nullable = false)
     private BigDecimal ratePerHour;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "required_cdl_type")
-    private Driver.CDLType requiredCdlType;
+    // ISO-4217 currency for ratePerHour (e.g. EUR, GBP).
+    @Column(length = 3, nullable = false)
+    private String currency = "EUR";
+
+    // ISO-3166-1 alpha-2 country codes for pickup and delivery. Same value
+    // for domestic jobs; different for cross-border (e.g. IE → GB).
+    @Column(name = "pickup_country", length = 2, nullable = false)
+    private String pickupCountry = "IE";
+
+    @Column(name = "delivery_country", length = 2, nullable = false)
+    private String deliveryCountry = "IE";
+
+    // Free-form licence category required by the job. Matches the Driver
+    // licenceCategory via plain equality.
+    @Column(name = "required_licence_category")
+    private String requiredLicenceCategory;
+
+    /**
+     * @deprecated retained for seed compatibility — read/write
+     * {@link #requiredLicenceCategory} instead.
+     */
+    @Deprecated
+    public Driver.CDLType getRequiredCdlType() {
+        return requiredLicenceCategory == null ? null : Driver.CDLType.valueOf(requiredLicenceCategory);
+    }
+
+    /** @deprecated use {@link #setRequiredLicenceCategory(String)}. */
+    @Deprecated
+    public void setRequiredCdlType(Driver.CDLType t) {
+        this.requiredLicenceCategory = t == null ? null : t.name();
+    }
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "assigned_driver_id")

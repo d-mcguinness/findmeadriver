@@ -1,6 +1,5 @@
 package com.driverdirect.dto;
 
-import com.driverdirect.model.Driver;
 import com.driverdirect.model.Job;
 import com.driverdirect.model.JobStatus;
 import lombok.Data;
@@ -19,7 +18,10 @@ public class JobResponse {
     private Double estimatedDurationHours;
     private LocalDate dateNeeded;
     private BigDecimal ratePerHour;
-    private Driver.CDLType requiredCdlType;
+    private String currency;
+    private String pickupCountry;
+    private String deliveryCountry;
+    private String requiredLicenceCategory;
     private JobStatus status;
     private String employerCompanyName;
     private Long assignedDriverId;
@@ -37,7 +39,10 @@ public class JobResponse {
         r.setEstimatedDurationHours(job.getEstimatedDurationHours());
         r.setDateNeeded(job.getDateNeeded());
         r.setRatePerHour(job.getRatePerHour());
-        r.setRequiredCdlType(job.getRequiredCdlType());
+        r.setCurrency(job.getCurrency());
+        r.setPickupCountry(job.getPickupCountry());
+        r.setDeliveryCountry(job.getDeliveryCountry());
+        r.setRequiredLicenceCategory(job.getRequiredLicenceCategory());
         r.setStatus(job.getStatus());
         r.setEmployerCompanyName(job.getEmployer().getCompanyName());
         if (job.getAssignedDriver() != null) {

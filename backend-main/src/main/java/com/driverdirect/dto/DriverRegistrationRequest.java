@@ -1,6 +1,5 @@
 package com.driverdirect.dto;
 
-import com.driverdirect.model.Driver;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
@@ -18,8 +17,10 @@ public class DriverRegistrationRequest extends UserRegistrationRequest {
     @NotNull
     private LocalDate licenseExpiration;
 
-    @NotNull
-    private Driver.CDLType cdlType;
+    // Free-form licence category. UI picks values from a country-aware lookup
+    // (e.g. "CLASS_A" for US, "C" / "C+E" for EU).
+    @NotBlank
+    private String licenceCategory;
 
     @PositiveOrZero
     private Integer yearsExperience;

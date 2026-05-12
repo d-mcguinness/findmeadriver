@@ -39,6 +39,16 @@ public class Employer extends User {
     @Column(length = 2000)
     private String companyDescription;
 
+    // ISO-3166-1 alpha-2 country code (e.g. IE, GB, FR). Used to scope
+    // address autocomplete, licence categories, and currency defaults.
+    @Column(length = 2, nullable = false)
+    private String country = "IE";
+
+    // ISO-4217 currency code (e.g. EUR, GBP, USD). Defaults to the
+    // currency of the employer's country.
+    @Column(length = 3, nullable = false)
+    private String currency = "EUR";
+
     public enum Industry {
         LOGISTICS,
         TRANSPORTATION,

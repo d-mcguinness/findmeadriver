@@ -12,8 +12,14 @@
 	import { onMount } from 'svelte';
 	import LocationPicker from '$lib/components/LocationPicker.svelte';
 	import { calculateRoute, type RouteInfo } from '$lib/google-maps';
+	import { licenceCategoriesFor } from '$lib/licence-categories';
 
-	type EmployerOption = { id: number; companyName: string; email: string };
+	type EmployerOption = { id: number; companyName: string; email: string; country?: string };
+
+	// Employer's country drives both the licence-category list and (later)
+	// LocationPicker's componentRestrictions. Defaults to IE.
+	let employerCountry = $state('IE');
+	let licenceOptions = $derived(licenceCategoriesFor(employerCountry));
 
 	let jobForm = $state({
 		title: '',
@@ -23,7 +29,7 @@
 		estimatedDurationHours: 4,
 		dateNeeded: '',
 		ratePerHour: 25,
-		requiredCdlType: 'CLASS_A'
+		requiredLicenceCategory: 'C'
 	});
 	let postError = $state('');
 	let postSuccess = $state('');
@@ -197,12 +203,11 @@
 				<div class="form-row">
 					<NumberInput bind:value={jobForm.ratePerHour}
 						label="Rate per Hour (&euro;)" min={10} max={200} step={1} />
-					<Select bind:selected={jobForm.requiredCdlType}
-						labelText="Required CDL Type">
-						<SelectItem value="CLASS_A" text="Class A" />
-						<SelectItem value="CLASS_B" text="Class B" />
-						<SelectItem value="CLASS_C" text="Class C" />
-						<SelectItem value="NON_CDL" text="Non-CDL" />
+					<Select bind:selected={jobForm.requiredLicenceCategory}
+						labelText="Required Licence Category">
+						{#each licenceOptions as opt}
+							<SelectItem value={opt.code} text={opt.label} />
+						{/each}
 					</Select>
 				</div>
 

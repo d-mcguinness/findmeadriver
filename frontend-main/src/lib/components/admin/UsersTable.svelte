@@ -57,7 +57,7 @@
 		email: u.email,
 		userType: u.userType,
 		detail: u.userType === 'DRIVER'
-			? `CDL: ${u.cdlType || '—'}, Lic: ${u.licenseNumber || '—'}`
+			? `Licence: ${u.licenceCategory ?? u.cdlType ?? '—'}, ${u.licenseNumber || '—'}`
 			: u.userType === 'EMPLOYER'
 				? u.companyName || '—'
 				: '—',

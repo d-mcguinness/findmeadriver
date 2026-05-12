@@ -37,7 +37,16 @@ public class JobServiceImpl implements JobService {
         job.setEstimatedDurationHours(request.getEstimatedDurationHours());
         job.setDateNeeded(request.getDateNeeded());
         job.setRatePerHour(request.getRatePerHour());
-        job.setRequiredCdlType(request.getRequiredCdlType());
+        job.setRequiredLicenceCategory(request.getRequiredLicenceCategory());
+
+        // International defaults: inherit from the employer unless the
+        // request explicitly overrides (e.g. cross-border IE → GB).
+        String employerCountry = employer.getCountry() != null ? employer.getCountry() : "IE";
+        String employerCurrency = employer.getCurrency() != null ? employer.getCurrency() : "EUR";
+        job.setCurrency(request.getCurrency() != null ? request.getCurrency() : employerCurrency);
+        job.setPickupCountry(request.getPickupCountry() != null ? request.getPickupCountry() : employerCountry);
+        job.setDeliveryCountry(request.getDeliveryCountry() != null ? request.getDeliveryCountry() : employerCountry);
+
         job.setStatus(JobStatus.OPEN);
 
         job = jobRepository.save(job);
@@ -61,9 +70,9 @@ public class JobServiceImpl implements JobService {
     @Override
     public List<JobResponse> getMatchingJobs(Driver driver) {
         List<Job> jobs;
-        if (driver.getCdlType() != null) {
-            jobs = jobRepository.findByStatusAndRequiredCdlTypeOrderByDateNeededAsc(
-                    JobStatus.OPEN, driver.getCdlType());
+        if (driver.getLicenceCategory() != null) {
+            jobs = jobRepository.findByStatusAndRequiredLicenceCategoryOrderByDateNeededAsc(
+                    JobStatus.OPEN, driver.getLicenceCategory());
         } else {
             jobs = jobRepository.findByStatusOrderByDateNeededAsc(JobStatus.OPEN);
         }

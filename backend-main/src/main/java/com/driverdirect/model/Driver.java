@@ -28,9 +28,26 @@ public class Driver extends User {
     @Column(name = "license_expiration")
     private LocalDate licenseExpiration;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "cdl_type")
-    private CDLType cdlType;
+    // Free-form licence category (e.g. "CLASS_A" for US CDL, "C" / "C+E" for
+    // EU categories). Validated against a country-aware lookup on the UI side;
+    // matched job-side via plain equality.
+    @Column(name = "licence_category")
+    private String licenceCategory;
+
+    /**
+     * @deprecated retained only for seed compatibility — read/write
+     * {@link #licenceCategory} (a String) instead.
+     */
+    @Deprecated
+    public CDLType getCdlType() {
+        return licenceCategory == null ? null : CDLType.valueOf(licenceCategory);
+    }
+
+    /** @deprecated use {@link #setLicenceCategory(String)}. */
+    @Deprecated
+    public void setCdlType(CDLType t) {
+        this.licenceCategory = t == null ? null : t.name();
+    }
 
     @PositiveOrZero
     @Column(name = "years_experience")

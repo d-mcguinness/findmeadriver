@@ -1,6 +1,5 @@
 package com.driverdirect.dto;
 
-import com.driverdirect.model.Driver;
 import lombok.Data;
 
 import java.math.BigDecimal;
@@ -15,5 +14,9 @@ public class CreateJobRequest {
     private Double estimatedDurationHours;
     private LocalDate dateNeeded;
     private BigDecimal ratePerHour;
-    private Driver.CDLType requiredCdlType;
+    // All optional; backend falls back to the employer's defaults.
+    private String currency;
+    private String pickupCountry;
+    private String deliveryCountry;
+    private String requiredLicenceCategory;
 }

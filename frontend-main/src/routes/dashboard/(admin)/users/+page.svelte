@@ -52,10 +52,12 @@
 			const blockedJobIds = new Set(
 				driverApps.filter(a => a.status !== 'WITHDRAWN').map(a => a.jobId)
 			);
+			const jobLicence = (j: Job) => j.requiredLicenceCategory ?? j.requiredCdlType;
+			const driverLicence = driver.licenceCategory ?? driver.cdlType;
 			openJobs = allJobs.filter(j =>
 				j.status === 'OPEN' &&
 				!blockedJobIds.has(j.id) &&
-				(!j.requiredCdlType || !driver.cdlType || j.requiredCdlType === driver.cdlType)
+				(!jobLicence(j) || !driverLicence || jobLicence(j) === driverLicence)
 			);
 			if (openJobs.length > 0) applyJobId = String(openJobs[0].id);
 		} catch (e: any) {
@@ -153,7 +155,7 @@
 	{/if}
 
 	{#if openJobs.length === 0}
-		<p>No open jobs match this driver's CDL type ({applyDriver?.cdlType || 'none set'}).</p>
+		<p>No open jobs match this driver's licence category ({applyDriver?.licenceCategory ?? applyDriver?.cdlType ?? 'none set'}).</p>
 	{:else}
 		<Select bind:selected={applyJobId} labelText="Choose an open job">
 			{#each openJobs as job}

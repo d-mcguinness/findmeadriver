@@ -19,7 +19,10 @@ public class AdminUserResponse {
 
     // Driver-specific
     private String licenseNumber;
+    /** @deprecated kept for backwards compatibility; use {@link #licenceCategory}. */
+    @Deprecated
     private String cdlType;
+    private String licenceCategory;
     private Integer yearsExperience;
 
     // Employer-specific
@@ -41,7 +44,9 @@ public class AdminUserResponse {
         if (user instanceof Driver driver) {
             r.setUserType("DRIVER");
             r.setLicenseNumber(driver.getLicenseNumber());
-            r.setCdlType(driver.getCdlType() != null ? driver.getCdlType().name() : null);
+            r.setLicenceCategory(driver.getLicenceCategory());
+            // Keep the legacy field populated so existing frontend code keeps working.
+            r.setCdlType(driver.getLicenceCategory());
             r.setYearsExperience(driver.getYearsExperience());
         } else if (user instanceof Employer employer) {
             r.setUserType("EMPLOYER");
