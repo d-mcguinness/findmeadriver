@@ -157,10 +157,13 @@ public class AdminController {
     public ResponseEntity<List<Map<String, Object>>> getDriverEligibility(@PathVariable Long jobId) {
         Job job = jobRepository.findById(jobId)
                 .orElseThrow(() -> new IllegalArgumentException("Job not found: " + jobId));
-        List<Map<String, Object>> response = driverRepository.findAll().stream()
+        List<Driver> drivers = driverRepository.findAll();
+        Map<Long, JobApplicationService.Eligibility> eligibility =
+                jobApplicationService.checkEligibilityForDrivers(job, drivers);
+        List<Map<String, Object>> response = drivers.stream()
                 .map(d -> {
-                    JobApplicationService.Eligibility reason =
-                            jobApplicationService.checkEligibility(d, job);
+                    JobApplicationService.Eligibility reason = eligibility.getOrDefault(
+                            d.getId(), JobApplicationService.Eligibility.OK);
                     Map<String, Object> m = new java.util.LinkedHashMap<>();
                     m.put("driverId", d.getId());
                     m.put("eligible", reason == JobApplicationService.Eligibility.OK);

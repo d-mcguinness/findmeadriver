@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -25,13 +26,41 @@ public class JobApplicationServiceImpl implements JobApplicationService {
 
     @Override
     public Eligibility checkEligibility(Driver driver, Job job) {
-        return checkEligibility(driver, job,
-                applicationRepository.findByJobAndDriver(job, driver).orElse(null));
+        JobApplication existing = applicationRepository.findByJobAndDriver(job, driver).orElse(null);
+        double hours = availabilityService.getAvailableHoursOnDate(driver, job.getDateNeeded());
+        boolean cabotageBlocking = cabotageService.check(driver, job).isBlocking();
+        return evaluate(job, existing, driver.getLicenceCategory(), hours, cabotageBlocking);
     }
 
-    // The single rule set, shared by the apply path and the admin preview so
-    // they can never drift. Order matters: the first failing gate is returned.
-    private Eligibility checkEligibility(Driver driver, Job job, JobApplication existing) {
+    @Override
+    public Map<Long, Eligibility> checkEligibilityForDrivers(Job job, List<Driver> drivers) {
+        // Resolve every per-driver fact in a constant number of queries instead
+        // of one set per driver (the previous N+1):
+        //  - applications for the job (1 query; driverId via the lazy FK, no load)
+        Map<Long, JobApplication> appByDriver = applicationRepository.findByJob(job).stream()
+                .collect(Collectors.toMap(a -> a.getDriver().getId(), a -> a, (a, b) -> a));
+        //  - availability on the job's date across all drivers (1 query)
+        Map<Long, Double> hoursByDriver =
+                availabilityService.getAvailableHoursForDrivers(drivers, job.getDateNeeded());
+        //  - cabotage op counts per driver for the destination country (0–1 query)
+        Map<Long, Integer> cabotageByDriver = cabotageService.countInWindowByDriver(drivers, job);
+
+        Map<Long, Eligibility> out = new java.util.LinkedHashMap<>();
+        for (Driver d : drivers) {
+            Long id = d.getId();
+            boolean cabotageBlocking =
+                    cabotageService.isOverLimit(d, job, cabotageByDriver.getOrDefault(id, 0));
+            out.put(id, evaluate(job, appByDriver.get(id), d.getLicenceCategory(),
+                    hoursByDriver.getOrDefault(id, 0.0), cabotageBlocking));
+        }
+        return out;
+    }
+
+    // The single rule set, shared by the apply path, the single-driver check,
+    // and the batch preview so they can never drift. Order matters: the first
+    // failing gate wins. Takes resolved facts so it issues no queries itself.
+    private Eligibility evaluate(Job job, JobApplication existing, String licenceCategory,
+                                 double availableHours, boolean cabotageBlocking) {
         if (job.getStatus() != JobStatus.OPEN) return Eligibility.JOB_NOT_OPEN;
         // Active application (non-withdrawn) blocks re-applying; a withdrawn one
         // can be revived for a fresh attempt.
@@ -39,16 +68,11 @@ public class JobApplicationServiceImpl implements JobApplicationService {
             return Eligibility.ALREADY_APPLIED;
         }
         // Cross-regime equivalence via the covers() lattice (e.g. C+E ≡ HGV class 1).
-        if (!LicenceCategory.satisfies(driver.getLicenceCategory(), job.getRequiredLicenceCategory())) {
+        if (!LicenceCategory.satisfies(licenceCategory, job.getRequiredLicenceCategory())) {
             return Eligibility.LICENCE;
         }
-        if (availabilityService.getAvailableHoursOnDate(driver, job.getDateNeeded())
-                < job.getEstimatedDurationHours()) {
-            return Eligibility.AVAILABILITY;
-        }
-        // Cabotage: foreign driver capped at 3 ops per host country per 7 days.
-        // HOME_COUNTRY_MISSING is non-blocking (handled inside isBlocking()).
-        if (cabotageService.check(driver, job).isBlocking()) return Eligibility.CABOTAGE;
+        if (availableHours < job.getEstimatedDurationHours()) return Eligibility.AVAILABILITY;
+        if (cabotageBlocking) return Eligibility.CABOTAGE;
         return Eligibility.OK;
     }
 
@@ -59,29 +83,28 @@ public class JobApplicationServiceImpl implements JobApplicationService {
                 .orElseThrow(() -> new IllegalArgumentException("Job not found"));
 
         JobApplication existing = applicationRepository.findByJobAndDriver(job, driver).orElse(null);
+        Double available = availabilityService.getAvailableHoursOnDate(driver, job.getDateNeeded());
+        CabotageService.CabotageCheck cab = cabotageService.check(driver, job);
 
-        // Enforce the same eligibility the admin UI previews; craft the rich,
-        // value-bearing message for the gate that failed.
-        switch (checkEligibility(driver, job, existing)) {
+        // Enforce the same rule the admin UI previews (via evaluate); craft the
+        // rich, value-bearing message for the gate that failed — reusing the
+        // facts above so no check is recomputed.
+        switch (evaluate(job, existing, driver.getLicenceCategory(), available, cab.isBlocking())) {
             case JOB_NOT_OPEN ->
                 throw new IllegalArgumentException("This job is no longer accepting applications");
             case ALREADY_APPLIED ->
                 throw new IllegalArgumentException("You have already applied for this job");
             case LICENCE ->
                 throw new IllegalArgumentException("Your licence category does not satisfy the job requirement");
-            case AVAILABILITY -> {
-                Double available = availabilityService.getAvailableHoursOnDate(driver, job.getDateNeeded());
+            case AVAILABILITY ->
                 throw new IllegalArgumentException(
                         "You need " + job.getEstimatedDurationHours() + " available hours on " +
                         job.getDateNeeded() + " but only have " + available + "h set");
-            }
-            case CABOTAGE -> {
-                CabotageService.CabotageCheck cab = cabotageService.check(driver, job);
+            case CABOTAGE ->
                 throw new IllegalArgumentException(
                         "Cabotage limit reached for " + cab.country() + ": "
                                 + cab.opsInWindow() + " of " + cab.limit()
                                 + " ops in the last 7 days.");
-            }
             default -> { /* OK — proceed */ }
         }
 

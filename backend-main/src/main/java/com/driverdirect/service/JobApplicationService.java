@@ -7,6 +7,7 @@ import com.driverdirect.model.Employer;
 import com.driverdirect.model.Job;
 
 import java.util.List;
+import java.util.Map;
 
 public interface JobApplicationService {
 
@@ -16,6 +17,11 @@ public interface JobApplicationService {
 
     /** Non-mutating preview of whether {@code driver} may apply for {@code job}. */
     Eligibility checkEligibility(Driver driver, Job job);
+
+    /** Batched eligibility for many drivers against one job, keyed by driver id.
+     *  Resolves applications/availability/cabotage in a constant number of
+     *  queries (not per driver). */
+    Map<Long, Eligibility> checkEligibilityForDrivers(Job job, List<Driver> drivers);
 
     JobApplicationResponse applyForJob(Driver driver, Long jobId, JobApplicationRequest request);
 
