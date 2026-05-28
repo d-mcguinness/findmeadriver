@@ -140,6 +140,37 @@ public class AdminController {
         return ResponseEntity.ok(response);
     }
 
+    @GetMapping("/jobs/{jobId}/applications")
+    public ResponseEntity<List<JobApplicationResponse>> getApplicationsForJob(@PathVariable Long jobId) {
+        Job job = jobRepository.findById(jobId)
+                .orElseThrow(() -> new IllegalArgumentException("Job not found: " + jobId));
+        List<JobApplicationResponse> apps = jobApplicationRepository.findByJob(job).stream()
+                .map(JobApplicationResponse::from)
+                .toList();
+        return ResponseEntity.ok(apps);
+    }
+
+    /** Per-driver eligibility to apply for this job — runs the real applyForJob
+     *  rules (status/duplicate/licence/availability/cabotage) so the admin UI
+     *  only offers Apply where it would actually succeed. */
+    @GetMapping("/jobs/{jobId}/driver-eligibility")
+    public ResponseEntity<List<Map<String, Object>>> getDriverEligibility(@PathVariable Long jobId) {
+        Job job = jobRepository.findById(jobId)
+                .orElseThrow(() -> new IllegalArgumentException("Job not found: " + jobId));
+        List<Map<String, Object>> response = driverRepository.findAll().stream()
+                .map(d -> {
+                    JobApplicationService.Eligibility reason =
+                            jobApplicationService.checkEligibility(d, job);
+                    Map<String, Object> m = new java.util.LinkedHashMap<>();
+                    m.put("driverId", d.getId());
+                    m.put("eligible", reason == JobApplicationService.Eligibility.OK);
+                    m.put("reason", reason.name());
+                    return m;
+                })
+                .toList();
+        return ResponseEntity.ok(response);
+    }
+
     @GetMapping("/drivers/{driverId}/applications")
     public ResponseEntity<List<JobApplicationResponse>> getApplicationsForDriver(@PathVariable Long driverId) {
         Driver driver = driverRepository.findById(driverId)

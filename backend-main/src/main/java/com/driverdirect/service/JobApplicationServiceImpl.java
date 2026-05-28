@@ -24,49 +24,65 @@ public class JobApplicationServiceImpl implements JobApplicationService {
     private final CabotageService cabotageService;
 
     @Override
+    public Eligibility checkEligibility(Driver driver, Job job) {
+        return checkEligibility(driver, job,
+                applicationRepository.findByJobAndDriver(job, driver).orElse(null));
+    }
+
+    // The single rule set, shared by the apply path and the admin preview so
+    // they can never drift. Order matters: the first failing gate is returned.
+    private Eligibility checkEligibility(Driver driver, Job job, JobApplication existing) {
+        if (job.getStatus() != JobStatus.OPEN) return Eligibility.JOB_NOT_OPEN;
+        // Active application (non-withdrawn) blocks re-applying; a withdrawn one
+        // can be revived for a fresh attempt.
+        if (existing != null && existing.getStatus() != ApplicationStatus.WITHDRAWN) {
+            return Eligibility.ALREADY_APPLIED;
+        }
+        // Cross-regime equivalence via the covers() lattice (e.g. C+E ≡ HGV class 1).
+        if (!LicenceCategory.satisfies(driver.getLicenceCategory(), job.getRequiredLicenceCategory())) {
+            return Eligibility.LICENCE;
+        }
+        if (availabilityService.getAvailableHoursOnDate(driver, job.getDateNeeded())
+                < job.getEstimatedDurationHours()) {
+            return Eligibility.AVAILABILITY;
+        }
+        // Cabotage: foreign driver capped at 3 ops per host country per 7 days.
+        // HOME_COUNTRY_MISSING is non-blocking (handled inside isBlocking()).
+        if (cabotageService.check(driver, job).isBlocking()) return Eligibility.CABOTAGE;
+        return Eligibility.OK;
+    }
+
+    @Override
     @Transactional
     public JobApplicationResponse applyForJob(Driver driver, Long jobId, JobApplicationRequest request) {
         Job job = jobRepository.findById(jobId)
                 .orElseThrow(() -> new IllegalArgumentException("Job not found"));
 
-        if (job.getStatus() != JobStatus.OPEN) {
-            throw new IllegalArgumentException("This job is no longer accepting applications");
-        }
-
-        // Active application (non-withdrawn) blocks re-applying; withdrawn applications
-        // can be revived so the driver gets a fresh attempt.
         JobApplication existing = applicationRepository.findByJobAndDriver(job, driver).orElse(null);
-        if (existing != null && existing.getStatus() != ApplicationStatus.WITHDRAWN) {
-            throw new IllegalArgumentException("You have already applied for this job");
-        }
 
-        // Cross-regime equivalence: a CE driver satisfies an HGV_CLASS_1 job and
-        // vice versa. Unknown category strings fall back to equality (see
-        // LicenceCategory.satisfies).
-        String required = job.getRequiredLicenceCategory();
-        String have = driver.getLicenceCategory();
-        if (!LicenceCategory.satisfies(have, required)) {
-            throw new IllegalArgumentException("Your licence category does not satisfy the job requirement");
-        }
-
-        // Validate driver has enough available hours
-        Double available = availabilityService.getAvailableHoursOnDate(driver, job.getDateNeeded());
-        if (available < job.getEstimatedDurationHours()) {
-            throw new IllegalArgumentException(
-                    "You need " + job.getEstimatedDurationHours() + " available hours on " +
-                    job.getDateNeeded() + " but only have " + available + "h set");
-        }
-
-        // Cabotage gate: a foreign driver may perform at most 3 cabotage ops
-        // per host country per 7-day rolling window. HOME_COUNTRY_MISSING is
-        // non-blocking — the driver should be prompted to set their base
-        // country via a separate channel, but we don't refuse the apply.
-        CabotageService.CabotageCheck cab = cabotageService.check(driver, job);
-        if (cab.isBlocking()) {
-            throw new IllegalArgumentException(
-                    "Cabotage limit reached for " + cab.country() + ": "
-                            + cab.opsInWindow() + " of " + cab.limit()
-                            + " ops in the last 7 days.");
+        // Enforce the same eligibility the admin UI previews; craft the rich,
+        // value-bearing message for the gate that failed.
+        switch (checkEligibility(driver, job, existing)) {
+            case JOB_NOT_OPEN ->
+                throw new IllegalArgumentException("This job is no longer accepting applications");
+            case ALREADY_APPLIED ->
+                throw new IllegalArgumentException("You have already applied for this job");
+            case LICENCE ->
+                throw new IllegalArgumentException("Your licence category does not satisfy the job requirement");
+            case AVAILABILITY -> {
+                Double available = availabilityService.getAvailableHoursOnDate(driver, job.getDateNeeded());
+                throw new IllegalArgumentException(
+                        "You need " + job.getEstimatedDurationHours() + " available hours on " +
+                        job.getDateNeeded() + " but only have " + available + "h set");
+            }
+            case CABOTAGE -> {
+                CabotageService.CabotageCheck cab = cabotageService.check(driver, job);
+                throw new IllegalArgumentException(
+                        "Cabotage limit reached for " + cab.country() + ": "
+                                + cab.opsInWindow() + " of " + cab.limit()
+                                + " ops in the last 7 days.");
+            }
+            default -> { /* OK — proceed */ }
         }
 
         JobApplication application = existing != null ? existing : new JobApplication();
