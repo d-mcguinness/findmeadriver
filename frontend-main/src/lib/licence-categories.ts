@@ -51,39 +51,3 @@ export function licenceCategoryLabel(country: string | undefined | null, code: s
 	const list = licenceCategoriesFor(country);
 	return list.find(c => c.code === code)?.label ?? code;
 }
-
-// "Covers" lattice — mirrors com.driverdirect.model.LicenceCategory.COVERS so
-// the UI can pre-check eligibility before offering an apply action. Keyed by
-// the enum *name* the backend stores (EU "C+E" is the enum CE; tokens not in
-// this map fall back to plain equality, exactly like the server).
-const COVERS: Record<string, string[]> = {
-	CE: ['C', 'C1', 'C1E', 'HGV_CLASS_1', 'HGV_CLASS_2'],
-	C: ['C1', 'HGV_CLASS_2'],
-	C1E: ['C1'],
-	C1: [],
-	DE: ['D', 'D1', 'D1E'],
-	D: ['D1'],
-	D1E: ['D1'],
-	D1: [],
-	HGV_CLASS_1: ['CE', 'C', 'C1', 'C1E', 'HGV_CLASS_2'],
-	HGV_CLASS_2: ['C', 'C1'],
-	CLASS_A: ['CLASS_B', 'CLASS_C', 'NON_CDL'],
-	CLASS_B: ['CLASS_C', 'NON_CDL'],
-	CLASS_C: ['NON_CDL'],
-	NON_CDL: []
-};
-
-/**
- * True when a driver holding `have` may take a job requiring `required`.
- * Mirrors LicenceCategory.satisfies(): no requirement → true; missing licence →
- * false; same value → true; otherwise the covers lattice, with unknown tokens
- * (e.g. "C+E") falling back to plain equality.
- */
-export function licenceSatisfies(have?: string | null, required?: string | null): boolean {
-	if (!required) return true;
-	if (!have) return false;
-	if (have === required) return true;
-	const covered = COVERS[have];
-	if (covered === undefined || COVERS[required] === undefined) return have === required;
-	return covered.includes(required);
-}

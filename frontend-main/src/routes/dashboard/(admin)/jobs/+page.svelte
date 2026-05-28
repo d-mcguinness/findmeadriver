@@ -4,7 +4,6 @@
 	} from 'carbon-components-svelte';
 	import { ArrowLeft, Van, Add } from 'carbon-icons-svelte';
 	import { api } from '$lib/api';
-	import { licenceSatisfies } from '$lib/licence-categories';
 	import type { Job } from '$lib/types';
 	import { onMount } from 'svelte';
 	import JobsTable from '$lib/components/admin/JobsTable.svelte';
@@ -23,6 +22,21 @@
 		status: 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'WITHDRAWN';
 	};
 
+	type EligibilityReason =
+		| 'OK' | 'JOB_NOT_OPEN' | 'ALREADY_APPLIED' | 'LICENCE' | 'AVAILABILITY' | 'CABOTAGE';
+	type Eligibility = { driverId: number; eligible: boolean; reason: EligibilityReason };
+
+	// Human label for why a driver can't be applied (OK/ALREADY_APPLIED/
+	// JOB_NOT_OPEN render as a plain dash — status/closed is shown elsewhere).
+	const REASON_LABEL: Record<EligibilityReason, string> = {
+		OK: '',
+		JOB_NOT_OPEN: '',
+		ALREADY_APPLIED: '',
+		LICENCE: 'licence n/a',
+		AVAILABILITY: 'no hours on date',
+		CABOTAGE: 'cabotage limit'
+	};
+
 	let jobs = $state<Job[]>([]);
 	let loading = $state(true);
 	let error = $state('');
@@ -31,12 +45,14 @@
 	let drivers = $state<DriverOption[]>([]);
 	let appsJob = $state<Job | null>(null);
 	let jobApps = $state<Application[]>([]);
+	let eligibility = $state<Eligibility[]>([]);
 	let appsLoading = $state(false);
 	let appsError = $state('');
 	let applyingDriverId = $state<number | null>(null);
 
-	// driverId -> their application for the open job
+	// driverId -> their application / eligibility for the open job
 	let appByDriver = $derived(new Map(jobApps.map((a) => [a.driverId, a])));
+	let eligByDriver = $derived(new Map(eligibility.map((e) => [e.driverId, e])));
 
 	function driverLabel(d: DriverOption): string {
 		const name = [d.firstName, d.lastName].filter(Boolean).join(' ').trim();
@@ -53,28 +69,18 @@
 		}
 	}
 
-	// Apply is allowed when: the job is open to applications, the driver has no
-	// active application (a withdrawn one can be revived), and their licence
-	// covers the requirement. Mirrors the backend's apply rules so we don't
-	// offer an action that's guaranteed to 400. (Availability/cabotage are
-	// date/state dependent and still surface as errors on click.)
+	// Eligibility is computed server-side (same rules applyForJob enforces:
+	// status, duplicate, licence, availability, cabotage), so we only offer
+	// Apply where it would actually succeed.
 	function canApply(d: DriverOption): boolean {
-		if (!appsJob || appsJob.status !== 'OPEN') return false;
-		const app = appByDriver.get(d.id);
-		if (app && app.status !== 'WITHDRAWN') return false;
-		return licenceSatisfies(d.licenceCategory, appsJob.requiredLicenceCategory);
+		return eligByDriver.get(d.id)?.eligible ?? false;
 	}
 
-	// Why a driver has no Apply action (for an OPEN job with no active app):
-	// the only pre-checkable reason is a licence mismatch.
-	function ineligibleReason(d: DriverOption): string | null {
-		if (!appsJob || appsJob.status !== 'OPEN') return null;
-		const app = appByDriver.get(d.id);
-		if (app && app.status !== 'WITHDRAWN') return null;
-		if (!licenceSatisfies(d.licenceCategory, appsJob.requiredLicenceCategory)) {
-			return 'licence';
-		}
-		return null;
+	// Short label for an ineligible driver (empty for OK / already-applied /
+	// closed-job — those read from the status column or the job header).
+	function ineligibleLabel(d: DriverOption): string {
+		const e = eligByDriver.get(d.id);
+		return e ? REASON_LABEL[e.reason] : '';
 	}
 
 	async function loadJobs() {
@@ -109,22 +115,29 @@
 	async function openApplicationsModal(job: Job) {
 		appsJob = job;
 		appsError = '';
+		jobApps = [];
+		eligibility = [];
 		await loadJobApps(job.id);
 	}
 
 	function closeApplicationsModal() {
 		appsJob = null;
 		jobApps = [];
+		eligibility = [];
 		applyingDriverId = null;
 	}
 
 	async function loadJobApps(jobId: number) {
 		appsLoading = true;
 		try {
-			jobApps = await api.get<Application[]>(`/api/admin/jobs/${jobId}/applications`);
+			[jobApps, eligibility] = await Promise.all([
+				api.get<Application[]>(`/api/admin/jobs/${jobId}/applications`),
+				api.get<Eligibility[]>(`/api/admin/jobs/${jobId}/driver-eligibility`)
+			]);
 		} catch (e: any) {
 			appsError = e.message || 'Failed to load applications';
 			jobApps = [];
+			eligibility = [];
 		} finally {
 			appsLoading = false;
 		}
@@ -139,7 +152,7 @@
 				`/api/admin/applications?driverId=${driverId}&jobId=${appsJob.id}`,
 				{ coverNote: '' }
 			);
-			await loadJobApps(appsJob.id); // refresh statuses in the table
+			await loadJobApps(appsJob.id); // refresh statuses + eligibility in the table
 			loadJobs(); // refresh applicationCount in the main table
 		} catch (e: any) {
 			appsError = e.message || 'Failed to apply on behalf of the driver';
@@ -242,9 +255,9 @@
 										on:click={() => applyForDriver(d.id)}>
 										{applyingDriverId === d.id ? 'Applying…' : 'Apply'}
 									</Button>
-								{:else if ineligibleReason(d)}
-									<span class="dash" title="Driver's licence does not satisfy this job">
-										licence n/a
+								{:else if ineligibleLabel(d)}
+									<span class="dash" title="Driver does not meet this job's requirements">
+										{ineligibleLabel(d)}
 									</span>
 								{:else}
 									<span class="dash">—</span>
