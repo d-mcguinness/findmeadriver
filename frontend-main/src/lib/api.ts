@@ -24,10 +24,28 @@ export async function apiFetch<T = unknown>(path: string, options: ApiOptions = 
 		body: options.body ? JSON.stringify(options.body) : undefined
 	});
 
-	const data = await response.json();
+	// Parse a JSON body only when there is one — 204 / empty responses (e.g.
+	// DELETE endpoints) have no body and response.json() would throw.
+	const text = await response.text();
+	let data: any = undefined;
+	if (text) {
+		try {
+			data = JSON.parse(text);
+		} catch {
+			data = { error: text };
+		}
+	}
 
 	if (!response.ok) {
-		throw { status: response.status, ...data };
+		// Surface the backend's message as Error.message (callers read e.message),
+		// while keeping the raw fields (error/status/fields) for callers that
+		// read those directly (e.g. the login page reads e.error).
+		const message =
+			(data && (data.error || data.message)) || `Request failed (${response.status})`;
+		const err = new Error(message) as Error & Record<string, unknown>;
+		err.status = response.status;
+		if (data && typeof data === 'object') Object.assign(err, data);
+		throw err;
 	}
 
 	return data as T;
