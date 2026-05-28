@@ -13,16 +13,14 @@
 		SkipToContent
 	} from 'carbon-components-svelte';
 	import { LogoGithub, Login, Logout, UserAvatar, Dashboard, Time, Search, Document, Add, Enterprise, CertificateCheck } from 'carbon-icons-svelte';
-	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { auth } from '$lib/stores/auth.svelte';
 
 	let { children } = $props();
 	let isSideNavOpen = $state(false);
 
-	onMount(() => {
-		auth.initialize();
-	});
+	// Auth is rehydrated at module load in auth.svelte.ts (before any component
+	// mounts), so no onMount initialize is needed here.
 
 	function handleLogout() {
 		auth.logout();
@@ -57,7 +55,7 @@
 				<SideNavLink icon={Document} text="My Applications" href="/dashboard?tab=applications" />
 			{/if}
 			{#if auth.isEmployer}
-				<SideNavLink icon={Add} text="Post a Job" href="/dashboard/jobs/post" />
+				<SideNavLink icon={Add} text="Create a Job" href="/dashboard/jobs/post" />
 				<SideNavLink icon={Enterprise} text="My Jobs" href="/dashboard" />
 			{/if}
 			<SideNavLink icon={Logout} text="Logout" on:click={handleLogout} />

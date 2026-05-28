@@ -1,12 +1,14 @@
 package com.driverdirect.config;
 
     import com.driverdirect.model.ApplicationStatus;
+import com.driverdirect.model.CabotageOperation;
 import com.driverdirect.model.ComplianceDocument;
 import com.driverdirect.model.Customer;
 import com.driverdirect.model.DocumentStatus;
 import com.driverdirect.model.DocumentType;
 import com.driverdirect.model.Driver;
 import com.driverdirect.model.DriverAvailability;
+import com.driverdirect.model.DriverLane;
 import com.driverdirect.model.DriverTimeSlot;
 import com.driverdirect.model.Employer;
 import com.driverdirect.model.Job;
@@ -20,9 +22,11 @@ import com.driverdirect.model.ShipmentLine;
 import com.driverdirect.model.Stop;
 import com.driverdirect.model.TransportOrder;
 import com.driverdirect.model.User;
+import com.driverdirect.repository.CabotageOperationRepository;
 import com.driverdirect.repository.ComplianceDocumentRepository;
 import com.driverdirect.repository.CustomerRepository;
 import com.driverdirect.repository.DriverAvailabilityRepository;
+import com.driverdirect.repository.DriverLaneRepository;
 import com.driverdirect.repository.DriverRepository;
 import com.driverdirect.repository.DriverTimeSlotRepository;
 import com.driverdirect.repository.EmployerRepository;
@@ -63,6 +67,9 @@ public class DataInitializer implements CommandLineRunner {
     @Autowired private RatingRepository ratingRepository;
     @Autowired private DriverAvailabilityRepository driverAvailabilityRepository;
     @Autowired private DriverTimeSlotRepository driverTimeSlotRepository;
+    @Autowired private DriverLaneRepository driverLaneRepository;
+    @Autowired private CabotageOperationRepository cabotageOperationRepository;
+    @Autowired private LocationRepository locationRepository;
     @Autowired private TmsTreeService tmsTreeService;
     @Autowired private PasswordEncoder passwordEncoder;
 
@@ -136,21 +143,27 @@ public class DataInitializer implements CommandLineRunner {
         // ---- Additional drivers ----
         Driver liamByrne = createDriver("liam.byrne@example.com", "DL-22301-IE",
                 "Liam", "Byrne", "0851000001",
-                Driver.CDLType.CLASS_A, 8, LocalDate.now().plusYears(3));
+                Driver.CDLType.CLASS_A, 8, LocalDate.now().plusYears(3), "IE");
         Driver mairead = createDriver("mairead.osullivan@example.com", "DL-22302-IE",
                 "Mairead", "O'Sullivan", "0851000002",
-                Driver.CDLType.CLASS_B, 4, LocalDate.now().plusMonths(6));
+                Driver.CDLType.CLASS_B, 4, LocalDate.now().plusMonths(6), "GB");
         Driver kieran = createDriver("kieran.doyle@example.com", "DL-22303-IE",
                 "Kieran", "Doyle", "0851000003",
-                Driver.CDLType.CLASS_A, 12, LocalDate.now().plusYears(1));
+                Driver.CDLType.CLASS_A, 12, LocalDate.now().plusYears(1), "IE");
         Driver siobhan = createDriver("siobhan.kennedy@example.com", "DL-22304-IE",
                 "Siobhan", "Kennedy", "0851000004",
-                Driver.CDLType.CLASS_C, 2, LocalDate.now().plusYears(4));
+                Driver.CDLType.CLASS_C, 2, LocalDate.now().plusYears(4), "IE");
+        // Foreign-based driver — drives into IE/FR/DE, so their domestic moves
+        // there count as cabotage (see seedCabotage below).
         Driver patrick = createDriver("patrick.fitzgerald@example.com", "DL-22305-IE",
                 "Patrick", "Fitzgerald", "0851000005",
-                Driver.CDLType.CLASS_B, 6, LocalDate.now().plusMonths(9));
+                Driver.CDLType.CLASS_B, 6, LocalDate.now().plusMonths(9), "PL");
 
         Driver seedDriver = driverRepository.findByEmail("driver@example.com").orElseThrow();
+        // The primary demo login. Base it in IE so its cabotage ops abroad
+        // (seeded below) populate the dashboard's cabotage panel.
+        seedDriver.setHomeCountry("IE");
+        driverRepository.save(seedDriver);
 
         // ---- Jobs across all statuses ----
         Job j1 = createJob(acme, "Pallet run Dublin → Cork",
@@ -302,6 +315,120 @@ public class DataInitializer implements CommandLineRunner {
         seedAvailability(siobhan,    new double[]{6, 0, 6, 6, 6, 0, 0,  6, 6, 0, 6, 6, 6, 0});
         seedAvailability(patrick,    new double[]{0, 0, 8, 8, 8, 0, 0,  8, 8, 8, 8, 0, 0, 8});
 
+        // ---- Multi-stop international jobs (exercise the route renderer +
+        //      bookkeeping StopTypes: FERRY_TERMINAL / EUROTUNNEL / BORDER / REST) ----
+        Job jFerry = createMultiStopJob(acme,
+                "Dublin → London (ferry + multi-drop)",
+                "Cross-channel pallet run via Holyhead, overnight rest near Birmingham.",
+                8.0, LocalDate.now().plusDays(1), new BigDecimal("34.00"),
+                Driver.CDLType.CLASS_A, JobStatus.OPEN, null,
+                List.of(
+                        stop(Stop.StopType.PICKUP,         "Dublin Port",            "Dublin",     "IE"),
+                        stop(Stop.StopType.FERRY_TERMINAL, "Holyhead Ferry Port",    "Holyhead",   "GB"),
+                        stop(Stop.StopType.REST,           "Hilton Park Services M6","Birmingham", "GB"),
+                        stop(Stop.StopType.DELIVERY,       "London Gateway DC",      "London",     "GB")));
+
+        Job jTunnel = createMultiStopJob(acme,
+                "Dover → Paris (Eurotunnel)",
+                "Time-critical chilled goods through the Channel Tunnel, customs at Calais.",
+                8.5, LocalDate.now().plusDays(3), new BigDecimal("39.00"),
+                Driver.CDLType.CLASS_A, JobStatus.OPEN, null,
+                List.of(
+                        stop(Stop.StopType.PICKUP,      "Dover Cold Store",      "Dover",   "GB"),
+                        stop(Stop.StopType.EUROTUNNEL,  "Folkestone Eurotunnel", "Folkestone", "GB"),
+                        stop(Stop.StopType.BORDER,      "Calais Border Post",    "Calais",  "FR"),
+                        stop(Stop.StopType.REST,        "Aire de Saint-Léger",   "Arras",   "FR"),
+                        stop(Stop.StopType.DELIVERY,    "Rungis Market",         "Paris",   "FR")));
+
+        // ---- Driver lanes (origin → destination country opt-ins) ----
+        // Demo driver gets a domestic lane (keeps existing IE jobs visible) plus
+        // the two cross-border lanes that match the multi-stop jobs above.
+        addLanes(seedDriver, "IE", "IE", "IE", "GB", "GB", "FR");
+        addLanes(liamByrne, "IE", "IE", "IE", "GB");
+        addLanes(kieran, "IE", "IE");
+
+        // ---- Cabotage history for the demo driver (IE-based) ----
+        // GB: 2 ops in the rolling 7-day window → under the limit of 3.
+        // FR: 3 ops → AT the limit, so the dashboard shows the red "blocked" tag.
+        // deliveryLocation is provenance only (the unload point); the country
+        // string is what the limit is counted on. A couple of ops are left
+        // without a location to mirror back-filled/imported history.
+        Location gbDc = adHocLocation("Birmingham RDC", "Birmingham", "GB");
+        Location frDc = adHocLocation("Paris-Sud Plateforme", "Paris", "FR");
+        Location deDc = adHocLocation("München Logistikzentrum", "Munich", "DE");
+
+        recordCabotage(seedDriver, "GB", LocalDate.now().minusDays(1), gbDc);
+        recordCabotage(seedDriver, "GB", LocalDate.now().minusDays(4), null);
+        recordCabotage(seedDriver, "FR", LocalDate.now(), frDc);
+        recordCabotage(seedDriver, "FR", LocalDate.now().minusDays(2), frDc);
+        recordCabotage(seedDriver, "FR", LocalDate.now().minusDays(5), null);
+        // Foreign (PL) driver doing domestic German moves — a second worked example.
+        recordCabotage(patrick, "DE", LocalDate.now().minusDays(3), deDc);
+        recordCabotage(patrick, "DE", LocalDate.now().minusDays(6), deDc);
+    }
+
+    private Location adHocLocation(String name, String city, String country) {
+        Location loc = new Location();
+        loc.setName(name);
+        loc.setAddressLine(name);
+        loc.setCity(city);
+        loc.setCountry(country);
+        return locationRepository.save(loc);
+    }
+
+    /** Convenience for a route stop with a default appointment window. */
+    private TmsTreeService.TmsStopInput stop(Stop.StopType type, String name,
+                                             String city, String country) {
+        return new TmsTreeService.TmsStopInput(
+                type, name, name, city, country, null, null, null, null);
+    }
+
+    private Job createMultiStopJob(Employer employer, String title, String description,
+                                   double hours, LocalDate dateNeeded, BigDecimal rate,
+                                   Driver.CDLType cdl, JobStatus status, Driver assigned,
+                                   List<TmsTreeService.TmsStopInput> stops) {
+        Job j = new Job();
+        j.setEmployer(employer);
+        j.setEstimatedDurationHours(hours);
+        j.setRatePerHour(rate);
+        j.setRequiredCdlType(cdl);
+        j.setCurrency(employer.getCurrency() != null ? employer.getCurrency() : "EUR");
+        j.setStatus(status);
+        j.setAssignedDriver(assigned);
+        j = jobRepository.save(j);
+
+        // Origin/destination countries come from the first PICKUP / last DELIVERY
+        // in the route; the tree builder reads the stops list in preference to
+        // the legacy pickup/delivery pair (passed null here).
+        String currency = employer.getCurrency() != null ? employer.getCurrency() : "EUR";
+        String pickupCountry = stops.get(0).country();
+        String deliveryCountry = stops.get(stops.size() - 1).country();
+        TmsTreeService.TmsOrderInput input = new TmsTreeService.TmsOrderInput(
+                title, description, dateNeeded,
+                null, null, pickupCountry, deliveryCountry, currency, stops);
+        tmsTreeService.createTreeFor(j, input);
+        return jobRepository.save(j);
+    }
+
+    /** Add lanes from a flat (origin, destination, origin, destination, ...) list. */
+    private void addLanes(Driver driver, String... pairs) {
+        for (int i = 0; i + 1 < pairs.length; i += 2) {
+            DriverLane lane = new DriverLane();
+            lane.setDriver(driver);
+            lane.setOriginCountry(pairs[i]);
+            lane.setDestinationCountry(pairs[i + 1]);
+            driverLaneRepository.save(lane);
+        }
+    }
+
+    private void recordCabotage(Driver driver, String country, LocalDate performedAt,
+                                Location deliveryLocation) {
+        CabotageOperation op = new CabotageOperation();
+        op.setDriver(driver);
+        op.setCountry(country);
+        op.setPerformedAt(performedAt);
+        op.setDeliveryLocation(deliveryLocation);
+        cabotageOperationRepository.save(op);
     }
 
     private void seedAvailability(Driver driver, double[] hoursForNext14Days) {
@@ -352,7 +479,8 @@ public class DataInitializer implements CommandLineRunner {
 
     private Driver createDriver(String email, String licenseNumber,
                                 String firstName, String lastName, String phone,
-                                Driver.CDLType cdl, int years, LocalDate licenceExpiry) {
+                                Driver.CDLType cdl, int years, LocalDate licenceExpiry,
+                                String homeCountry) {
         Driver d = new Driver(email, passwordEncoder.encode("password123"),
                 licenseNumber, licenceExpiry);
         d.setFirstName(firstName);
@@ -360,6 +488,7 @@ public class DataInitializer implements CommandLineRunner {
         d.setPhone(phone);
         d.setCdlType(cdl);
         d.setYearsExperience(years);
+        d.setHomeCountry(homeCountry);
         d.setRoles(rolesOf(Role.RoleType.ROLE_DRIVER));
         return driverRepository.save(d);
     }

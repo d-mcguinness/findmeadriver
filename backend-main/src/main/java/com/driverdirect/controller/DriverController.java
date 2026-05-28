@@ -8,6 +8,8 @@ import com.driverdirect.repository.DriverAvailabilityRepository;
 import com.driverdirect.repository.DriverRepository;
 import com.driverdirect.repository.DriverTimeSlotRepository;
 import com.driverdirect.service.AvailabilityService;
+import com.driverdirect.service.CabotageService;
+import com.driverdirect.service.DriverLaneService;
 import com.driverdirect.service.JobApplicationService;
 import com.driverdirect.service.JobService;
 import com.driverdirect.service.ComplianceService;
@@ -39,6 +41,8 @@ public class DriverController {
     private final ComplianceService complianceService;
     private final DriverTimeSlotRepository timeSlotRepository;
     private final DriverAvailabilityRepository availabilityRepository;
+    private final DriverLaneService driverLaneService;
+    private final CabotageService cabotageService;
 
     @PutMapping("/availability")
     public ResponseEntity<AvailabilityResponse> setWeeklyAvailability(
@@ -123,6 +127,50 @@ public class DriverController {
     public ResponseEntity<UserRatingSummary> getMyRatings(Authentication auth) {
         Driver driver = getDriver(auth);
         return ResponseEntity.ok(ratingService.getRatingSummary(driver.getId()));
+    }
+
+    // ---- Lanes (driver-declared origin to destination country pairs) ----
+
+    @GetMapping("/lanes")
+    public ResponseEntity<List<DriverLaneResponse>> getLanes(Authentication auth) {
+        Driver driver = getDriver(auth);
+        return ResponseEntity.ok(driverLaneService.list(driver));
+    }
+
+    @PostMapping("/lanes")
+    public ResponseEntity<DriverLaneResponse> addLane(
+            Authentication auth,
+            @RequestBody DriverLaneRequest request) {
+        Driver driver = getDriver(auth);
+        return ResponseEntity.status(HttpStatus.CREATED).body(driverLaneService.add(driver, request));
+    }
+
+    @DeleteMapping("/lanes/{id}")
+    public ResponseEntity<Void> deleteLane(Authentication auth, @PathVariable Long id) {
+        Driver driver = getDriver(auth);
+        driverLaneService.remove(driver, id);
+        return ResponseEntity.noContent().build();
+    }
+
+    // ---- Cabotage exposure + home country ----
+
+    @GetMapping("/cabotage-exposure")
+    public ResponseEntity<CabotageDashboardResponse> getCabotageExposure(Authentication auth) {
+        Driver driver = getDriver(auth);
+        return ResponseEntity.ok(CabotageDashboardResponse.of(
+                driver.getHomeCountry(), cabotageService.getExposure(driver)));
+    }
+
+    @PutMapping("/home-country")
+    public ResponseEntity<MessageResponse> setHomeCountry(
+            Authentication auth, @RequestBody HomeCountryRequest request) {
+        Driver driver = getDriver(auth);
+        if (request.getCountry() == null || request.getCountry().trim().length() != 2) {
+            throw new IllegalArgumentException("country must be a 2-letter ISO code");
+        }
+        driver.setHomeCountry(request.getCountry().trim().toUpperCase());
+        driverRepository.save(driver);
+        return ResponseEntity.ok(new MessageResponse("Home country updated"));
     }
 
     @PostMapping("/compliance")

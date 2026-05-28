@@ -184,15 +184,15 @@
 <Grid>
 	<Row>
 		<Column>
-			<h2>My Posted Jobs</h2>
+			<h2>My Jobs</h2>
 
 			{#if jobsLoading}
 				<p>Loading jobs...</p>
 			{:else if jobs.length === 0}
 				<InlineNotification kind="info" title="No jobs yet"
-					subtitle="Post your first job to start finding drivers."
+					subtitle="Create your first job to start finding drivers."
 					hideCloseButton />
-				<Button href="/dashboard/jobs/post" icon={Add}>Post a Job</Button>
+				<Button href="/dashboard/jobs/post" icon={Add}>Create a Job</Button>
 			{:else}
 				<div class="metrics-row">
 					<div class="metric">
@@ -212,7 +212,7 @@
 						<div class="metric-label">Completed spend</div>
 					</div>
 				</div>
-				<JobsTable {jobs} actions={employerActions} addHref="/dashboard/jobs/post" />
+				<JobsTable {jobs} actions={employerActions} addHref="/dashboard/jobs/post" addLabel="Create a Job" />
 			{/if}
 		</Column>
 	</Row>
