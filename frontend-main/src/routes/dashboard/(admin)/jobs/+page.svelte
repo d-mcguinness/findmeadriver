@@ -4,6 +4,7 @@
 	} from 'carbon-components-svelte';
 	import { ArrowLeft, Van, Add } from 'carbon-icons-svelte';
 	import { api } from '$lib/api';
+	import { licenceSatisfies } from '$lib/licence-categories';
 	import type { Job } from '$lib/types';
 	import { onMount } from 'svelte';
 	import JobsTable from '$lib/components/admin/JobsTable.svelte';
@@ -52,12 +53,28 @@
 		}
 	}
 
-	// Apply is allowed when the job is open to applications and the driver has no
-	// active application (a withdrawn one can be revived — mirrors the backend).
-	function canApply(driverId: number): boolean {
+	// Apply is allowed when: the job is open to applications, the driver has no
+	// active application (a withdrawn one can be revived), and their licence
+	// covers the requirement. Mirrors the backend's apply rules so we don't
+	// offer an action that's guaranteed to 400. (Availability/cabotage are
+	// date/state dependent and still surface as errors on click.)
+	function canApply(d: DriverOption): boolean {
 		if (!appsJob || appsJob.status !== 'OPEN') return false;
-		const app = appByDriver.get(driverId);
-		return !app || app.status === 'WITHDRAWN';
+		const app = appByDriver.get(d.id);
+		if (app && app.status !== 'WITHDRAWN') return false;
+		return licenceSatisfies(d.licenceCategory, appsJob.requiredLicenceCategory);
+	}
+
+	// Why a driver has no Apply action (for an OPEN job with no active app):
+	// the only pre-checkable reason is a licence mismatch.
+	function ineligibleReason(d: DriverOption): string | null {
+		if (!appsJob || appsJob.status !== 'OPEN') return null;
+		const app = appByDriver.get(d.id);
+		if (app && app.status !== 'WITHDRAWN') return null;
+		if (!licenceSatisfies(d.licenceCategory, appsJob.requiredLicenceCategory)) {
+			return 'licence';
+		}
+		return null;
 	}
 
 	async function loadJobs() {
@@ -219,12 +236,16 @@
 								{/if}
 							</td>
 							<td>
-								{#if canApply(d.id)}
+								{#if canApply(d)}
 									<Button size="small" kind="tertiary"
 										disabled={applyingDriverId !== null}
 										on:click={() => applyForDriver(d.id)}>
 										{applyingDriverId === d.id ? 'Applying…' : 'Apply'}
 									</Button>
+								{:else if ineligibleReason(d)}
+									<span class="dash" title="Driver's licence does not satisfy this job">
+										licence n/a
+									</span>
 								{:else}
 									<span class="dash">—</span>
 								{/if}
