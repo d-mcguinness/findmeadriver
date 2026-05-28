@@ -140,6 +140,16 @@ public class AdminController {
         return ResponseEntity.ok(response);
     }
 
+    @GetMapping("/jobs/{jobId}/applications")
+    public ResponseEntity<List<JobApplicationResponse>> getApplicationsForJob(@PathVariable Long jobId) {
+        Job job = jobRepository.findById(jobId)
+                .orElseThrow(() -> new IllegalArgumentException("Job not found: " + jobId));
+        List<JobApplicationResponse> apps = jobApplicationRepository.findByJob(job).stream()
+                .map(JobApplicationResponse::from)
+                .toList();
+        return ResponseEntity.ok(apps);
+    }
+
     @GetMapping("/drivers/{driverId}/applications")
     public ResponseEntity<List<JobApplicationResponse>> getApplicationsForDriver(@PathVariable Long driverId) {
         Driver driver = driverRepository.findById(driverId)
