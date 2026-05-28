@@ -101,6 +101,16 @@ public class AvailabilityServiceImpl implements AvailabilityService {
         return byDate;
     }
 
+    @Override
+    public Map<Long, Double> getAvailableHoursForDrivers(Collection<Driver> drivers, LocalDate date) {
+        if (drivers.isEmpty() || date == null) return Map.of();
+        Map<Long, Double> byDriver = new HashMap<>();
+        for (DriverAvailability a : availabilityRepository.findByDateAndDriverIn(date, drivers)) {
+            byDriver.put(a.getDriver().getId(), a.getAvailableHours());
+        }
+        return byDriver;
+    }
+
     private void validateEntry(Driver driver, AvailabilityEntry entry, List<AvailabilityEntry> allEntries) {
         if (entry.getAvailableHours() < 0) {
             throw new IllegalArgumentException("Available hours cannot be negative");

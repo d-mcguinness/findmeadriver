@@ -17,6 +17,8 @@ public interface DriverAvailabilityRepository extends JpaRepository<DriverAvaila
 
     List<DriverAvailability> findByDriverAndDateIn(Driver driver, Collection<LocalDate> dates);
 
+    List<DriverAvailability> findByDateAndDriverIn(LocalDate date, Collection<Driver> drivers);
+
     Optional<DriverAvailability> findByDriverAndDate(Driver driver, LocalDate date);
 
     void deleteByDriverAndDate(Driver driver, LocalDate date);

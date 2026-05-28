@@ -13,6 +13,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -77,6 +79,42 @@ public class CabotageService {
             return new CabotageCheck(CheckResult.OVER_LIMIT, destination, count, LIMIT_PER_WINDOW);
         }
         return new CabotageCheck(CheckResult.OK, destination, count, LIMIT_PER_WINDOW);
+    }
+
+    /**
+     * Per-driver op counts in the current window for {@code job}'s destination
+     * country — but only when the job is a domestic (cabotage-relevant) move.
+     * One query for the whole driver set; empty map otherwise. Pair with
+     * {@link #isOverLimit} to decide blocking without a per-driver query.
+     */
+    public Map<Long, Integer> countInWindowByDriver(Collection<Driver> drivers, Job job) {
+        String origin = job.getPickupCountry();
+        String destination = job.getDeliveryCountry();
+        if (origin == null || destination == null || !origin.equals(destination) || drivers.isEmpty()) {
+            return Map.of();
+        }
+        LocalDate since = LocalDate.now().minusDays(WINDOW_DAYS);
+        Map<Long, Integer> counts = new HashMap<>();
+        for (CabotageOperation op : repository
+                .findByDriverInAndCountryAndPerformedAtGreaterThanEqual(
+                        drivers, destination.toUpperCase(), since)) {
+            counts.merge(op.getDriver().getId(), 1, Integer::sum);
+        }
+        return counts;
+    }
+
+    /**
+     * Blocking predicate for a pre-counted window — the OVER_LIMIT branch of
+     * {@link #check} without the repository hit. Use with the count from
+     * {@link #countInWindowByDriver}.
+     */
+    public boolean isOverLimit(Driver driver, Job job, int opsInWindow) {
+        String origin = job.getPickupCountry();
+        String destination = job.getDeliveryCountry();
+        if (origin == null || destination == null || !origin.equals(destination)) return false;
+        String home = driver.getHomeCountry();
+        if (home == null || home.isBlank() || home.equalsIgnoreCase(destination)) return false;
+        return opsInWindow >= LIMIT_PER_WINDOW;
     }
 
     /**
