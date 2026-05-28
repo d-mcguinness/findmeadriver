@@ -106,6 +106,22 @@ public class AdminController {
         return ResponseEntity.ok(response);
     }
 
+    @GetMapping("/drivers")
+    public ResponseEntity<List<Map<String, Object>>> getAllDrivers() {
+        List<Map<String, Object>> response = driverRepository.findAll().stream()
+                .map(d -> {
+                    Map<String, Object> m = new java.util.LinkedHashMap<>();
+                    m.put("id", d.getId());
+                    m.put("firstName", d.getFirstName());
+                    m.put("lastName", d.getLastName());
+                    m.put("email", d.getEmail());
+                    m.put("licenceCategory", d.getLicenceCategory());
+                    return m;
+                })
+                .toList();
+        return ResponseEntity.ok(response);
+    }
+
     @PostMapping("/jobs")
     public ResponseEntity<JobResponse> createJobAsAdmin(
             @RequestParam Long employerId,
