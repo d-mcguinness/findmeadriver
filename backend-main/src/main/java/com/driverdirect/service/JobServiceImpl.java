@@ -14,6 +14,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -85,15 +87,39 @@ public class JobServiceImpl implements JobService {
         // Drivers with no lanes see everything (existing behaviour).
         List<DriverLane> lanes = driverLaneService.findAllForDriver(driver);
 
-        return jobs.stream()
+        // Licence + lane are pure in-memory predicates; apply them first so the
+        // two DB lookups below run only over the surviving candidate set.
+        List<Job> candidates = jobs.stream()
                 .filter(job -> LicenceCategory.satisfies(have, job.getRequiredLicenceCategory()))
+                .filter(job -> matchesAnyLane(job, lanes))
+                .collect(Collectors.toList());
+
+        // Batch the per-job lookups: availability for all candidate dates in one
+        // query, application counts for all candidates in one query — instead of
+        // two queries per job (N+1).
+        Set<LocalDate> dates = candidates.stream()
+                .map(Job::getDateNeeded).filter(Objects::nonNull).collect(Collectors.toSet());
+        Map<LocalDate, Double> hoursByDate = availabilityService.getAvailableHoursForDates(driver, dates);
+        Map<Long, Integer> applicationCounts = applicationCountsByJobId(candidates);
+
+        return candidates.stream()
                 .filter(job -> {
-                    Double available = availabilityService.getAvailableHoursOnDate(driver, job.getDateNeeded());
+                    double available = job.getDateNeeded() == null ? 0.0
+                            : hoursByDate.getOrDefault(job.getDateNeeded(), 0.0);
                     return available >= job.getEstimatedDurationHours();
                 })
-                .filter(job -> matchesAnyLane(job, lanes))
-                .map(job -> JobResponse.from(job, applicationRepository.findByJob(job).size()))
+                .map(job -> JobResponse.from(job, applicationCounts.getOrDefault(job.getId(), 0)))
                 .collect(Collectors.toList());
+    }
+
+    /** Application counts keyed by job id, fetched in a single grouped query. */
+    private Map<Long, Integer> applicationCountsByJobId(List<Job> jobs) {
+        if (jobs.isEmpty()) return Map.of();
+        Map<Long, Integer> counts = new HashMap<>();
+        for (Object[] row : applicationRepository.countByJobIn(jobs)) {
+            counts.put((Long) row[0], ((Long) row[1]).intValue());
+        }
+        return counts;
     }
 
     private boolean matchesAnyLane(Job job, List<DriverLane> lanes) {
