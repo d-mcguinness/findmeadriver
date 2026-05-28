@@ -1,6 +1,7 @@
 package com.driverdirect.service;
 
 import com.driverdirect.dto.CreateJobRequest;
+import com.driverdirect.dto.CreateJobStopRequest;
 import com.driverdirect.model.Customer;
 import com.driverdirect.model.Employer;
 import com.driverdirect.model.Job;
@@ -19,6 +20,11 @@ import com.driverdirect.repository.TransportOrderRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
 /**
  * Composes the Phase-0 TMS entity tree (Customer / TransportOrder / Shipment
@@ -50,16 +56,94 @@ public class TmsTreeService {
             String deliveryLocation,
             String pickupCountry,
             String deliveryCountry,
-            String currency) {
+            String currency,
+            // Full ordered route. When non-empty, used in preference to the
+            // pickup/delivery pair above. Origin/destination countries on
+            // Shipment are then taken from first PICKUP / last DELIVERY.
+            List<TmsStopInput> stops) {
+
+        // Legacy 8-arg constructor — seed data still calls it positionally.
+        public TmsOrderInput(String title, String description,
+                             java.time.LocalDate dateNeeded,
+                             String pickupLocation, String deliveryLocation,
+                             String pickupCountry, String deliveryCountry,
+                             String currency) {
+            this(title, description, dateNeeded, pickupLocation, deliveryLocation,
+                    pickupCountry, deliveryCountry, currency, Collections.emptyList());
+        }
 
         public static TmsOrderInput fromRequest(CreateJobRequest req, Employer employer) {
             String c = req.getCurrency() != null ? req.getCurrency() : employer.getCurrency();
-            String pc = req.getPickupCountry() != null ? req.getPickupCountry() : employer.getCountry();
-            String dc = req.getDeliveryCountry() != null ? req.getDeliveryCountry() : employer.getCountry();
+            List<TmsStopInput> stops = TmsStopInput.listFromRequest(req.getStops(), employer.getCountry());
+
+            // When the client sent a stops list, derive origin/destination
+            // country from it; otherwise fall back to the explicit / employer
+            // defaults so legacy single-pickup/single-delivery callers behave
+            // exactly as before.
+            String pc;
+            String dc;
+            if (!stops.isEmpty()) {
+                pc = firstCountryOfType(stops, Stop.StopType.PICKUP, employer.getCountry());
+                dc = lastCountryOfType(stops, Stop.StopType.DELIVERY, employer.getCountry());
+            } else {
+                pc = req.getPickupCountry() != null ? req.getPickupCountry() : employer.getCountry();
+                dc = req.getDeliveryCountry() != null ? req.getDeliveryCountry() : employer.getCountry();
+            }
+
             return new TmsOrderInput(
                     req.getTitle(), req.getDescription(), req.getDateNeeded(),
                     req.getPickupLocation(), req.getDeliveryLocation(),
-                    pc, dc, c);
+                    pc, dc, c, stops);
+        }
+
+        private static String firstCountryOfType(List<TmsStopInput> ss, Stop.StopType t, String dflt) {
+            return ss.stream().filter(s -> s.type() == t).map(TmsStopInput::country)
+                    .filter(c -> c != null && !c.isBlank()).findFirst().orElse(dflt);
+        }
+
+        private static String lastCountryOfType(List<TmsStopInput> ss, Stop.StopType t, String dflt) {
+            String found = dflt;
+            for (TmsStopInput s : ss) {
+                if (s.type() == t && s.country() != null && !s.country().isBlank()) {
+                    found = s.country();
+                }
+            }
+            return found;
+        }
+    }
+
+    /** One ordered stop on the route. {@link #locationName} is mandatory; the
+     *  rest are best-effort enrichment for newly-upserted Locations. */
+    public record TmsStopInput(
+            Stop.StopType type,
+            String locationName,
+            String addressLine,
+            String city,
+            String country,
+            Double latitude,
+            Double longitude,
+            LocalDateTime earliestAt,
+            LocalDateTime latestAt) {
+
+        public static List<TmsStopInput> listFromRequest(List<CreateJobStopRequest> raw, String defaultCountry) {
+            if (raw == null || raw.isEmpty()) return Collections.emptyList();
+            List<TmsStopInput> out = new ArrayList<>(raw.size());
+            for (CreateJobStopRequest r : raw) {
+                if (r.getLocationName() == null || r.getLocationName().isBlank()) continue;
+                Stop.StopType type;
+                try {
+                    type = Stop.StopType.valueOf(r.getType());
+                } catch (Exception e) {
+                    type = Stop.StopType.WAYPOINT;
+                }
+                String country = (r.getCountry() != null && !r.getCountry().isBlank())
+                        ? r.getCountry() : defaultCountry;
+                out.add(new TmsStopInput(
+                        type, r.getLocationName(), r.getAddressLine(), r.getCity(),
+                        country, r.getLatitude(), r.getLongitude(),
+                        r.getEarliestAt(), r.getLatestAt()));
+            }
+            return out;
         }
     }
 
@@ -73,9 +157,6 @@ public class TmsTreeService {
         Customer customer = customerRepository.findFirstByEmployerOrderByIdAsc(employer)
                 .orElseGet(() -> customerRepository.save(
                         new Customer(employer, employer.getCompanyName() + " (default)")));
-
-        Location pickupLoc = upsertLocation(input.pickupLocation(), input.pickupCountry());
-        Location deliveryLoc = upsertLocation(input.deliveryLocation(), input.deliveryCountry());
 
         TransportOrder order = new TransportOrder();
         order.setEmployer(employer);
@@ -95,6 +176,57 @@ public class TmsTreeService {
         shipment.setOriginCountry(input.pickupCountry());
         shipment.setDestinationCountry(input.deliveryCountry());
         shipment = shipmentRepository.save(shipment);
+
+        if (input.stops() != null && !input.stops().isEmpty()) {
+            persistStopList(shipment, input.stops(), input.dateNeeded());
+        } else {
+            persistLegacyPickupDelivery(shipment, input);
+        }
+
+        ShipmentLine line = new ShipmentLine();
+        line.setShipment(shipment);
+        line.setOrder(order);
+        shipmentLineRepository.save(line);
+
+        job.setShipment(shipment);
+        return shipment;
+    }
+
+    /** Multi-stop path: one Stop per TmsStopInput, 1-indexed in submission order. */
+    private void persistStopList(Shipment shipment, List<TmsStopInput> stops,
+                                 java.time.LocalDate dateNeeded) {
+        int seq = 1;
+        for (TmsStopInput s : stops) {
+            Location loc = upsertLocation(s);
+            if (loc == null) continue;
+            Stop stop = new Stop();
+            stop.setShipment(shipment);
+            stop.setSequence(seq++);
+            stop.setType(s.type());
+            stop.setLocation(loc);
+            // Windows: prefer the client-supplied ones, otherwise fall back to a
+            // morning/afternoon default keyed on the order's dateNeeded.
+            if (s.earliestAt() != null || s.latestAt() != null) {
+                stop.setEarliestAt(s.earliestAt());
+                stop.setLatestAt(s.latestAt());
+            } else if (dateNeeded != null) {
+                if (s.type() == Stop.StopType.PICKUP) {
+                    stop.setEarliestAt(dateNeeded.atTime(8, 0));
+                    stop.setLatestAt(dateNeeded.atTime(11, 0));
+                } else if (s.type() == Stop.StopType.DELIVERY) {
+                    stop.setEarliestAt(dateNeeded.atTime(13, 0));
+                    stop.setLatestAt(dateNeeded.atTime(18, 0));
+                }
+            }
+            stopRepository.save(stop);
+        }
+    }
+
+    /** Legacy single-pickup / single-delivery path used by seed data and any
+     *  client that hasn't migrated to the stops list yet. */
+    private void persistLegacyPickupDelivery(Shipment shipment, TmsOrderInput input) {
+        Location pickupLoc = upsertLocation(input.pickupLocation(), input.pickupCountry());
+        Location deliveryLoc = upsertLocation(input.deliveryLocation(), input.deliveryCountry());
 
         if (pickupLoc != null) {
             Stop pickup = new Stop();
@@ -121,14 +253,6 @@ public class TmsTreeService {
             }
             stopRepository.save(delivery);
         }
-
-        ShipmentLine line = new ShipmentLine();
-        line.setShipment(shipment);
-        line.setOrder(order);
-        shipmentLineRepository.save(line);
-
-        job.setShipment(shipment);
-        return shipment;
     }
 
     private Location upsertLocation(String name, String country) {
@@ -141,6 +265,25 @@ public class TmsTreeService {
             loc.setCountry(iso);
             return locationRepository.save(loc);
         });
+    }
+
+    /** Richer upsert that captures address line, city, and lat/lng from the
+     *  client when a fresh Location is being created. Existing rows are not
+     *  back-filled so multiple jobs at the same name+country stay stable. */
+    private Location upsertLocation(TmsStopInput s) {
+        if (s.locationName() == null || s.locationName().isBlank()) return null;
+        String iso = s.country() == null ? "IE" : s.country();
+        return locationRepository.findFirstByNameIgnoreCaseAndCountry(s.locationName(), iso)
+                .orElseGet(() -> {
+                    Location loc = new Location();
+                    loc.setName(s.locationName());
+                    loc.setAddressLine(s.addressLine() != null ? s.addressLine() : s.locationName());
+                    loc.setCity(s.city());
+                    loc.setCountry(iso);
+                    loc.setLatitude(s.latitude());
+                    loc.setLongitude(s.longitude());
+                    return locationRepository.save(loc);
+                });
     }
 
     private TransportOrder.OrderStatus mapOrderStatus(JobStatus js) {

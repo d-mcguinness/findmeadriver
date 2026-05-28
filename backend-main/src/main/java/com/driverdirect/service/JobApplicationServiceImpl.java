@@ -21,6 +21,7 @@ public class JobApplicationServiceImpl implements JobApplicationService {
     private final AvailabilityService availabilityService;
     private final RatingService ratingService;
     private final ComplianceService complianceService;
+    private final CabotageService cabotageService;
 
     @Override
     @Transactional
@@ -39,12 +40,13 @@ public class JobApplicationServiceImpl implements JobApplicationService {
             throw new IllegalArgumentException("You have already applied for this job");
         }
 
-        // Validate licence category matches (free-form string match — country-
-        // aware values like "C+E" or "CLASS_A" are equality-compared).
+        // Cross-regime equivalence: a CE driver satisfies an HGV_CLASS_1 job and
+        // vice versa. Unknown category strings fall back to equality (see
+        // LicenceCategory.satisfies).
         String required = job.getRequiredLicenceCategory();
         String have = driver.getLicenceCategory();
-        if (required != null && have != null && !required.equals(have)) {
-            throw new IllegalArgumentException("Your licence category does not match the job requirement");
+        if (!LicenceCategory.satisfies(have, required)) {
+            throw new IllegalArgumentException("Your licence category does not satisfy the job requirement");
         }
 
         // Validate driver has enough available hours
@@ -53,6 +55,18 @@ public class JobApplicationServiceImpl implements JobApplicationService {
             throw new IllegalArgumentException(
                     "You need " + job.getEstimatedDurationHours() + " available hours on " +
                     job.getDateNeeded() + " but only have " + available + "h set");
+        }
+
+        // Cabotage gate: a foreign driver may perform at most 3 cabotage ops
+        // per host country per 7-day rolling window. HOME_COUNTRY_MISSING is
+        // non-blocking — the driver should be prompted to set their base
+        // country via a separate channel, but we don't refuse the apply.
+        CabotageService.CabotageCheck cab = cabotageService.check(driver, job);
+        if (cab.isBlocking()) {
+            throw new IllegalArgumentException(
+                    "Cabotage limit reached for " + cab.country() + ": "
+                            + cab.opsInWindow() + " of " + cab.limit()
+                            + " ops in the last 7 days.");
         }
 
         JobApplication application = existing != null ? existing : new JobApplication();

@@ -8,7 +8,8 @@
 	import { auth } from '$lib/stores/auth.svelte';
 	import { api } from '$lib/api';
 	import { driverState } from '$lib/stores/driverState.svelte';
-	import type { AvailabilityResponse, Job, JobApplication, DriverComplianceSummary, TimeSlot } from '$lib/types';
+	import type { AvailabilityResponse, Job, JobApplication, DriverComplianceSummary, TimeSlot, DriverLane, CabotageExposure } from '$lib/types';
+	import { HAULAGE_COUNTRIES, countryName } from '$lib/countries';
 	import { onMount } from 'svelte';
 	import { page } from '$app/state';
 
@@ -70,6 +71,18 @@
 	let selectedJob = $state<Job | null>(null);
 	let coverNote = $state('');
 	let applyError = $state('');
+
+	// Lanes state
+	let lanes = $state<DriverLane[]>([]);
+	let laneForm = $state({ originCountry: 'IE', destinationCountry: 'GB' });
+	let laneError = $state('');
+
+	// Cabotage state
+	let cabotage = $state<CabotageExposure[]>([]);
+	let homeCountry = $state('');
+	let homeCountryDraft = $state('IE');
+	let homeCountrySaving = $state(false);
+	let homeCountryError = $state('');
 
 	// Applications state
 	let applicationsLoading = $state(false);
@@ -284,6 +297,63 @@
 		}
 	}
 
+	async function loadLanes() {
+		try {
+			lanes = await api.get<DriverLane[]>('/api/driver/lanes');
+		} catch {
+			lanes = [];
+		}
+	}
+
+	async function addLane() {
+		laneError = '';
+		if (laneForm.originCountry === laneForm.destinationCountry) {
+			// Same-country lanes are allowed server-side (domestic-only opt-in)
+			// but warn so the driver realises it's not a cross-border lane.
+		}
+		try {
+			await api.post('/api/driver/lanes', laneForm);
+			await loadLanes();
+			await loadJobs();
+		} catch (e: any) {
+			laneError = e.message || 'Failed to add lane';
+		}
+	}
+
+	async function deleteLane(id: number) {
+		try {
+			await api.delete(`/api/driver/lanes/${id}`);
+			await loadLanes();
+			await loadJobs();
+		} catch { /* ignore */ }
+	}
+
+	async function loadCabotage() {
+		try {
+			const r = await api.get<{ homeCountry: string | null; exposures: CabotageExposure[] }>(
+				'/api/driver/cabotage-exposure'
+			);
+			cabotage = r.exposures ?? [];
+			homeCountry = r.homeCountry ?? '';
+			if (homeCountry) homeCountryDraft = homeCountry;
+		} catch {
+			cabotage = [];
+		}
+	}
+
+	async function saveHomeCountry() {
+		homeCountryError = '';
+		homeCountrySaving = true;
+		try {
+			await api.put('/api/driver/home-country', { country: homeCountryDraft });
+			await loadCabotage();
+		} catch (e: any) {
+			homeCountryError = e.message || 'Failed to set home country';
+		} finally {
+			homeCountrySaving = false;
+		}
+	}
+
 	function openApplyModal(job: Job) {
 		selectedJob = job;
 		coverNote = '';
@@ -394,7 +464,7 @@
 
 	$effect(() => {
 		if (selectedTab === 1) loadCompliance();
-		if (selectedTab === 2) { loadJobs(); loadApplications(); }
+		if (selectedTab === 2) { loadJobs(); loadApplications(); loadLanes(); loadCabotage(); }
 		if (selectedTab === 3) loadApplications();
 	});
 
@@ -562,7 +632,112 @@
 							<h3><Search size={20} /> Jobs Matching Your Profile</h3>
 							<p class="info-text">
 								Showing jobs that match your CDL type and available hours
+								{#if lanes.length > 0}
+									, restricted to your {lanes.length} configured lane{lanes.length === 1 ? '' : 's'}.
+								{:else}
+									. Add lanes below to filter to specific country pairs.
+								{/if}
 							</p>
+
+							<div class="lanes-panel">
+								<div class="lanes-header">
+									<h4>My Lanes</h4>
+									{#if lanes.length === 0}
+										<span class="lanes-empty">No lanes set — showing all matching jobs.</span>
+									{/if}
+								</div>
+
+								{#if lanes.length > 0}
+									<div class="lane-tags">
+										{#each lanes as lane}
+											<Tag type="cool-gray" filter on:close={() => deleteLane(lane.id)}>
+												{lane.originCountry} &rarr; {lane.destinationCountry}
+												<span class="lane-country-name">
+													({countryName(lane.originCountry)} → {countryName(lane.destinationCountry)})
+												</span>
+											</Tag>
+										{/each}
+									</div>
+								{/if}
+
+								<div class="lane-add">
+									<Select bind:selected={laneForm.originCountry} labelText="From" hideLabel>
+										{#each HAULAGE_COUNTRIES as c}
+											<SelectItem value={c.code} text="{c.code} — {c.name}" />
+										{/each}
+									</Select>
+									<span class="lane-arrow">&rarr;</span>
+									<Select bind:selected={laneForm.destinationCountry} labelText="To" hideLabel>
+										{#each HAULAGE_COUNTRIES as c}
+											<SelectItem value={c.code} text="{c.code} — {c.name}" />
+										{/each}
+									</Select>
+									<Button size="small" on:click={addLane}>Add lane</Button>
+								</div>
+								{#if laneError}
+									<InlineNotification kind="error" subtitle={laneError}
+										on:close={() => laneError = ''} />
+								{/if}
+							</div>
+
+							<div class="cabotage-panel">
+								<div class="cabotage-header">
+									<h4><CertificateCheck size={16} /> Cabotage exposure (last 7 days)</h4>
+								</div>
+
+								{#if !homeCountry}
+									<p class="cabotage-empty">
+										Set your home country to enable cabotage compliance tracking.
+										A foreign-based driver is limited to 3 cabotage ops per host country
+										per rolling 7-day window (EU 1072/2009).
+									</p>
+									<div class="home-country-form">
+										<Select bind:selected={homeCountryDraft} labelText="Home country" hideLabel>
+											{#each HAULAGE_COUNTRIES as c}
+												<SelectItem value={c.code} text="{c.code} — {c.name}" />
+											{/each}
+										</Select>
+										<Button size="small" on:click={saveHomeCountry} disabled={homeCountrySaving}>
+											{homeCountrySaving ? 'Saving...' : 'Set home country'}
+										</Button>
+									</div>
+								{:else}
+									<p class="cabotage-home">
+										Home country: <strong>{homeCountry}</strong>
+										<span class="cabotage-home-name">({countryName(homeCountry)})</span>
+									</p>
+									{#if cabotage.length === 0}
+										<p class="cabotage-empty">No cabotage ops in the last 7 days.</p>
+									{:else}
+										<div class="cabotage-rows">
+											{#each cabotage as ex}
+												{@const atLimit = ex.opsInWindow >= ex.limit}
+												<div class="cabotage-row" class:at-limit={atLimit}>
+													<Tag type={atLimit ? 'red' : 'cool-gray'}>
+														{ex.country}
+													</Tag>
+													<span class="cabotage-count">
+														{ex.opsInWindow} / {ex.limit} ops
+													</span>
+													{#if ex.newestOpDate}
+														<span class="cabotage-meta">
+															latest {ex.newestOpDate}{#if ex.newestOpLocation} · {ex.newestOpLocation}{/if}
+														</span>
+													{/if}
+													{#if atLimit}
+														<Tag type="red" size="sm">At limit — new applies blocked</Tag>
+													{/if}
+												</div>
+											{/each}
+										</div>
+									{/if}
+								{/if}
+
+								{#if homeCountryError}
+									<InlineNotification kind="error" subtitle={homeCountryError}
+										on:close={() => homeCountryError = ''} />
+								{/if}
+							</div>
 
 							{#if jobsLoading}
 								<p>Loading jobs...</p>
@@ -591,7 +766,20 @@
 											<p class="job-company">{job.employerCompanyName}</p>
 											<p>{job.description}</p>
 											<div class="job-details">
-												<span><strong>Route:</strong> {job.pickupLocation} &rarr; {job.deliveryLocation}</span>
+												{#if job.stops && job.stops.length > 0}
+													<span class="route-multi">
+														<strong>Route:</strong>
+														{#each job.stops as s, i}
+															<span class="route-stop" title={s.type}>
+																{#if s.location?.country}<span class="route-cc">{s.location.country}</span>{/if}
+																{s.location?.name ?? '?'}
+															</span>
+															{#if i < job.stops.length - 1}<span class="route-arrow">&rarr;</span>{/if}
+														{/each}
+													</span>
+												{:else}
+													<span><strong>Route:</strong> {job.pickupLocation} &rarr; {job.deliveryLocation}</span>
+												{/if}
 												<span><strong>Date:</strong> {job.dateNeeded}</span>
 												<span><strong>Duration:</strong> {job.estimatedDurationHours}h</span>
 												<span><strong>Rate:</strong> &euro;{job.ratePerHour}/hr</span>
@@ -971,6 +1159,131 @@
 		gap: 1rem;
 		margin: 0.75rem 0;
 		font-size: 0.875rem;
+	}
+	.route-multi {
+		display: inline-flex;
+		flex-wrap: wrap;
+		gap: 0.25rem;
+		align-items: center;
+	}
+	.route-stop {
+		padding: 0.0625rem 0.375rem;
+		background: var(--cds-layer-accent, #e0e0e0);
+		border-radius: 0.25rem;
+	}
+	.route-cc {
+		font-weight: 600;
+		font-size: 0.75rem;
+		margin-right: 0.25rem;
+		color: var(--cds-text-secondary);
+	}
+	.lanes-panel {
+		background: var(--cds-layer, #f4f4f4);
+		border-left: 3px solid var(--cds-interactive, #0f62fe);
+		padding: 0.75rem 1rem;
+		margin-bottom: 1rem;
+		display: flex;
+		flex-direction: column;
+		gap: 0.5rem;
+	}
+	.lanes-header {
+		display: flex;
+		justify-content: space-between;
+		align-items: baseline;
+	}
+	.lanes-header h4 {
+		margin: 0;
+		font-size: 0.9375rem;
+	}
+	.lanes-empty {
+		font-size: 0.8125rem;
+		color: var(--cds-text-secondary);
+	}
+	.lane-tags {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.25rem;
+	}
+	.lane-country-name {
+		font-size: 0.75rem;
+		color: var(--cds-text-secondary);
+		margin-left: 0.25rem;
+	}
+	.lane-add {
+		display: flex;
+		align-items: end;
+		gap: 0.5rem;
+	}
+	.lane-add :global(.bx--select),
+	.lane-add :global(.bx--form-item) {
+		min-width: 11rem;
+	}
+	.lane-arrow {
+		font-size: 1.25rem;
+		color: var(--cds-text-secondary);
+		padding-bottom: 0.5rem;
+	}
+	.cabotage-panel {
+		background: var(--cds-layer, #f4f4f4);
+		border-left: 3px solid var(--cds-support-warning, #f1c21b);
+		padding: 0.75rem 1rem;
+		margin-bottom: 1rem;
+		display: flex;
+		flex-direction: column;
+		gap: 0.5rem;
+	}
+	.cabotage-header h4 {
+		margin: 0;
+		font-size: 0.9375rem;
+		display: flex;
+		align-items: center;
+		gap: 0.25rem;
+	}
+	.cabotage-empty {
+		font-size: 0.8125rem;
+		color: var(--cds-text-secondary);
+		margin: 0;
+	}
+	.cabotage-home {
+		font-size: 0.875rem;
+		margin: 0;
+	}
+	.cabotage-home-name {
+		color: var(--cds-text-secondary);
+		margin-left: 0.25rem;
+	}
+	.cabotage-rows {
+		display: flex;
+		flex-direction: column;
+		gap: 0.25rem;
+	}
+	.cabotage-row {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		font-size: 0.875rem;
+	}
+	.cabotage-row.at-limit {
+		font-weight: 600;
+	}
+	.cabotage-count {
+		font-variant-numeric: tabular-nums;
+	}
+	.cabotage-meta {
+		color: var(--cds-text-secondary);
+		font-size: 0.8125rem;
+	}
+	.home-country-form {
+		display: flex;
+		align-items: end;
+		gap: 0.5rem;
+	}
+	.home-country-form :global(.bx--select),
+	.home-country-form :global(.bx--form-item) {
+		min-width: 12rem;
+	}
+	.route-arrow {
+		color: var(--cds-text-secondary);
 	}
 	.cover-note {
 		font-style: italic;

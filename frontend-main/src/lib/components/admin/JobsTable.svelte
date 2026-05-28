@@ -9,11 +9,13 @@
 	let {
 		jobs,
 		actions,
-		addHref
+		addHref,
+		addLabel = 'Add Job'
 	}: {
 		jobs: Job[];
 		actions?: Snippet<[Job]>;
 		addHref?: string;
+		addLabel?: string;
 	} = $props();
 
 	function statusKind(status: string): 'blue' | 'green' | 'red' | 'gray' | 'cyan' {
@@ -83,7 +85,7 @@
 	{#if addHref}
 		<Toolbar>
 			<ToolbarContent>
-				<Button href={addHref} icon={Add} size="small">Add Job</Button>
+				<Button href={addHref} icon={Add} size="small">{addLabel}</Button>
 			</ToolbarContent>
 		</Toolbar>
 	{/if}

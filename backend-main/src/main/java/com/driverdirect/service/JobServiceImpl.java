@@ -3,6 +3,7 @@ package com.driverdirect.service;
 import com.driverdirect.dto.CreateJobRequest;
 import com.driverdirect.dto.JobResponse;
 import com.driverdirect.model.Driver;
+import com.driverdirect.model.DriverLane;
 import com.driverdirect.model.Employer;
 import com.driverdirect.model.Job;
 import com.driverdirect.model.JobStatus;
@@ -14,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -25,6 +27,8 @@ public class JobServiceImpl implements JobService {
     private final JobApplicationRepository applicationRepository;
     private final AvailabilityService availabilityService;
     private final TmsTreeService tmsTreeService;
+    private final DriverLaneService driverLaneService;
+    private final CabotageService cabotageService;
 
     @Override
     @Transactional
@@ -73,14 +77,34 @@ public class JobServiceImpl implements JobService {
             jobs = jobRepository.findByStatusOrderByDateNeededAsc(JobStatus.OPEN);
         }
 
+        // Lane filter: when the driver has configured at least one (origin →
+        // destination) country pair, restrict matches to jobs on those lanes.
+        // Drivers with no lanes see everything (existing behaviour).
+        List<DriverLane> lanes = driverLaneService.findAllForDriver(driver);
+
         return jobs.stream()
                 .filter(job -> {
-                    // Check driver has enough available hours on the job's date
                     Double available = availabilityService.getAvailableHoursOnDate(driver, job.getDateNeeded());
                     return available >= job.getEstimatedDurationHours();
                 })
+                .filter(job -> matchesAnyLane(job, lanes))
                 .map(job -> JobResponse.from(job, applicationRepository.findByJob(job).size()))
                 .collect(Collectors.toList());
+    }
+
+    private boolean matchesAnyLane(Job job, List<DriverLane> lanes) {
+        if (lanes.isEmpty()) return true;
+        String origin = job.getPickupCountry();
+        String destination = job.getDeliveryCountry();
+        // Job without country metadata (no Shipment yet) doesn't match any lane.
+        if (origin == null || destination == null) return false;
+        for (DriverLane lane : lanes) {
+            if (Objects.equals(origin, lane.getOriginCountry())
+                    && Objects.equals(destination, lane.getDestinationCountry())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override
@@ -96,6 +120,12 @@ public class JobServiceImpl implements JobService {
         validateStatusTransition(job.getStatus(), status);
         job.setStatus(status);
         job = jobRepository.save(job);
+
+        // Log a cabotage row when work is marked complete and the trip
+        // qualifies. No-op for jobs that aren't cabotage (handled inside).
+        if (status == JobStatus.COMPLETED && job.getAssignedDriver() != null) {
+            cabotageService.recordIfApplicable(job.getAssignedDriver(), job);
+        }
         return JobResponse.from(job, applicationRepository.findByJob(job).size());
     }
 

@@ -1,3 +1,4 @@
+import { browser } from '$app/environment';
 import { api } from '$lib/api';
 
 interface User {
@@ -87,3 +88,12 @@ function createAuth() {
 }
 
 export const auth = createAuth();
+
+// Rehydrate from localStorage at module load — before any component mounts.
+// This must not wait for onMount: child layouts mount before parents, so a
+// guard in dashboard/+layout.svelte would otherwise run before a root-layout
+// onMount could restore the token, bouncing cold loads of authed routes to
+// /login. Guarded by `browser` so it's a no-op under SSR/prerender.
+if (browser) {
+	auth.initialize();
+}

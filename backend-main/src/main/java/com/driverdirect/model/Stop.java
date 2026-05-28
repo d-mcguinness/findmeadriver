@@ -7,10 +7,15 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
 
 /**
- * An ordered physical event on a Shipment — pickup, delivery, or a
- * pass-through waypoint. Sequence is 1-indexed within the parent Shipment.
- * earliestAt/latestAt define the appointment window; actualAt is set when
- * the driver checks in/out.
+ * An ordered physical event on a Shipment. Sequence is 1-indexed within the
+ * parent Shipment. earliestAt/latestAt define the appointment window;
+ * actualAt is set when the driver checks in/out.
+ *
+ * <p>{@link StopType} covers commercial stops (PICKUP / DELIVERY / WAYPOINT)
+ * plus international-route bookkeeping stops (REST, BORDER, FERRY_TERMINAL,
+ * EUROTUNNEL) that affect tachograph timing and cost without representing a
+ * goods event. Bookkeeping stops still attach to a {@link Location} (the
+ * service area, border post, or terminal).
  */
 @Entity
 @Table(name = "stops",
@@ -47,5 +52,10 @@ public class Stop {
     @Column(name = "actual_at")
     private LocalDateTime actualAt;
 
-    public enum StopType { PICKUP, DELIVERY, WAYPOINT }
+    public enum StopType {
+        // Commercial events: goods change hands.
+        PICKUP, DELIVERY, WAYPOINT,
+        // Bookkeeping events: affect tacho clock and cost, no goods movement.
+        REST, BORDER, FERRY_TERMINAL, EUROTUNNEL
+    }
 }

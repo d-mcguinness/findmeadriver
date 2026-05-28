@@ -12,12 +12,65 @@ export interface AvailabilityResponse {
 	fortnightlyRemaining: number;
 }
 
+export interface DriverLane {
+	id: number;
+	originCountry: string;
+	destinationCountry: string;
+	createdAt: string;
+}
+
+export interface CabotageExposure {
+	country: string;
+	opsInWindow: number;
+	limit: number;
+	windowStart: string;
+	oldestOpDate?: string;
+	newestOpDate?: string;
+	newestOpLocation?: string;
+}
+
+export type JobStopType =
+	| 'PICKUP'
+	| 'DELIVERY'
+	| 'WAYPOINT'
+	| 'REST'
+	| 'BORDER'
+	| 'FERRY_TERMINAL'
+	| 'EUROTUNNEL';
+
+export interface JobStopLocation {
+	id?: number;
+	name: string;
+	addressLine?: string;
+	city?: string;
+	country?: string;
+	latitude?: number;
+	longitude?: number;
+	timezone?: string;
+}
+
+export interface JobStop {
+	id?: number;
+	sequence: number;
+	type: JobStopType;
+	location: JobStopLocation;
+	earliestAt?: string;
+	latestAt?: string;
+	actualAt?: string;
+}
+
 export interface Job {
 	id: number;
 	title: string;
 	description: string;
 	pickupLocation: string;
 	deliveryLocation: string;
+	/**
+	 * Full ordered route. Present on jobs linked to a Shipment (Phase-0 TMS
+	 * tree); empty array on legacy jobs. Consumers should prefer this over
+	 * pickupLocation/deliveryLocation when length > 0.
+	 */
+	stops?: JobStop[];
 	estimatedDurationHours: number;
 	dateNeeded: string;
 	ratePerHour: number;

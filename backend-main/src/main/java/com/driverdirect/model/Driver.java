@@ -72,6 +72,15 @@ public class Driver extends User {
     private String licenseState;
     private Integer experienceYears;
 
+    /**
+     * Driver's base country (ISO-3166 alpha-2). Used by cabotage compliance —
+     * a job whose origin and destination both equal some country X ≠ homeCountry
+     * counts toward the X-cabotage limit. Nullable for pre-existing drivers;
+     * cabotage tracking is a no-op until set.
+     */
+    @Column(name = "home_country", length = 2)
+    private String homeCountry;
+
     public enum CDLType {
         CLASS_A,
         CLASS_B,

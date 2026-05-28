@@ -2,9 +2,9 @@
 	import {
 		Grid, Row, Column,
 		Button, TextInput, TextArea, NumberInput, Select, SelectItem,
-		InlineNotification
+		InlineNotification, Tag
 	} from 'carbon-components-svelte';
-	import { ArrowLeft, Add } from 'carbon-icons-svelte';
+	import { ArrowLeft, Add, TrashCan, ArrowUp, ArrowDown } from 'carbon-icons-svelte';
 	import { api } from '$lib/api';
 	import { auth } from '$lib/stores/auth.svelte';
 	import { goto } from '$app/navigation';
@@ -13,24 +13,67 @@
 	import LocationPicker from '$lib/components/LocationPicker.svelte';
 	import { calculateRoute, type RouteInfo } from '$lib/google-maps';
 	import { licenceCategoriesFor } from '$lib/licence-categories';
+	import { HAULAGE_COUNTRIES } from '$lib/countries';
+	import type { JobStopType } from '$lib/types';
 
 	type EmployerOption = { id: number; companyName: string; email: string; country?: string };
 
-	// Employer's country drives both the licence-category list and (later)
-	// LocationPicker's componentRestrictions. Defaults to IE.
+	type StopDraft = {
+		clientId: string;
+		type: JobStopType;
+		country: string;
+		address: string;
+		coords: { lat: number; lng: number } | null;
+	};
+
+	const STOP_TYPE_OPTIONS: { value: JobStopType; label: string }[] = [
+		{ value: 'PICKUP', label: 'Pickup' },
+		{ value: 'DELIVERY', label: 'Delivery' },
+		{ value: 'WAYPOINT', label: 'Waypoint' },
+		{ value: 'REST', label: 'Rest stop' },
+		{ value: 'BORDER', label: 'Border crossing' },
+		{ value: 'FERRY_TERMINAL', label: 'Ferry terminal' },
+		{ value: 'EUROTUNNEL', label: 'Eurotunnel' }
+	];
+
+	const STOP_TAG_COLOR: Record<JobStopType, 'green' | 'red' | 'blue' | 'purple' | 'cyan' | 'teal' | 'magenta'> = {
+		PICKUP: 'green',
+		DELIVERY: 'red',
+		WAYPOINT: 'blue',
+		REST: 'purple',
+		BORDER: 'magenta',
+		FERRY_TERMINAL: 'cyan',
+		EUROTUNNEL: 'teal'
+	};
+
 	let employerCountry = $state('IE');
 	let licenceOptions = $derived(licenceCategoriesFor(employerCountry));
 
 	let jobForm = $state({
 		title: '',
 		description: '',
-		pickupLocation: '',
-		deliveryLocation: '',
 		estimatedDurationHours: 4,
 		dateNeeded: '',
 		ratePerHour: 25,
 		requiredLicenceCategory: 'C'
 	});
+
+	function newStop(type: JobStopType): StopDraft {
+		return {
+			clientId: `stop-${Math.random().toString(36).slice(2, 9)}`,
+			type,
+			country: employerCountry,
+			address: '',
+			coords: null
+		};
+	}
+
+	let stops = $state<StopDraft[]>([newStop('PICKUP'), newStop('DELIVERY')]);
+
+	// First PICKUP / last DELIVERY drive the legacy API shape and the route calc.
+	let firstPickup = $derived(stops.find(s => s.type === 'PICKUP'));
+	let lastDelivery = $derived([...stops].reverse().find(s => s.type === 'DELIVERY'));
+
 	let postError = $state('');
 	let postSuccess = $state('');
 	let postLoading = $state(false);
@@ -54,19 +97,19 @@
 		}
 	});
 
-	let pickupCoords = $state<{ lat: number; lng: number } | null>(null);
-	let deliveryCoords = $state<{ lat: number; lng: number } | null>(null);
 	let routeInfo = $state<RouteInfo | null>(null);
 	let routeLoading = $state(false);
 
 	async function recalculateRoute() {
-		if (!pickupCoords || !deliveryCoords) {
+		const a = firstPickup?.coords;
+		const b = lastDelivery?.coords;
+		if (!a || !b) {
 			routeInfo = null;
 			return;
 		}
 		routeLoading = true;
 		try {
-			routeInfo = await calculateRoute(pickupCoords, deliveryCoords);
+			routeInfo = await calculateRoute(a, b);
 			if (routeInfo) {
 				const hours = Math.round((routeInfo.durationSeconds / 3600) * 100) / 100;
 				jobForm = { ...jobForm, estimatedDurationHours: hours };
@@ -78,43 +121,87 @@
 		}
 	}
 
-	function onPickupSelected(place: { address: string; lat: number; lng: number }) {
-		jobForm.pickupLocation = place.address;
-		pickupCoords = { lat: place.lat, lng: place.lng };
+	function onStopPlaceSelected(index: number, place: { address: string; lat: number; lng: number }) {
+		stops[index].address = place.address;
+		stops[index].coords = { lat: place.lat, lng: place.lng };
 		recalculateRoute();
 	}
 
-	function onDeliverySelected(place: { address: string; lat: number; lng: number }) {
-		jobForm.deliveryLocation = place.address;
-		deliveryCoords = { lat: place.lat, lng: place.lng };
+	function addStop() {
+		// Insert before the final DELIVERY when there is one, otherwise append.
+		const lastDeliveryIdx = stops.map(s => s.type).lastIndexOf('DELIVERY');
+		const insertAt = lastDeliveryIdx === -1 ? stops.length : lastDeliveryIdx;
+		stops = [...stops.slice(0, insertAt), newStop('WAYPOINT'), ...stops.slice(insertAt)];
+	}
+
+	function removeStop(index: number) {
+		if (stops.length <= 2) return; // keep at least pickup + delivery
+		stops = stops.filter((_, i) => i !== index);
 		recalculateRoute();
+	}
+
+	function moveStop(index: number, delta: -1 | 1) {
+		const target = index + delta;
+		if (target < 0 || target >= stops.length) return;
+		const copy = [...stops];
+		[copy[index], copy[target]] = [copy[target], copy[index]];
+		stops = copy;
+		recalculateRoute();
+	}
+
+	function validate(): string | null {
+		if (!jobForm.title.trim()) return 'Title is required.';
+		if (!jobForm.dateNeeded) return 'Date is required.';
+		if (!firstPickup || !firstPickup.address.trim()) return 'At least one pickup with an address is required.';
+		if (!lastDelivery || !lastDelivery.address.trim()) return 'At least one delivery with an address is required.';
+		const blank = stops.findIndex(s => !s.address.trim());
+		if (blank !== -1) return `Stop ${blank + 1} has no address.`;
+		return null;
 	}
 
 	async function postJob() {
 		postError = '';
 		postSuccess = '';
+		const v = validate();
+		if (v) { postError = v; return; }
+
 		postLoading = true;
 		try {
+			// Send the full ordered Stops list. Legacy pickup/delivery fields are
+			// still populated for any consumer that hasn't migrated; the backend
+			// uses stops when present and ignores them.
+			const payload = {
+				...jobForm,
+				pickupLocation: firstPickup!.address,
+				deliveryLocation: lastDelivery!.address,
+				ratePerHour: jobForm.ratePerHour,
+				stops: stops.map(s => ({
+					type: s.type,
+					locationName: s.address,
+					addressLine: s.address,
+					country: s.country,
+					latitude: s.coords?.lat,
+					longitude: s.coords?.lng
+				}))
+			};
+
 			if (auth.isAdmin) {
 				if (!selectedEmployerId) {
-					postError = 'Please choose an employer to post the job under.';
+					postError = 'Please choose an employer to create the job under.';
 					postLoading = false;
 					return;
 				}
 				await api.post(
 					`/api/admin/jobs?employerId=${encodeURIComponent(selectedEmployerId)}`,
-					{ ...jobForm, ratePerHour: jobForm.ratePerHour }
+					payload
 				);
 			} else {
-				await api.post('/api/employer/jobs', {
-					...jobForm,
-					ratePerHour: jobForm.ratePerHour
-				});
+				await api.post('/api/employer/jobs', payload);
 			}
-			postSuccess = 'Job posted successfully! Redirecting...';
+			postSuccess = 'Job created successfully! Redirecting...';
 			setTimeout(() => goto('/dashboard'), 1500);
 		} catch (e: any) {
-			postError = e.message || 'Failed to post job';
+			postError = e.message || 'Failed to create job';
 		} finally {
 			postLoading = false;
 		}
@@ -128,7 +215,7 @@
 				<Button kind="ghost" size="small" href="/dashboard" icon={ArrowLeft}>
 					Back to My Jobs
 				</Button>
-				<h1><Add size={24} /> Post a Delivery Job</h1>
+				<h1><Add size={24} /> Create a Job</h1>
 			</div>
 		</Column>
 	</Row>
@@ -147,7 +234,7 @@
 			<div class="form-grid">
 				{#if auth.isAdmin}
 					<Select bind:selected={selectedEmployerId}
-						labelText="Post Job On Behalf Of (Employer)">
+						labelText="Create Job On Behalf Of (Employer)">
 						{#each employers as emp}
 							<SelectItem value={String(emp.id)}
 								text="{emp.companyName} ({emp.email})" />
@@ -162,24 +249,66 @@
 					labelText="Description" placeholder="Describe the delivery requirements..."
 					rows={3} />
 
-				<div class="form-row locations-row">
-					<LocationPicker
-						labelText="Pickup Location"
-						placeholder="Address or Eircode (e.g. D01 F5P2)"
-						bind:value={jobForm.pickupLocation}
-						onPlaceSelected={onPickupSelected}
-					/>
-					<LocationPicker
-						labelText="Delivery Location"
-						placeholder="Address or Eircode (e.g. T12 YN60)"
-						bind:value={jobForm.deliveryLocation}
-						onPlaceSelected={onDeliverySelected}
-					/>
+				<div class="stops-section">
+					<div class="stops-header">
+						<h3>Route</h3>
+						<Button kind="tertiary" size="small" icon={Add} on:click={addStop}>
+							Add stop
+						</Button>
+					</div>
+					<p class="stops-hint">
+						Order matters — drag-free reordering via the arrow buttons. International
+						routes can include border, ferry, or Eurotunnel stops between pickup and
+						delivery.
+					</p>
+
+					{#each stops as stop, i (stop.clientId)}
+						<div class="stop-row">
+							<div class="stop-index">
+								<span class="seq">{i + 1}</span>
+								<Tag type={STOP_TAG_COLOR[stop.type]} size="sm">{stop.type}</Tag>
+							</div>
+
+							<div class="stop-fields">
+								<Select bind:selected={stop.type} labelText="Type" hideLabel>
+									{#each STOP_TYPE_OPTIONS as opt}
+										<SelectItem value={opt.value} text={opt.label} />
+									{/each}
+								</Select>
+								<Select bind:selected={stop.country} labelText="Country" hideLabel>
+									{#each HAULAGE_COUNTRIES as c}
+										<SelectItem value={c.code} text="{c.code} — {c.name}" />
+									{/each}
+								</Select>
+								<LocationPicker
+									labelText={`Stop ${i + 1} address`}
+									placeholder="Address, Eircode, or postcode"
+									bind:value={stop.address}
+									onPlaceSelected={(place) => onStopPlaceSelected(i, place)}
+								/>
+							</div>
+
+							<div class="stop-actions">
+								<Button kind="ghost" size="small" icon={ArrowUp}
+									iconDescription="Move up"
+									disabled={i === 0}
+									on:click={() => moveStop(i, -1)} />
+								<Button kind="ghost" size="small" icon={ArrowDown}
+									iconDescription="Move down"
+									disabled={i === stops.length - 1}
+									on:click={() => moveStop(i, 1)} />
+								<Button kind="danger-ghost" size="small" icon={TrashCan}
+									iconDescription="Remove stop"
+									disabled={stops.length <= 2}
+									on:click={() => removeStop(i)} />
+							</div>
+						</div>
+					{/each}
 				</div>
 
 				{#if routeLoading}
 					<div class="route-info">
-						<p class="route-calculating">Calculating route...</p>
+						<p class="route-calculating">Calculating route (first pickup → last delivery)...</p>
 					</div>
 				{:else if routeInfo}
 					<div class="route-info">
@@ -212,7 +341,7 @@
 				</div>
 
 				<Button on:click={postJob} disabled={postLoading || !jobForm.title || !jobForm.dateNeeded}>
-					{postLoading ? 'Posting...' : 'Post Job'}
+					{postLoading ? 'Creating...' : 'Create a Job'}
 				</Button>
 			</div>
 		</Column>
@@ -233,15 +362,63 @@
 		display: flex;
 		flex-direction: column;
 		gap: 1rem;
-		max-width: 640px;
+		max-width: 760px;
 	}
 	.form-row {
 		display: grid;
 		grid-template-columns: 1fr 1fr;
 		gap: 1rem;
 	}
-	.locations-row {
+	.stops-section {
+		display: flex;
+		flex-direction: column;
+		gap: 0.75rem;
+		padding: 1rem;
+		background: var(--cds-layer, #f4f4f4);
+		border-left: 3px solid var(--cds-interactive, #0f62fe);
+	}
+	.stops-header {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+	}
+	.stops-header h3 {
+		margin: 0;
+		font-size: 1rem;
+	}
+	.stops-hint {
+		font-size: 0.8125rem;
+		color: var(--cds-text-secondary);
+		margin: 0;
+	}
+	.stop-row {
+		display: grid;
+		grid-template-columns: 6rem 1fr auto;
+		gap: 0.75rem;
 		align-items: start;
+		padding: 0.5rem;
+		background: var(--cds-background, #fff);
+	}
+	.stop-index {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 0.25rem;
+		padding-top: 0.25rem;
+	}
+	.stop-index .seq {
+		font-weight: 600;
+		font-size: 0.875rem;
+	}
+	.stop-fields {
+		display: grid;
+		grid-template-columns: 8rem 9rem 1fr;
+		gap: 0.5rem;
+	}
+	.stop-actions {
+		display: flex;
+		gap: 0.125rem;
+		align-items: center;
 	}
 	.route-info {
 		background: var(--cds-layer, #f4f4f4);
@@ -261,7 +438,11 @@
 		margin: 0;
 	}
 	@media (max-width: 672px) {
-		.form-row {
+		.form-row,
+		.stop-fields {
+			grid-template-columns: 1fr;
+		}
+		.stop-row {
 			grid-template-columns: 1fr;
 		}
 	}
