@@ -5,6 +5,7 @@ import com.driverdirect.dto.DriverLaneResponse;
 import com.driverdirect.model.Driver;
 import com.driverdirect.model.DriverLane;
 import com.driverdirect.repository.DriverLaneRepository;
+import com.driverdirect.util.CountryCodes;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -60,9 +61,6 @@ public class DriverLaneService {
     }
 
     private String normaliseCountry(String raw, String which) {
-        if (raw == null || raw.trim().length() != 2) {
-            throw new IllegalArgumentException(which + " country must be a 2-letter ISO code");
-        }
-        return raw.trim().toUpperCase();
+        return CountryCodes.require(raw, which + " country");
     }
 }

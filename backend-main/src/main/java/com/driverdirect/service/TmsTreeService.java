@@ -17,6 +17,7 @@ import com.driverdirect.repository.ShipmentLineRepository;
 import com.driverdirect.repository.ShipmentRepository;
 import com.driverdirect.repository.StopRepository;
 import com.driverdirect.repository.TransportOrderRepository;
+import com.driverdirect.util.CountryCodes;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -83,6 +84,18 @@ public class TmsTreeService {
             String pc;
             String dc;
             if (!stops.isEmpty()) {
+                // A route must anchor on a real pickup and delivery. Without them
+                // origin/destination silently fall back to the employer's country
+                // (see firstCountryOfType/lastCountryOfType), which mis-classifies
+                // cabotage and breaks lane matching. Reject instead — this also
+                // surfaces a mistyped stop type that listFromRequest coerced to
+                // WAYPOINT.
+                boolean hasPickup = stops.stream().anyMatch(s -> s.type() == Stop.StopType.PICKUP);
+                boolean hasDelivery = stops.stream().anyMatch(s -> s.type() == Stop.StopType.DELIVERY);
+                if (!hasPickup || !hasDelivery) {
+                    throw new IllegalArgumentException(
+                            "Route must include at least one PICKUP and one DELIVERY stop");
+                }
                 pc = firstCountryOfType(stops, Stop.StopType.PICKUP, employer.getCountry());
                 dc = lastCountryOfType(stops, Stop.StopType.DELIVERY, employer.getCountry());
             } else {
@@ -173,8 +186,11 @@ public class TmsTreeService {
         shipment.setMode(Shipment.Mode.ROAD);
         shipment.setStatus(mapShipmentStatus(job.getStatus()));
         shipment.setCurrency(input.currency());
-        shipment.setOriginCountry(input.pickupCountry());
-        shipment.setDestinationCountry(input.deliveryCountry());
+        // Canonicalise to uppercase so the lane filter (Objects.equals) and the
+        // cabotage origin==destination test compare against the same form lanes
+        // and cabotage rows are stored in.
+        shipment.setOriginCountry(CountryCodes.normalize(input.pickupCountry()));
+        shipment.setDestinationCountry(CountryCodes.normalize(input.deliveryCountry()));
         shipment = shipmentRepository.save(shipment);
 
         if (input.stops() != null && !input.stops().isEmpty()) {
@@ -257,7 +273,7 @@ public class TmsTreeService {
 
     private Location upsertLocation(String name, String country) {
         if (name == null || name.isBlank()) return null;
-        String iso = country == null ? "IE" : country;
+        String iso = CountryCodes.normalize(country) == null ? "IE" : CountryCodes.normalize(country);
         return locationRepository.findFirstByNameIgnoreCaseAndCountry(name, iso).orElseGet(() -> {
             Location loc = new Location();
             loc.setName(name);
@@ -272,7 +288,7 @@ public class TmsTreeService {
      *  back-filled so multiple jobs at the same name+country stay stable. */
     private Location upsertLocation(TmsStopInput s) {
         if (s.locationName() == null || s.locationName().isBlank()) return null;
-        String iso = s.country() == null ? "IE" : s.country();
+        String iso = CountryCodes.normalize(s.country()) == null ? "IE" : CountryCodes.normalize(s.country());
         return locationRepository.findFirstByNameIgnoreCaseAndCountry(s.locationName(), iso)
                 .orElseGet(() -> {
                     Location loc = new Location();
