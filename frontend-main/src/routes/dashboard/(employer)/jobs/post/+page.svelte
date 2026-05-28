@@ -101,15 +101,19 @@
 	let routeLoading = $state(false);
 
 	async function recalculateRoute() {
-		const a = firstPickup?.coords;
-		const b = lastDelivery?.coords;
-		if (!a || !b) {
+		// Route through every stop that has coordinates, in their current order,
+		// so waypoints (and border/ferry/rest stops) count toward distance + time.
+		const points = stops.filter((s) => s.coords).map((s) => s.coords!);
+		if (points.length < 2) {
 			routeInfo = null;
 			return;
 		}
+		const origin = points[0];
+		const destination = points[points.length - 1];
+		const intermediates = points.slice(1, -1);
 		routeLoading = true;
 		try {
-			routeInfo = await calculateRoute(a, b);
+			routeInfo = await calculateRoute(origin, destination, intermediates);
 			if (routeInfo) {
 				const hours = Math.round((routeInfo.durationSeconds / 3600) * 100) / 100;
 				jobForm = { ...jobForm, estimatedDurationHours: hours };
@@ -308,7 +312,7 @@
 
 				{#if routeLoading}
 					<div class="route-info">
-						<p class="route-calculating">Calculating route (first pickup → last delivery)...</p>
+						<p class="route-calculating">Calculating route through all stops...</p>
 					</div>
 				{:else if routeInfo}
 					<div class="route-info">

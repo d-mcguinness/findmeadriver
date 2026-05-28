@@ -28,26 +28,29 @@ export interface RouteInfo {
 
 export async function calculateRoute(
 	origin: google.maps.LatLngLiteral,
-	destination: google.maps.LatLngLiteral
+	destination: google.maps.LatLngLiteral,
+	intermediates: google.maps.LatLngLiteral[] = []
 ): Promise<RouteInfo | null> {
 	try {
-		// Call the Routes API REST endpoint directly to avoid JS SDK wrapper issues
+		const toWaypoint = (p: google.maps.LatLngLiteral) => ({
+			location: { latLng: { latitude: p.lat, longitude: p.lng } }
+		});
+
+		// computeRoutes (not the distance matrix) so the totals follow the full
+		// ordered route through any intermediate waypoints, not just origin→dest.
 		const response = await fetch(
-			`https://routes.googleapis.com/distanceMatrix/v2:computeRouteMatrix`,
+			`https://routes.googleapis.com/directions/v2:computeRoutes`,
 			{
 				method: 'POST',
 				headers: {
 					'Content-Type': 'application/json',
 					'X-Goog-Api-Key': PUBLIC_GOOGLE_MAPS_API_KEY,
-					'X-Goog-FieldMask': 'originIndex,destinationIndex,distanceMeters,duration'
+					'X-Goog-FieldMask': 'routes.distanceMeters,routes.duration'
 				},
 				body: JSON.stringify({
-					origins: [{
-						waypoint: { location: { latLng: { latitude: origin.lat, longitude: origin.lng } } }
-					}],
-					destinations: [{
-						waypoint: { location: { latLng: { latitude: destination.lat, longitude: destination.lng } } }
-					}],
+					origin: toWaypoint(origin),
+					destination: toWaypoint(destination),
+					intermediates: intermediates.map(toWaypoint),
 					travelMode: 'DRIVE'
 				})
 			}
@@ -58,32 +61,13 @@ export async function calculateRoute(
 			return null;
 		}
 
-		const text = await response.text();
+		const data = await response.json();
+		const route = data?.routes?.[0];
+		if (!route || route.distanceMeters === undefined || !route.duration) return null;
 
-		// Response may be a JSON array or newline-delimited JSON objects
-		let elements: any[];
-		try {
-			const parsed = JSON.parse(text);
-			elements = Array.isArray(parsed) ? parsed : [parsed];
-		} catch {
-			// Newline-delimited JSON: parse each non-empty line separately
-			elements = text.split('\n')
-				.map(line => line.trim())
-				.filter(line => line.length > 0 && line !== '[' && line !== ']')
-				.map(line => {
-					// Strip trailing commas from array-style NDJSON
-					const clean = line.replace(/,\s*$/, '');
-					return JSON.parse(clean);
-				});
-		}
-		elements = elements.filter((e: any) => e.distanceMeters !== undefined);
-
-		const element = elements[0];
-		if (!element || !element.distanceMeters || !element.duration) return null;
-
-		const distanceMeters: number = element.distanceMeters;
+		const distanceMeters: number = route.distanceMeters;
 		// duration is a string like "1234s"
-		const totalSeconds = parseInt(String(element.duration).replace('s', ''), 10);
+		const totalSeconds = parseInt(String(route.duration).replace('s', ''), 10);
 
 		const distanceKm = distanceMeters / 1000;
 		const hours = Math.floor(totalSeconds / 3600);
