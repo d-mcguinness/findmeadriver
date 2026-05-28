@@ -82,7 +82,15 @@ public class Job {
      */
     @Deprecated
     public Driver.CDLType getRequiredCdlType() {
-        return requiredLicenceCategory == null ? null : Driver.CDLType.valueOf(requiredLicenceCategory);
+        // requiredLicenceCategory may hold non-US values ("C", "CE",
+        // "HGV_CLASS_1") that aren't CDLType constants — return null rather
+        // than throwing, mirroring Driver.getCdlType().
+        if (requiredLicenceCategory == null) return null;
+        try {
+            return Driver.CDLType.valueOf(requiredLicenceCategory);
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
     }
 
     /** @deprecated use {@link #setRequiredLicenceCategory(String)}. */

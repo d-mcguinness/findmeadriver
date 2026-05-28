@@ -5,6 +5,8 @@ import com.driverdirect.dto.WeeklyAvailabilityRequest;
 import com.driverdirect.model.Driver;
 
 import java.time.LocalDate;
+import java.util.Collection;
+import java.util.Map;
 
 public interface AvailabilityService {
 
@@ -13,4 +15,8 @@ public interface AvailabilityService {
     AvailabilityResponse getAvailability(Driver driver, LocalDate start, LocalDate end);
 
     Double getAvailableHoursOnDate(Driver driver, LocalDate date);
+
+    /** Available hours for several dates in one query. Dates with no entry are
+     *  absent from the map (callers default to 0). */
+    Map<LocalDate, Double> getAvailableHoursForDates(Driver driver, Collection<LocalDate> dates);
 }

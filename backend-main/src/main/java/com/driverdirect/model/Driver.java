@@ -40,7 +40,15 @@ public class Driver extends User {
      */
     @Deprecated
     public CDLType getCdlType() {
-        return licenceCategory == null ? null : CDLType.valueOf(licenceCategory);
+        // licenceCategory may hold non-US values (e.g. "C", "CE", "HGV_CLASS_1")
+        // that aren't CDLType constants — return null rather than throwing, so
+        // any lingering caller degrades gracefully instead of crashing.
+        if (licenceCategory == null) return null;
+        try {
+            return CDLType.valueOf(licenceCategory);
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
     }
 
     /** @deprecated use {@link #setLicenceCategory(String)}. */

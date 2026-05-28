@@ -13,7 +13,10 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.temporal.TemporalAdjusters;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -86,6 +89,16 @@ public class AvailabilityServiceImpl implements AvailabilityService {
         return availabilityRepository.findByDriverAndDate(driver, date)
                 .map(DriverAvailability::getAvailableHours)
                 .orElse(0.0);
+    }
+
+    @Override
+    public Map<LocalDate, Double> getAvailableHoursForDates(Driver driver, Collection<LocalDate> dates) {
+        if (dates.isEmpty()) return Map.of();
+        Map<LocalDate, Double> byDate = new HashMap<>();
+        for (DriverAvailability a : availabilityRepository.findByDriverAndDateIn(driver, dates)) {
+            byDate.put(a.getDate(), a.getAvailableHours());
+        }
+        return byDate;
     }
 
     private void validateEntry(Driver driver, AvailabilityEntry entry, List<AvailabilityEntry> allEntries) {

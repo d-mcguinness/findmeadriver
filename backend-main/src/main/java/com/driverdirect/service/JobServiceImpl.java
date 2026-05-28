@@ -7,12 +7,15 @@ import com.driverdirect.model.DriverLane;
 import com.driverdirect.model.Employer;
 import com.driverdirect.model.Job;
 import com.driverdirect.model.JobStatus;
+import com.driverdirect.model.LicenceCategory;
 import com.driverdirect.repository.JobApplicationRepository;
 import com.driverdirect.repository.JobRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -69,27 +72,54 @@ public class JobServiceImpl implements JobService {
 
     @Override
     public List<JobResponse> getMatchingJobs(Driver driver) {
-        List<Job> jobs;
-        if (driver.getLicenceCategory() != null) {
-            jobs = jobRepository.findByStatusAndRequiredLicenceCategoryOrderByDateNeededAsc(
-                    JobStatus.OPEN, driver.getLicenceCategory());
-        } else {
-            jobs = jobRepository.findByStatusOrderByDateNeededAsc(JobStatus.OPEN);
-        }
+        // Browse must agree with apply-time validation, which matches licences
+        // through the LicenceCategory.covers() lattice (e.g. a C+E holder may
+        // take a C job; UK HGV class 1 ≡ EU C+E) rather than exact category
+        // equality. So fetch all OPEN jobs and apply the same satisfies() check
+        // JobApplicationServiceImpl uses — otherwise a driver sees only
+        // exact-match jobs and misses ones they're actually entitled to apply
+        // for (and a null-licence driver was previously shown jobs they can't).
+        List<Job> jobs = jobRepository.findByStatusOrderByDateNeededAsc(JobStatus.OPEN);
+        String have = driver.getLicenceCategory();
 
         // Lane filter: when the driver has configured at least one (origin →
         // destination) country pair, restrict matches to jobs on those lanes.
         // Drivers with no lanes see everything (existing behaviour).
         List<DriverLane> lanes = driverLaneService.findAllForDriver(driver);
 
-        return jobs.stream()
+        // Licence + lane are pure in-memory predicates; apply them first so the
+        // two DB lookups below run only over the surviving candidate set.
+        List<Job> candidates = jobs.stream()
+                .filter(job -> LicenceCategory.satisfies(have, job.getRequiredLicenceCategory()))
+                .filter(job -> matchesAnyLane(job, lanes))
+                .collect(Collectors.toList());
+
+        // Batch the per-job lookups: availability for all candidate dates in one
+        // query, application counts for all candidates in one query — instead of
+        // two queries per job (N+1).
+        Set<LocalDate> dates = candidates.stream()
+                .map(Job::getDateNeeded).filter(Objects::nonNull).collect(Collectors.toSet());
+        Map<LocalDate, Double> hoursByDate = availabilityService.getAvailableHoursForDates(driver, dates);
+        Map<Long, Integer> applicationCounts = applicationCountsByJobId(candidates);
+
+        return candidates.stream()
                 .filter(job -> {
-                    Double available = availabilityService.getAvailableHoursOnDate(driver, job.getDateNeeded());
+                    double available = job.getDateNeeded() == null ? 0.0
+                            : hoursByDate.getOrDefault(job.getDateNeeded(), 0.0);
                     return available >= job.getEstimatedDurationHours();
                 })
-                .filter(job -> matchesAnyLane(job, lanes))
-                .map(job -> JobResponse.from(job, applicationRepository.findByJob(job).size()))
+                .map(job -> JobResponse.from(job, applicationCounts.getOrDefault(job.getId(), 0)))
                 .collect(Collectors.toList());
+    }
+
+    /** Application counts keyed by job id, fetched in a single grouped query. */
+    private Map<Long, Integer> applicationCountsByJobId(List<Job> jobs) {
+        if (jobs.isEmpty()) return Map.of();
+        Map<Long, Integer> counts = new HashMap<>();
+        for (Object[] row : applicationRepository.countByJobIn(jobs)) {
+            counts.put((Long) row[0], ((Long) row[1]).intValue());
+        }
+        return counts;
     }
 
     private boolean matchesAnyLane(Job job, List<DriverLane> lanes) {

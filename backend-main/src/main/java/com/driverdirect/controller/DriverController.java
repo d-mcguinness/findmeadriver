@@ -14,6 +14,7 @@ import com.driverdirect.service.JobApplicationService;
 import com.driverdirect.service.JobService;
 import com.driverdirect.service.ComplianceService;
 import com.driverdirect.service.RatingService;
+import com.driverdirect.util.CountryCodes;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
@@ -165,10 +166,7 @@ public class DriverController {
     public ResponseEntity<MessageResponse> setHomeCountry(
             Authentication auth, @RequestBody HomeCountryRequest request) {
         Driver driver = getDriver(auth);
-        if (request.getCountry() == null || request.getCountry().trim().length() != 2) {
-            throw new IllegalArgumentException("country must be a 2-letter ISO code");
-        }
-        driver.setHomeCountry(request.getCountry().trim().toUpperCase());
+        driver.setHomeCountry(CountryCodes.require(request.getCountry(), "country"));
         driverRepository.save(driver);
         return ResponseEntity.ok(new MessageResponse("Home country updated"));
     }
