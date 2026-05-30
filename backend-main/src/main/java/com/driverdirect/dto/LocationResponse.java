@@ -11,6 +11,9 @@ public class LocationResponse {
     private String addressLine;
     private String city;
     private String country;
+    private String locationType;
+    private String unlocode;
+    private String iata;
     private Double latitude;
     private Double longitude;
     private String timezone;
@@ -24,6 +27,9 @@ public class LocationResponse {
         r.setAddressLine(l.getAddressLine());
         r.setCity(l.getCity());
         r.setCountry(l.getCountry());
+        r.setLocationType(l.getLocationType() != null ? l.getLocationType().name() : null);
+        r.setUnlocode(l.getUnlocode());
+        r.setIata(l.getIata());
         r.setLatitude(l.getLatitude());
         r.setLongitude(l.getLongitude());
         r.setTimezone(l.getTimezone());

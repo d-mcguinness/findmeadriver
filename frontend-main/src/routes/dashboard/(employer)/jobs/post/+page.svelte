@@ -13,6 +13,8 @@
 	import LocationPicker from '$lib/components/LocationPicker.svelte';
 	import { calculateRoute, type RouteInfo } from '$lib/google-maps';
 	import { licenceCategoriesFor } from '$lib/licence-categories';
+	import { TRANSPORT_MODE_OPTIONS, transportModeLabel, estimatedCommissionPct } from '$lib/transport-modes';
+	import { formatMoney } from '$lib/money';
 	import { HAULAGE_COUNTRIES } from '$lib/countries';
 	import type { JobStopType } from '$lib/types';
 
@@ -52,10 +54,23 @@
 	let jobForm = $state({
 		title: '',
 		description: '',
+		transportMode: 'ROAD',
 		estimatedDurationHours: 4,
 		dateNeeded: '',
 		ratePerHour: 25,
 		requiredLicenceCategory: 'C'
+	});
+
+	// Live estimate of what the employer will be charged. Carrier cost is
+	// rate × hours; the platform fee varies by transport mode. The backend
+	// recomputes the authoritative figure on save.
+	let pricingPreview = $derived.by(() => {
+		const hours = Number(jobForm.estimatedDurationHours) || 0;
+		const rate = Number(jobForm.ratePerHour) || 0;
+		const carrierCost = hours * rate;
+		const pct = estimatedCommissionPct(jobForm.transportMode);
+		const fee = carrierCost * (pct / 100);
+		return { carrierCost, pct, fee, total: carrierCost + fee };
 	});
 
 	function newStop(type: JobStopType): StopDraft {
@@ -220,6 +235,9 @@
 					Back to My Jobs
 				</Button>
 				<h1><Add size={24} /> Create a Job</h1>
+				<Button kind="ghost" size="small" href="/dashboard/jobs/post-intermodal">
+					Shipping across multiple modes? Post an intermodal job &rarr;
+				</Button>
 			</div>
 		</Column>
 	</Row>
@@ -252,6 +270,12 @@
 				<TextArea bind:value={jobForm.description}
 					labelText="Description" placeholder="Describe the delivery requirements..."
 					rows={3} />
+
+				<Select bind:selected={jobForm.transportMode} labelText="Transport Mode">
+					{#each TRANSPORT_MODE_OPTIONS as opt}
+						<SelectItem value={opt.value} text={opt.label} />
+					{/each}
+				</Select>
 
 				<div class="stops-section">
 					<div class="stops-header">
@@ -342,6 +366,27 @@
 							<SelectItem value={opt.code} text={opt.label} />
 						{/each}
 					</Select>
+				</div>
+
+				<div class="pricing-preview">
+					<h4>Pricing preview</h4>
+					<div class="pricing-rows">
+						<div class="pricing-line">
+							<span>Carrier cost ({jobForm.estimatedDurationHours}h × {formatMoney(jobForm.ratePerHour)})</span>
+							<strong>{formatMoney(pricingPreview.carrierCost)}</strong>
+						</div>
+						<div class="pricing-line">
+							<span>Platform fee · {transportModeLabel(jobForm.transportMode)} ({pricingPreview.pct}%)</span>
+							<strong>{formatMoney(pricingPreview.fee)}</strong>
+						</div>
+						<div class="pricing-line pricing-total">
+							<span>You pay</span>
+							<strong>{formatMoney(pricingPreview.total)}</strong>
+						</div>
+					</div>
+					<p class="pricing-hint">
+						Estimate — the exact platform fee is confirmed on the server when you post.
+					</p>
 				</div>
 
 				<Button on:click={postJob} disabled={postLoading || !jobForm.title || !jobForm.dateNeeded}>
@@ -440,6 +485,40 @@
 		color: var(--cds-text-secondary);
 		font-style: italic;
 		margin: 0;
+	}
+	.pricing-preview {
+		background: var(--cds-layer, #f4f4f4);
+		border-left: 3px solid var(--cds-support-success, #24a148);
+		padding: 0.75rem 1rem;
+	}
+	.pricing-preview h4 {
+		margin: 0 0 0.5rem;
+		font-size: 0.875rem;
+		text-transform: uppercase;
+		letter-spacing: 0.02em;
+		color: var(--cds-text-secondary);
+	}
+	.pricing-rows {
+		display: flex;
+		flex-direction: column;
+		gap: 0.25rem;
+	}
+	.pricing-line {
+		display: flex;
+		justify-content: space-between;
+		gap: 1rem;
+		font-size: 0.875rem;
+	}
+	.pricing-total {
+		border-top: 1px solid var(--cds-border-subtle, #e0e0e0);
+		margin-top: 0.25rem;
+		padding-top: 0.375rem;
+		font-size: 1rem;
+	}
+	.pricing-hint {
+		font-size: 0.75rem;
+		color: var(--cds-text-secondary);
+		margin: 0.5rem 0 0;
 	}
 	@media (max-width: 672px) {
 		.form-row,

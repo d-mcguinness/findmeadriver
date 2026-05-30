@@ -23,6 +23,7 @@ public class JobApplicationServiceImpl implements JobApplicationService {
     private final RatingService ratingService;
     private final ComplianceService complianceService;
     private final CabotageService cabotageService;
+    private final CredentialMatcherRegistry credentialMatchers;
 
     @Override
     public Eligibility checkEligibility(Driver driver, Job job) {
@@ -67,8 +68,10 @@ public class JobApplicationServiceImpl implements JobApplicationService {
         if (existing != null && existing.getStatus() != ApplicationStatus.WITHDRAWN) {
             return Eligibility.ALREADY_APPLIED;
         }
-        // Cross-regime equivalence via the covers() lattice (e.g. C+E ≡ HGV class 1).
-        if (!LicenceCategory.satisfies(licenceCategory, job.getRequiredLicenceCategory())) {
+        // Credential gate, dispatched by mode: road uses the cross-regime
+        // covers() lattice (e.g. C+E ≡ HGV class 1); non-road modes don't carry
+        // a road-licence requirement (M1c).
+        if (!credentialMatchers.satisfies(job.getMode(), licenceCategory, job.getRequiredLicenceCategory())) {
             return Eligibility.LICENCE;
         }
         if (availableHours < job.getEstimatedDurationHours()) return Eligibility.AVAILABILITY;

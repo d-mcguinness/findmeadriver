@@ -37,6 +37,20 @@ public class Location {
     @Column(length = 2, nullable = false)
     private String country = "IE";
 
+    // Geography typing (M3): a plain street ADDRESS by default, or a named node
+    // (port / airport / rail terminal). unlocode (UN/LOCODE, e.g. IEDUB, NLRTM)
+    // identifies sea/inland nodes; iata (e.g. ORK, CDG) identifies airports.
+    // All additive — existing rows stay ADDRESS with null codes.
+    @Enumerated(EnumType.STRING)
+    @Column(name = "location_type", nullable = false)
+    private LocationType locationType = LocationType.ADDRESS;
+
+    @Column(length = 5)
+    private String unlocode;
+
+    @Column(length = 3)
+    private String iata;
+
     private Double latitude;
     private Double longitude;
 
@@ -45,4 +59,6 @@ public class Location {
 
     @Column(length = 1024, name = "operating_hours")
     private String operatingHours; // "MO-FR 08:00-18:00" — parsed by a later phase
+
+    public enum LocationType { ADDRESS, SEAPORT, AIRPORT, RAIL_TERMINAL, INLAND_TERMINAL }
 }

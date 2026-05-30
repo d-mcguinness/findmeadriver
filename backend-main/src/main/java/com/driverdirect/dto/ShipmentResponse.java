@@ -13,10 +13,23 @@ public class ShipmentResponse {
     private Long id;
     private Long employerId;
     private String employerName;
+    // Intermodal leg membership (M2): null for standalone single-leg shipments.
+    private Long itineraryId;
+    private Integer legSequence;
     private String mode;
     private String status;
     private String currency;
     private BigDecimal totalRate;
+    private BigDecimal commissionPercent;
+    private BigDecimal commissionAmount;
+    private BigDecimal employerTotal;
+    private String chargeUnit;
+    private BigDecimal chargeableQuantity;
+    private BigDecimal distanceKm;
+    private BigDecimal weightKg;
+    private BigDecimal volumeM3;
+    private Integer containerCount;
+    private Integer pieceCount;
     private LocalDateTime tenderedAt;
     private LocalDateTime acceptedAt;
     private String originCountry;
@@ -67,10 +80,24 @@ public class ShipmentResponse {
         r.setId(s.getId());
         r.setEmployerId(s.getEmployer().getId());
         r.setEmployerName(s.getEmployer().getCompanyName());
+        if (s.getItinerary() != null) {
+            r.setItineraryId(s.getItinerary().getId());
+        }
+        r.setLegSequence(s.getLegSequence());
         r.setMode(s.getMode() != null ? s.getMode().name() : null);
         r.setStatus(s.getStatus() != null ? s.getStatus().name() : null);
         r.setCurrency(s.getCurrency());
         r.setTotalRate(s.getTotalRate());
+        r.setCommissionPercent(s.getCommissionPercent());
+        r.setCommissionAmount(s.getCommissionAmount());
+        r.setEmployerTotal(s.getEmployerTotal());
+        r.setChargeUnit(s.getChargeUnit() != null ? s.getChargeUnit().name() : null);
+        r.setChargeableQuantity(s.getChargeableQuantity());
+        r.setDistanceKm(s.getDistanceKm());
+        r.setWeightKg(s.getWeightKg());
+        r.setVolumeM3(s.getVolumeM3());
+        r.setContainerCount(s.getContainerCount());
+        r.setPieceCount(s.getPieceCount());
         r.setTenderedAt(s.getTenderedAt());
         r.setAcceptedAt(s.getAcceptedAt());
         r.setOriginCountry(s.getOriginCountry());

@@ -75,17 +75,66 @@ export interface Job {
 	dateNeeded: string;
 	ratePerHour: number;
 	currency?: string;
+	/** Pricing (M1b): carrier cost, per-mode platform commission, employer total. */
+	carrierCost?: number;
+	commissionPercent?: number;
+	commissionAmount?: number;
+	employerTotal?: number;
 	pickupCountry?: string;
 	deliveryCountry?: string;
 	requiredLicenceCategory?: string;
 	/** @deprecated kept for legacy callers; mirror of requiredLicenceCategory. */
 	requiredCdlType?: string;
+	/** Transport mode of the underlying shipment leg: ROAD | RAIL | OCEAN | AIR | … */
+	transportMode?: string;
 	status: string;
 	employerCompanyName: string;
 	assignedDriverId?: number;
 	assignedDriverName?: string;
 	applicationCount: number;
 	createdAt: string;
+}
+
+export interface ItineraryLeg {
+	shipmentId: number;
+	legSequence: number;
+	mode: string;
+	status?: string;
+	originCountry?: string;
+	destinationCountry?: string;
+	pickupLocation?: string;
+	deliveryLocation?: string;
+	pickupLocationType?: string;
+	pickupCode?: string;
+	deliveryLocationType?: string;
+	deliveryCode?: string;
+	currency?: string;
+	chargeUnit?: string;
+	chargeableQuantity?: number;
+	carrierCost?: number;
+	commissionPercent?: number;
+	commissionAmount?: number;
+	employerTotal?: number;
+}
+
+export interface Itinerary {
+	id: number;
+	employerId?: number;
+	employerName?: string;
+	orderId?: number;
+	orderTitle?: string;
+	status?: string;
+	mode?: string;
+	currency?: string;
+	carrierCostTotal?: number;
+	commissionTotal?: number;
+	grandTotal?: number;
+	originCountry?: string;
+	destinationCountry?: string;
+	legCount?: number;
+	legs: ItineraryLeg[];
+	createdAt?: string;
+	updatedAt?: string;
 }
 
 export interface JobApplication {

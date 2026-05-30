@@ -185,6 +185,14 @@
 	<Row>
 		<Column>
 			<h2>My Jobs</h2>
+			<div class="dash-actions">
+				<Button size="small" kind="tertiary" href="/dashboard/jobs/post-intermodal">
+					Post intermodal job
+				</Button>
+				<Button size="small" kind="ghost" href="/dashboard/itineraries">
+					View itineraries
+				</Button>
+			</div>
 
 			{#if jobsLoading}
 				<p>Loading jobs...</p>
@@ -307,6 +315,12 @@
 </Modal>
 
 <style>
+	.dash-actions {
+		display: flex;
+		gap: 0.5rem;
+		flex-wrap: wrap;
+		margin: 0.25rem 0 1.25rem;
+	}
 	.metrics-row {
 		display: flex;
 		gap: 2rem;
