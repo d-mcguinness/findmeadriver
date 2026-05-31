@@ -42,15 +42,15 @@ public class RatingServiceImpl implements RatingService {
 
         // Determine who is being rated (the other party)
         User reviewee;
-        if (reviewer.getId().equals(job.getEmployer().getId())) {
-            // Employer is rating the driver
+        if (reviewer.getId().equals(job.getShipper().getId())) {
+            // Shipper is rating the driver
             if (job.getAssignedDriver() == null) {
                 throw new IllegalArgumentException("No driver was assigned to this job");
             }
             reviewee = job.getAssignedDriver();
         } else if (job.getAssignedDriver() != null && reviewer.getId().equals(job.getAssignedDriver().getId())) {
-            // Driver is rating the employer
-            reviewee = job.getEmployer();
+            // Driver is rating the shipper
+            reviewee = job.getShipper();
         } else {
             throw new IllegalArgumentException("You are not associated with this job");
         }

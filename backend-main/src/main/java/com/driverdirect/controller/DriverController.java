@@ -110,7 +110,7 @@ public class DriverController {
     }
 
     @PostMapping("/jobs/{jobId}/rate")
-    public ResponseEntity<RatingResponse> rateEmployer(
+    public ResponseEntity<RatingResponse> rateShipper(
             Authentication auth,
             @PathVariable Long jobId,
             @RequestBody CreateRatingRequest request) {

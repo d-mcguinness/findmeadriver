@@ -19,7 +19,7 @@ import java.util.List;
  * <pre>
  *   carrierCost   = ratePerHour × estimatedDurationHours   (what the carrier earns)
  *   commission    = carrierCost × commissionPercent(mode)  (the platform's mode-dependent cut)
- *   employerTotal = carrierCost + commission               (what the employer pays)
+ *   shipperTotal = carrierCost + commission               (what the shipper pays)
  * </pre>
  *
  * <p>The per-mode commission is the "charge accordingly" mechanism — it varies
@@ -79,7 +79,7 @@ public class PricingService {
         shipment.setTotalRate(carrierCost);
         shipment.setCommissionPercent(pct);
         shipment.setCommissionAmount(commission);
-        shipment.setEmployerTotal(carrierCost.add(commission));
+        shipment.setShipperTotal(carrierCost.add(commission));
         shipmentRepository.save(shipment);
     }
 
@@ -107,7 +107,7 @@ public class PricingService {
             }
             carrier = carrier.add(nz(leg.getTotalRate()));
             commission = commission.add(nz(leg.getCommissionAmount()));
-            grand = grand.add(nz(leg.getEmployerTotal()));
+            grand = grand.add(nz(leg.getShipperTotal()));
         }
 
         itinerary.setCarrierCostTotal(scale(carrier));

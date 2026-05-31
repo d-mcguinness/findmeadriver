@@ -10,7 +10,7 @@ import com.driverdirect.model.Driver;
 import com.driverdirect.model.DriverAvailability;
 import com.driverdirect.model.DriverLane;
 import com.driverdirect.model.DriverTimeSlot;
-import com.driverdirect.model.Employer;
+import com.driverdirect.model.Shipper;
 import com.driverdirect.model.Job;
 import com.driverdirect.model.JobApplication;
 import com.driverdirect.model.JobStatus;
@@ -29,7 +29,7 @@ import com.driverdirect.repository.DriverAvailabilityRepository;
 import com.driverdirect.repository.DriverLaneRepository;
 import com.driverdirect.repository.DriverRepository;
 import com.driverdirect.repository.DriverTimeSlotRepository;
-import com.driverdirect.repository.EmployerRepository;
+import com.driverdirect.repository.ShipperRepository;
 import com.driverdirect.repository.JobApplicationRepository;
 import com.driverdirect.repository.JobRepository;
 import com.driverdirect.repository.LocationRepository;
@@ -61,7 +61,7 @@ public class DataInitializer implements CommandLineRunner {
     @Autowired private RoleRepository roleRepository;
     @Autowired private UserRepository userRepository;
     @Autowired private DriverRepository driverRepository;
-    @Autowired private EmployerRepository employerRepository;
+    @Autowired private ShipperRepository shipperRepository;
     @Autowired private JobRepository jobRepository;
     @Autowired private JobApplicationRepository jobApplicationRepository;
     @Autowired private ComplianceDocumentRepository complianceDocumentRepository;
@@ -87,7 +87,7 @@ public class DataInitializer implements CommandLineRunner {
     private void initRoles() {
         if (roleRepository.count() == 0) {
             roleRepository.save(new Role(null, Role.RoleType.ROLE_ADMIN));
-            roleRepository.save(new Role(null, Role.RoleType.ROLE_EMPLOYER));
+            roleRepository.save(new Role(null, Role.RoleType.ROLE_SHIPPER));
             roleRepository.save(new Role(null, Role.RoleType.ROLE_DRIVER));
         }
     }
@@ -99,19 +99,19 @@ public class DataInitializer implements CommandLineRunner {
         admin.setRoles(rolesOf(Role.RoleType.ROLE_ADMIN));
         userRepository.save(admin);
 
-        Employer employer = new Employer(
+        Shipper shipper = new Shipper(
                 "employer@company.com",
                 passwordEncoder.encode("employer123"),
                 "Acme Logistics"
         );
-        employer.setFirstName("Employer");
-        employer.setLastName("User");
-        employer.setPhone("01234567890");
-        employer.setIndustry(Employer.Industry.LOGISTICS);
-        employer.setCompanySize(50);
-        employer.setHeadquartersLocation("Dublin");
-        employer.setRoles(rolesOf(Role.RoleType.ROLE_EMPLOYER));
-        employerRepository.save(employer);
+        shipper.setFirstName("Shipper");
+        shipper.setLastName("User");
+        shipper.setPhone("01234567890");
+        shipper.setIndustry(Shipper.Industry.LOGISTICS);
+        shipper.setCompanySize(50);
+        shipper.setHeadquartersLocation("Dublin");
+        shipper.setRoles(rolesOf(Role.RoleType.ROLE_SHIPPER));
+        shipperRepository.save(shipper);
 
         Driver driver = new Driver(
                 "driver@example.com",
@@ -129,18 +129,18 @@ public class DataInitializer implements CommandLineRunner {
     }
 
     private void createDemoData() {
-        // ---- Additional employers ----
-        Employer murphy = createEmployer("contact@murphyhaulage.ie", "Murphy Haulage Ltd",
+        // ---- Additional shippers ----
+        Shipper murphy = createShipper("contact@murphyhaulage.ie", "Murphy Haulage Ltd",
                 "Sean", "Murphy", "0851234567",
-                Employer.Industry.TRANSPORTATION, 25, "Cork");
-        Employer fresh = createEmployer("ops@freshfoods.ie", "Fresh Foods Distribution",
+                Shipper.Industry.TRANSPORTATION, 25, "Cork");
+        Shipper fresh = createShipper("ops@freshfoods.ie", "Fresh Foods Distribution",
                 "Aoife", "Kelly", "0867654321",
-                Employer.Industry.FOOD_SERVICE, 120, "Galway");
-        Employer buildwell = createEmployer("yard@buildwell.ie", "Buildwell Construction",
+                Shipper.Industry.FOOD_SERVICE, 120, "Galway");
+        Shipper buildwell = createShipper("yard@buildwell.ie", "Buildwell Construction",
                 "Liam", "Walsh", "0871112233",
-                Employer.Industry.CONSTRUCTION, 80, "Limerick");
+                Shipper.Industry.CONSTRUCTION, 80, "Limerick");
 
-        Employer acme = employerRepository.findByEmail("employer@company.com").orElseThrow();
+        Shipper acme = shipperRepository.findByEmail("employer@company.com").orElseThrow();
 
         // ---- Additional drivers ----
         Driver liamByrne = createDriver("liam.byrne@example.com", "DL-22301-IE",
@@ -163,8 +163,11 @@ public class DataInitializer implements CommandLineRunner {
 
         Driver seedDriver = driverRepository.findByEmail("driver@example.com").orElseThrow();
         // The primary demo login. Base it in IE so its cabotage ops abroad
-        // (seeded below) populate the dashboard's cabotage panel.
+        // (seeded below) populate the dashboard's cabotage panel. Multi-modal so
+        // it can carry the non-road demo legs; other seed drivers stay road-only.
         seedDriver.setHomeCountry("IE");
+        seedDriver.setSupportedModes(new java.util.HashSet<>(java.util.List.of(
+                Shipment.Mode.ROAD, Shipment.Mode.OCEAN, Shipment.Mode.AIR)));
         driverRepository.save(seedDriver);
 
         // ---- Reference geography (M3): typed port/airport/terminal nodes ----
@@ -460,16 +463,16 @@ public class DataInitializer implements CommandLineRunner {
                 type, name, name, city, country, null, null, null, null);
     }
 
-    private Job createMultiStopJob(Employer employer, String title, String description,
+    private Job createMultiStopJob(Shipper shipper, String title, String description,
                                    double hours, LocalDate dateNeeded, BigDecimal rate,
                                    Driver.CDLType cdl, JobStatus status, Driver assigned,
                                    List<TmsTreeService.TmsStopInput> stops) {
         Job j = new Job();
-        j.setEmployer(employer);
+        j.setShipper(shipper);
         j.setEstimatedDurationHours(hours);
         j.setRatePerHour(rate);
         j.setRequiredCdlType(cdl);
-        j.setCurrency(employer.getCurrency() != null ? employer.getCurrency() : "EUR");
+        j.setCurrency(shipper.getCurrency() != null ? shipper.getCurrency() : "EUR");
         j.setStatus(status);
         j.setAssignedDriver(assigned);
         j = jobRepository.save(j);
@@ -477,7 +480,7 @@ public class DataInitializer implements CommandLineRunner {
         // Origin/destination countries come from the first PICKUP / last DELIVERY
         // in the route; the tree builder reads the stops list in preference to
         // the legacy pickup/delivery pair (passed null here).
-        String currency = employer.getCurrency() != null ? employer.getCurrency() : "EUR";
+        String currency = shipper.getCurrency() != null ? shipper.getCurrency() : "EUR";
         String pickupCountry = stops.get(0).country();
         String deliveryCountry = stops.get(stops.size() - 1).country();
         TmsTreeService.TmsOrderInput input = new TmsTreeService.TmsOrderInput(
@@ -542,18 +545,18 @@ public class DataInitializer implements CommandLineRunner {
 
     // ---- helpers ----
 
-    private Employer createEmployer(String email, String company,
+    private Shipper createShipper(String email, String company,
                                     String firstName, String lastName, String phone,
-                                    Employer.Industry industry, int size, String hq) {
-        Employer e = new Employer(email, passwordEncoder.encode("password123"), company);
+                                    Shipper.Industry industry, int size, String hq) {
+        Shipper e = new Shipper(email, passwordEncoder.encode("password123"), company);
         e.setFirstName(firstName);
         e.setLastName(lastName);
         e.setPhone(phone);
         e.setIndustry(industry);
         e.setCompanySize(size);
         e.setHeadquartersLocation(hq);
-        e.setRoles(rolesOf(Role.RoleType.ROLE_EMPLOYER));
-        return employerRepository.save(e);
+        e.setRoles(rolesOf(Role.RoleType.ROLE_SHIPPER));
+        return shipperRepository.save(e);
     }
 
     private Driver createDriver(String email, String licenseNumber,
@@ -572,33 +575,33 @@ public class DataInitializer implements CommandLineRunner {
         return driverRepository.save(d);
     }
 
-    private Job createJob(Employer employer, String title, String description,
+    private Job createJob(Shipper shipper, String title, String description,
                           String pickup, String delivery,
                           double hours, LocalDate dateNeeded, BigDecimal rate,
                           Driver.CDLType cdl, JobStatus status, Driver assigned) {
-        return createJob(employer, title, description, pickup, delivery, hours,
+        return createJob(shipper, title, description, pickup, delivery, hours,
                 dateNeeded, rate, cdl, status, assigned, Shipment.Mode.ROAD);
     }
 
-    private Job createJob(Employer employer, String title, String description,
+    private Job createJob(Shipper shipper, String title, String description,
                           String pickup, String delivery,
                           double hours, LocalDate dateNeeded, BigDecimal rate,
                           Driver.CDLType cdl, JobStatus status, Driver assigned,
                           Shipment.Mode mode) {
         // Load-level fields only — customer metadata lives on the tree.
         Job j = new Job();
-        j.setEmployer(employer);
+        j.setShipper(shipper);
         j.setEstimatedDurationHours(hours);
         j.setRatePerHour(rate);
         j.setRequiredCdlType(cdl);
-        j.setCurrency(employer.getCurrency() != null ? employer.getCurrency() : "EUR");
+        j.setCurrency(shipper.getCurrency() != null ? shipper.getCurrency() : "EUR");
         j.setStatus(status);
         j.setAssignedDriver(assigned);
         j = jobRepository.save(j);
 
         // Compose the tree (TransportOrder + Shipment + 2 Stops + Locations).
-        String country = employer.getCountry() != null ? employer.getCountry() : "IE";
-        String currency = employer.getCurrency() != null ? employer.getCurrency() : "EUR";
+        String country = shipper.getCountry() != null ? shipper.getCountry() : "IE";
+        String currency = shipper.getCurrency() != null ? shipper.getCurrency() : "EUR";
         TmsTreeService.TmsOrderInput input = new TmsTreeService.TmsOrderInput(
                 title, description, dateNeeded,
                 pickup, delivery, country, country, currency, mode);

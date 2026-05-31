@@ -112,7 +112,7 @@
 							<Button href="/dashboard" icon={ArrowRight}>Go to Dashboard</Button>
 						{:else}
 							<Button href="/register" icon={DeliveryTruck}>Register as Driver</Button>
-							<Button href="/register" kind="secondary" icon={Enterprise}>Register as Employer</Button>
+							<Button href="/register" kind="secondary" icon={Enterprise}>Register as Shipper</Button>
 						{/if}
 					</div>
 				</Tile>

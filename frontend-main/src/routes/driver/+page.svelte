@@ -17,7 +17,7 @@
 				<DeliveryTruck size={48} />
 				<h1>Drive Your Career Forward</h1>
 				<p class="hero-subtitle">
-					Driver Direct connects you directly with employers looking for qualified commercial
+					Driver Direct connects you directly with shippers looking for qualified commercial
 					drivers. No recruiters, no fees — just real opportunities matched to your skills.
 				</p>
 				<div class="hero-actions">
@@ -53,7 +53,7 @@
 					<Search size={32} />
 					<h3>2. Get Matched</h3>
 					<p>
-						Employers search for drivers that fit their needs. When your profile matches,
+						Shippers search for drivers that fit their needs. When your profile matches,
 						you'll see their job listings right in your dashboard.
 					</p>
 				</div>
@@ -65,7 +65,7 @@
 					<ConnectionSignal size={32} />
 					<h3>3. Connect Directly</h3>
 					<p>
-						Message employers, schedule interviews, and negotiate terms — all without
+						Message shippers, schedule interviews, and negotiate terms — all without
 						a middleman taking a cut.
 					</p>
 				</div>
@@ -87,7 +87,7 @@
 						<Currency size={24} />
 						<div>
 							<h4>No Fees, Ever</h4>
-							<p>Driver Direct is completely free for drivers. We make money from employer subscriptions, not from you.</p>
+							<p>Driver Direct is completely free for drivers. We make money from shipper subscriptions, not from you.</p>
 						</div>
 					</div>
 					<div class="benefit-item">
@@ -107,8 +107,8 @@
 					<div class="benefit-item">
 						<CheckmarkOutline size={24} />
 						<div>
-							<h4>Verified Employers</h4>
-							<p>Every employer on the platform is verified so you know you're talking to real companies.</p>
+							<h4>Verified Shippers</h4>
+							<p>Every shipper on the platform is verified so you know you're talking to real companies.</p>
 						</div>
 					</div>
 				</div>

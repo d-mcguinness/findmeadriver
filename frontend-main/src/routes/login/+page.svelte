@@ -16,7 +16,7 @@
 
 	const testUsers = [
 		{ label: 'Admin', email: 'admin@driverdirect.com', password: 'admin123' },
-		{ label: 'Employer', email: 'employer@company.com', password: 'employer123' },
+		{ label: 'Shipper', email: 'employer@company.com', password: 'employer123' },
 		{ label: 'Driver', email: 'driver@example.com', password: 'driver123' }
 	];
 

@@ -54,7 +54,7 @@
 				<SideNavLink icon={Search} text="Browse Jobs" href="/dashboard?tab=jobs" />
 				<SideNavLink icon={Document} text="My Applications" href="/dashboard?tab=applications" />
 			{/if}
-			{#if auth.isEmployer}
+			{#if auth.isShipper}
 				<SideNavLink icon={Add} text="Create a Job" href="/dashboard/jobs/post" />
 				<SideNavLink icon={Enterprise} text="My Jobs" href="/dashboard" />
 			{/if}

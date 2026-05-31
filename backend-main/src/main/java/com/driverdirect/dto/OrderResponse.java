@@ -9,8 +9,8 @@ import java.time.LocalDateTime;
 @Data
 public class OrderResponse {
     private Long id;
-    private Long employerId;
-    private String employerName;
+    private Long shipperId;
+    private String shipperName;
     private Long customerId;
     private String customerName;
     private String customerReference;
@@ -26,8 +26,8 @@ public class OrderResponse {
     public static OrderResponse from(TransportOrder o) {
         OrderResponse r = new OrderResponse();
         r.setId(o.getId());
-        r.setEmployerId(o.getEmployer().getId());
-        r.setEmployerName(o.getEmployer().getCompanyName());
+        r.setShipperId(o.getShipper().getId());
+        r.setShipperName(o.getShipper().getCompanyName());
         r.setCustomerId(o.getCustomer().getId());
         r.setCustomerName(o.getCustomer().getName());
         r.setCustomerReference(o.getCustomerReference());

@@ -40,7 +40,7 @@
 							<Button href="/dashboard" icon={ArrowRight}>Go to Dashboard</Button>
 						{:else}
 							<Button href="/register" icon={DeliveryTruck}>I'm a Driver</Button>
-							<Button href="/register" kind="secondary" icon={Enterprise}>I'm an Employer</Button>
+							<Button href="/register" kind="secondary" icon={Enterprise}>I'm a Shipper</Button>
 						{/if}
 					</div>
 				</div>
@@ -126,10 +126,10 @@
 			</Column>
 		</Row>
 
-		<!-- How It Works: Employers -->
+		<!-- How It Works: Shippers -->
 		<Row>
 			<Column>
-				<h2 class="section-heading">How It Works for Employers</h2>
+				<h2 class="section-heading">How It Works for Shippers</h2>
 			</Column>
 		</Row>
 		<Row class="steps-row">
@@ -204,7 +204,7 @@
 					<div class="highlight-tile">
 						<Enterprise size={24} />
 						<h4>No Middlemen</h4>
-						<p>Direct connection between driver and employer. Transparent rates, no agency markup.</p>
+						<p>Direct connection between driver and shipper. Transparent rates, no agency markup.</p>
 					</div>
 				</Tile>
 			</Column>
@@ -221,7 +221,7 @@
 							<Button href="/dashboard" icon={ArrowRight}>Go to Dashboard</Button>
 						{:else}
 							<Button href="/register" icon={DeliveryTruck}>Register as Driver</Button>
-							<Button href="/register" kind="secondary" icon={Enterprise}>Register as Employer</Button>
+							<Button href="/register" kind="secondary" icon={Enterprise}>Register as Shipper</Button>
 						{/if}
 					</div>
 				</Tile>

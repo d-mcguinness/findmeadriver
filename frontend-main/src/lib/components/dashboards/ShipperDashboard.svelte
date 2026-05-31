@@ -7,13 +7,13 @@
 	import { Enterprise, Add, Checkmark, Close, StarFilled, Star } from 'carbon-icons-svelte';
 	import { auth } from '$lib/stores/auth.svelte';
 	import { api } from '$lib/api';
-	import { employerState } from '$lib/stores/employerState.svelte';
+	import { shipperState } from '$lib/stores/shipperState.svelte';
 	import type { Job, JobApplication } from '$lib/types';
 	import { onMount } from 'svelte';
 	import JobsTable from '$lib/components/admin/JobsTable.svelte';
 
 	// My Jobs state — backed by the shared store so mutations refresh StatsRow too.
-	let jobs = $derived(employerState.jobs);
+	let jobs = $derived(shipperState.jobs);
 	let jobsLoading = $state(false);
 
 	// Aggregate metrics for the summary row above the table.
@@ -49,7 +49,7 @@
 	async function loadJobs() {
 		jobsLoading = true;
 		try {
-			await employerState.reloadJobs();
+			await shipperState.reloadJobs();
 		} finally {
 			jobsLoading = false;
 		}
@@ -57,21 +57,21 @@
 
 	async function cancelJob(id: number) {
 		try {
-			await api.put(`/api/employer/jobs/${id}/cancel`, {});
+			await api.put(`/api/shipper/jobs/${id}/cancel`, {});
 			loadJobs();
 		} catch { /* ignore */ }
 	}
 
 	async function startJob(id: number) {
 		try {
-			await api.put(`/api/employer/jobs/${id}/status`, { status: 'IN_PROGRESS' });
+			await api.put(`/api/shipper/jobs/${id}/status`, { status: 'IN_PROGRESS' });
 			loadJobs();
 		} catch { /* ignore */ }
 	}
 
 	async function completeJob(id: number, title: string) {
 		try {
-			await api.put(`/api/employer/jobs/${id}/status`, { status: 'COMPLETED' });
+			await api.put(`/api/shipper/jobs/${id}/status`, { status: 'COMPLETED' });
 			loadJobs();
 			ratingJobId = id;
 			ratingJobTitle = title;
@@ -86,7 +86,7 @@
 		if (!ratingJobId || ratingScore === 0) return;
 		ratingError = '';
 		try {
-			await api.post(`/api/employer/jobs/${ratingJobId}/rate`, {
+			await api.post(`/api/shipper/jobs/${ratingJobId}/rate`, {
 				score: ratingScore,
 				comment: ratingComment
 			});
@@ -101,7 +101,7 @@
 		appsModalOpen = true;
 		appsLoading = true;
 		try {
-			applications = await api.get<JobApplication[]>(`/api/employer/jobs/${job.id}/applications`);
+			applications = await api.get<JobApplication[]>(`/api/shipper/jobs/${job.id}/applications`);
 		} catch {
 			applications = [];
 		} finally {
@@ -111,7 +111,7 @@
 
 	async function acceptApplication(id: number) {
 		try {
-			await api.put(`/api/employer/applications/${id}/accept`, {});
+			await api.put(`/api/shipper/applications/${id}/accept`, {});
 			if (selectedJobForApps) viewApplications(selectedJobForApps);
 			loadJobs();
 		} catch { /* ignore */ }
@@ -119,7 +119,7 @@
 
 	async function rejectApplication(id: number) {
 		try {
-			await api.put(`/api/employer/applications/${id}/reject`, {});
+			await api.put(`/api/shipper/applications/${id}/reject`, {});
 			if (selectedJobForApps) viewApplications(selectedJobForApps);
 		} catch { /* ignore */ }
 	}
@@ -152,7 +152,7 @@
 	onMount(loadJobs);
 </script>
 
-{#snippet employerActions(job: Job)}
+{#snippet shipperActions(job: Job)}
 	<div class="row-actions">
 		{#if job.applicationCount > 0}
 			<Button size="small" kind="secondary"
@@ -220,7 +220,7 @@
 						<div class="metric-label">Completed spend</div>
 					</div>
 				</div>
-				<JobsTable {jobs} actions={employerActions} addHref="/dashboard/jobs/post" addLabel="Create a Job" />
+				<JobsTable {jobs} actions={shipperActions} addHref="/dashboard/jobs/post" addLabel="Create a Job" />
 			{/if}
 		</Column>
 	</Row>

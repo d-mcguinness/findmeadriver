@@ -26,8 +26,8 @@ public class Shipment {
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "employer_id", nullable = false)
-    private Employer employer;
+    @JoinColumn(name = "shipper_id", nullable = false)
+    private Shipper shipper;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
@@ -84,15 +84,15 @@ public class Shipment {
     private BigDecimal totalRate;
 
     // Per-mode platform commission: the snapshotted rate (%), the resulting fee
-    // amount, and the employer-payable total = totalRate + commissionAmount.
+    // amount, and the shipper-payable total = totalRate + commissionAmount.
     @Column(name = "commission_percent")
     private BigDecimal commissionPercent;
 
     @Column(name = "commission_amount")
     private BigDecimal commissionAmount;
 
-    @Column(name = "employer_total")
-    private BigDecimal employerTotal;
+    @Column(name = "shipper_total")
+    private BigDecimal shipperTotal;
 
     @Column(name = "tendered_at")
     private LocalDateTime tenderedAt;

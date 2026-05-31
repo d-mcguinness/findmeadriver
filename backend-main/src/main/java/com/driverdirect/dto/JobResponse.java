@@ -30,11 +30,11 @@ public class JobResponse {
     private BigDecimal ratePerHour;
     private String currency;
     // Pricing (M1b): carrier cost = rate × hours; per-mode platform commission
-    // on top; employerTotal = carrierCost + commissionAmount. Read off the leg.
+    // on top; shipperTotal = carrierCost + commissionAmount. Read off the leg.
     private BigDecimal carrierCost;
     private BigDecimal commissionPercent;
     private BigDecimal commissionAmount;
-    private BigDecimal employerTotal;
+    private BigDecimal shipperTotal;
     // M3b: the basis the carrier cost was priced on (e.g. PER_CONTAINER × 2).
     private String chargeUnit;
     private BigDecimal chargeableQuantity;
@@ -44,7 +44,7 @@ public class JobResponse {
     // Transport mode of the underlying Shipment leg (ROAD/RAIL/OCEAN/AIR/…).
     private String transportMode;
     private JobStatus status;
-    private String employerCompanyName;
+    private String shipperCompanyName;
     private Long assignedDriverId;
     private String assignedDriverName;
     private int applicationCount;
@@ -70,7 +70,7 @@ public class JobResponse {
             r.setCarrierCost(job.getShipment().getTotalRate());
             r.setCommissionPercent(job.getShipment().getCommissionPercent());
             r.setCommissionAmount(job.getShipment().getCommissionAmount());
-            r.setEmployerTotal(job.getShipment().getEmployerTotal());
+            r.setShipperTotal(job.getShipment().getShipperTotal());
             r.setChargeUnit(job.getShipment().getChargeUnit() != null
                     ? job.getShipment().getChargeUnit().name() : null);
             r.setChargeableQuantity(job.getShipment().getChargeableQuantity());
@@ -80,7 +80,7 @@ public class JobResponse {
         r.setRequiredLicenceCategory(job.getRequiredLicenceCategory());
         r.setTransportMode(job.getMode() != null ? job.getMode().name() : null);
         r.setStatus(job.getStatus());
-        r.setEmployerCompanyName(job.getEmployer().getCompanyName());
+        r.setShipperCompanyName(job.getShipper().getCompanyName());
         if (job.getAssignedDriver() != null) {
             r.setAssignedDriverId(job.getAssignedDriver().getId());
             r.setAssignedDriverName(job.getAssignedDriver().getFirstName() + " " +

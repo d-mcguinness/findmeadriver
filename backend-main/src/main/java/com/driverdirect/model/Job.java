@@ -27,8 +27,8 @@ public class Job {
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "employer_id", nullable = false)
-    private Employer employer;
+    @JoinColumn(name = "shipper_id", nullable = false)
+    private Shipper shipper;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "shipment_id")

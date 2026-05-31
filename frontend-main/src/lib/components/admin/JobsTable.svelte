@@ -34,7 +34,7 @@
 	let baseHeaders = [
 		{ key: 'id', value: 'ID' },
 		{ key: 'title', value: 'Title' },
-		{ key: 'employerCompanyName', value: 'Employer' },
+		{ key: 'shipperCompanyName', value: 'Shipper' },
 		{ key: 'pickupLocation', value: 'From' },
 		{ key: 'deliveryLocation', value: 'To' },
 		{ key: 'dateNeeded', value: 'Date' },
@@ -45,7 +45,7 @@
 		{ key: 'ratePerHour', value: 'Rate' },
 		{ key: 'value', value: 'Carrier cost' },
 		{ key: 'platformFee', value: 'Platform fee' },
-		{ key: 'employerTotal', value: 'Employer total' },
+		{ key: 'shipperTotal', value: 'Shipper total' },
 		{ key: 'completedSpend', value: 'Completed spend' }
 	];
 
@@ -67,7 +67,7 @@
 		return {
 			id: String(j.id),
 			title: j.title,
-			employerCompanyName: j.employerCompanyName,
+			shipperCompanyName: j.shipperCompanyName,
 			pickupLocation: j.pickupLocation || '—',
 			deliveryLocation: j.deliveryLocation || '—',
 			dateNeeded: j.dateNeeded,
@@ -78,8 +78,8 @@
 			ratePerHour: j.ratePerHour != null ? `€${Number(j.ratePerHour).toFixed(0)}/h` : '—',
 			value: v > 0 ? formatMoney(v, j.currency) : '—',
 			platformFee: j.commissionAmount != null ? formatMoney(j.commissionAmount, j.currency) : '—',
-			employerTotal: j.employerTotal != null
-				? formatMoney(j.employerTotal, j.currency)
+			shipperTotal: j.shipperTotal != null
+				? formatMoney(j.shipperTotal, j.currency)
 				: (v > 0 ? formatMoney(v, j.currency) : '—'),
 			completedSpend: j.status === 'COMPLETED' && v > 0 ? formatMoney(v, j.currency) : '—',
 			actions: ''

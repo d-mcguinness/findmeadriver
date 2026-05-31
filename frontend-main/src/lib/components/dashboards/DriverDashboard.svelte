@@ -564,7 +564,7 @@
 						<div class="tab-content">
 							<h3><CertificateCheck size={20} /> Compliance Documents</h3>
 							<p class="info-text">
-								Upload your documents to get verified. Verified drivers get a trust badge visible to employers.
+								Upload your documents to get verified. Verified drivers get a trust badge visible to shippers.
 							</p>
 
 							{#if compliance}
@@ -765,7 +765,7 @@
 													{/if}
 												</div>
 											</div>
-											<p class="job-company">{job.employerCompanyName}</p>
+											<p class="job-company">{job.shipperCompanyName}</p>
 											<p>{job.description}</p>
 											<div class="job-details">
 												{#if job.stops && job.stops.length > 0}
@@ -837,7 +837,7 @@
 												{#if app.status === 'ACCEPTED' && app.jobStatus === 'COMPLETED'}
 													<Button size="small" kind="secondary"
 														on:click={() => openRatingModal(app.jobId, app.jobTitle)}>
-														Rate Employer
+														Rate Shipper
 													</Button>
 												{/if}
 											</div>
@@ -866,14 +866,14 @@
 		<InlineNotification kind="error" title="Error" subtitle={applyError} />
 	{/if}
 	{#if selectedJob}
-		<p><strong>Company:</strong> {selectedJob.employerCompanyName}</p>
+		<p><strong>Company:</strong> {selectedJob.shipperCompanyName}</p>
 		<p><strong>Rate:</strong> &euro;{selectedJob.ratePerHour}/hr &middot; {selectedJob.estimatedDurationHours}h</p>
 		<p><strong>Date:</strong> {selectedJob.dateNeeded}</p>
 		<br />
 		<TextArea
 			bind:value={coverNote}
 			labelText="Cover note (optional)"
-			placeholder="Tell the employer why you're a good fit..."
+			placeholder="Tell the shipper why you're a good fit..."
 			rows={3}
 		/>
 	{/if}
@@ -882,7 +882,7 @@
 <!-- Rating Modal -->
 <Modal
 	bind:open={ratingModalOpen}
-	modalHeading="Rate Employer - {ratingJobTitle}"
+	modalHeading="Rate Shipper - {ratingJobTitle}"
 	primaryButtonText="Submit Rating"
 	secondaryButtonText="Cancel"
 	on:click:button--primary={submitRating}

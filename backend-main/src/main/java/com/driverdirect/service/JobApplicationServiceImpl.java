@@ -3,6 +3,7 @@ package com.driverdirect.service;
 import com.driverdirect.dto.JobApplicationRequest;
 import com.driverdirect.dto.JobApplicationResponse;
 import com.driverdirect.model.*;
+import com.driverdirect.repository.DriverRepository;
 import com.driverdirect.repository.JobApplicationRepository;
 import com.driverdirect.repository.JobRepository;
 import lombok.RequiredArgsConstructor;
@@ -24,13 +25,15 @@ public class JobApplicationServiceImpl implements JobApplicationService {
     private final ComplianceService complianceService;
     private final CabotageService cabotageService;
     private final CredentialMatcherRegistry credentialMatchers;
+    private final DriverRepository driverRepository;
 
     @Override
     public Eligibility checkEligibility(Driver driver, Job job) {
         JobApplication existing = applicationRepository.findByJobAndDriver(job, driver).orElse(null);
         double hours = availabilityService.getAvailableHoursOnDate(driver, job.getDateNeeded());
         boolean cabotageBlocking = cabotageService.check(driver, job).isBlocking();
-        return evaluate(job, existing, driver.getLicenceCategory(), hours, cabotageBlocking);
+        boolean modeOk = driver.supportsMode(job.getMode());
+        return evaluate(job, existing, driver.getLicenceCategory(), modeOk, hours, cabotageBlocking);
     }
 
     @Override
@@ -45,14 +48,23 @@ public class JobApplicationServiceImpl implements JobApplicationService {
                 availabilityService.getAvailableHoursForDrivers(drivers, job.getDateNeeded());
         //  - cabotage op counts per driver for the destination country (0–1 query)
         Map<Long, Integer> cabotageByDriver = cabotageService.countInWindowByDriver(drivers, job);
+        //  - supported modes per driver (1 query; drivers absent = road-only)
+        Map<Long, java.util.Set<Shipment.Mode>> modesByDriver = new java.util.HashMap<>();
+        if (!drivers.isEmpty()) {
+            for (Object[] row : driverRepository.findSupportedModesByDrivers(drivers)) {
+                modesByDriver.computeIfAbsent((Long) row[0], k -> new java.util.HashSet<>())
+                        .add((Shipment.Mode) row[1]);
+            }
+        }
 
         Map<Long, Eligibility> out = new java.util.LinkedHashMap<>();
         for (Driver d : drivers) {
             Long id = d.getId();
+            boolean modeOk = Driver.supportsMode(modesByDriver.get(id), job.getMode());
             boolean cabotageBlocking =
                     cabotageService.isOverLimit(d, job, cabotageByDriver.getOrDefault(id, 0));
             out.put(id, evaluate(job, appByDriver.get(id), d.getLicenceCategory(),
-                    hoursByDriver.getOrDefault(id, 0.0), cabotageBlocking));
+                    modeOk, hoursByDriver.getOrDefault(id, 0.0), cabotageBlocking));
         }
         return out;
     }
@@ -61,13 +73,16 @@ public class JobApplicationServiceImpl implements JobApplicationService {
     // and the batch preview so they can never drift. Order matters: the first
     // failing gate wins. Takes resolved facts so it issues no queries itself.
     private Eligibility evaluate(Job job, JobApplication existing, String licenceCategory,
-                                 double availableHours, boolean cabotageBlocking) {
+                                 boolean carrierSupportsMode, double availableHours,
+                                 boolean cabotageBlocking) {
         if (job.getStatus() != JobStatus.OPEN) return Eligibility.JOB_NOT_OPEN;
         // Active application (non-withdrawn) blocks re-applying; a withdrawn one
         // can be revived for a fresh attempt.
         if (existing != null && existing.getStatus() != ApplicationStatus.WITHDRAWN) {
             return Eligibility.ALREADY_APPLIED;
         }
+        // The carrier must operate this leg's transport mode at all (M4).
+        if (!carrierSupportsMode) return Eligibility.MODE_UNSUPPORTED;
         // Credential gate, dispatched by mode: road uses the cross-regime
         // covers() lattice (e.g. C+E ≡ HGV class 1); non-road modes don't carry
         // a road-licence requirement (M1c).
@@ -92,11 +107,15 @@ public class JobApplicationServiceImpl implements JobApplicationService {
         // Enforce the same rule the admin UI previews (via evaluate); craft the
         // rich, value-bearing message for the gate that failed — reusing the
         // facts above so no check is recomputed.
-        switch (evaluate(job, existing, driver.getLicenceCategory(), available, cab.isBlocking())) {
+        boolean modeOk = driver.supportsMode(job.getMode());
+        switch (evaluate(job, existing, driver.getLicenceCategory(), modeOk, available, cab.isBlocking())) {
             case JOB_NOT_OPEN ->
                 throw new IllegalArgumentException("This job is no longer accepting applications");
             case ALREADY_APPLIED ->
                 throw new IllegalArgumentException("You have already applied for this job");
+            case MODE_UNSUPPORTED ->
+                throw new IllegalArgumentException(
+                        "You are not set up to carry " + job.getMode() + " loads");
             case LICENCE ->
                 throw new IllegalArgumentException("Your licence category does not satisfy the job requirement");
             case AVAILABILITY ->
@@ -129,11 +148,11 @@ public class JobApplicationServiceImpl implements JobApplicationService {
     }
 
     @Override
-    public List<JobApplicationResponse> getApplicationsForJob(Long jobId, Employer employer) {
+    public List<JobApplicationResponse> getApplicationsForJob(Long jobId, Shipper shipper) {
         Job job = jobRepository.findById(jobId)
                 .orElseThrow(() -> new IllegalArgumentException("Job not found"));
 
-        if (!job.getEmployer().getId().equals(employer.getId())) {
+        if (!job.getShipper().getId().equals(shipper.getId())) {
             throw new IllegalArgumentException("You can only view applications for your own jobs");
         }
 
@@ -152,11 +171,11 @@ public class JobApplicationServiceImpl implements JobApplicationService {
 
     @Override
     @Transactional
-    public JobApplicationResponse acceptApplication(Long applicationId, Employer employer) {
+    public JobApplicationResponse acceptApplication(Long applicationId, Shipper shipper) {
         JobApplication application = applicationRepository.findById(applicationId)
                 .orElseThrow(() -> new IllegalArgumentException("Application not found"));
 
-        if (!application.getJob().getEmployer().getId().equals(employer.getId())) {
+        if (!application.getJob().getShipper().getId().equals(shipper.getId())) {
             throw new IllegalArgumentException("You can only manage applications for your own jobs");
         }
 
@@ -186,11 +205,11 @@ public class JobApplicationServiceImpl implements JobApplicationService {
 
     @Override
     @Transactional
-    public JobApplicationResponse rejectApplication(Long applicationId, Employer employer) {
+    public JobApplicationResponse rejectApplication(Long applicationId, Shipper shipper) {
         JobApplication application = applicationRepository.findById(applicationId)
                 .orElseThrow(() -> new IllegalArgumentException("Application not found"));
 
-        if (!application.getJob().getEmployer().getId().equals(employer.getId())) {
+        if (!application.getJob().getShipper().getId().equals(shipper.getId())) {
             throw new IllegalArgumentException("You can only manage applications for your own jobs");
         }
 

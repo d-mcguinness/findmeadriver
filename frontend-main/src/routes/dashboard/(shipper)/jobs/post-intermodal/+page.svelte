@@ -23,7 +23,7 @@
 	import { HAULAGE_COUNTRIES } from '$lib/countries';
 	import { licenceCategoriesFor } from '$lib/licence-categories';
 
-	type EmployerOption = { id: number; companyName: string; email: string; country?: string };
+	type ShipperOption = { id: number; companyName: string; email: string; country?: string };
 	type LegDraft = {
 		clientId: string;
 		transportMode: string;
@@ -38,8 +38,8 @@
 		containerCount: number;
 	};
 
-	let employerCountry = $state('IE');
-	let licenceOptions = $derived(licenceCategoriesFor(employerCountry));
+	let shipperCountry = $state('IE');
+	let licenceOptions = $derived(licenceCategoriesFor(shipperCountry));
 
 	let order = $state({ title: '', description: '', dateNeeded: '' });
 
@@ -49,8 +49,8 @@
 			transportMode: mode,
 			pickupLocation: '',
 			deliveryLocation: '',
-			pickupCountry: employerCountry,
-			deliveryCountry: employerCountry,
+			pickupCountry: shipperCountry,
+			deliveryCountry: shipperCountry,
 			requiredLicenceCategory: 'C',
 			distanceKm: 100,
 			weightKg: 100,
@@ -95,21 +95,21 @@
 		return { rows, carrier, fee, total: carrier + fee };
 	});
 
-	let employers = $state<EmployerOption[]>([]);
-	let selectedEmployerId = $state<string>('');
+	let shippers = $state<ShipperOption[]>([]);
+	let selectedShipperId = $state<string>('');
 
 	onMount(async () => {
 		if (auth.isAdmin) {
 			try {
-				employers = await api.get<EmployerOption[]>('/api/admin/employers');
-				const hinted = page.url.searchParams.get('employerId');
-				if (hinted && employers.some((e) => String(e.id) === hinted)) {
-					selectedEmployerId = hinted;
-				} else if (employers.length > 0) {
-					selectedEmployerId = String(employers[0].id);
+				shippers = await api.get<ShipperOption[]>('/api/admin/shippers');
+				const hinted = page.url.searchParams.get('shipperId');
+				if (hinted && shippers.some((e) => String(e.id) === hinted)) {
+					selectedShipperId = hinted;
+				} else if (shippers.length > 0) {
+					selectedShipperId = String(shippers[0].id);
 				}
 			} catch {
-				employers = [];
+				shippers = [];
 			}
 		}
 	});
@@ -175,17 +175,17 @@
 				}))
 			};
 			if (auth.isAdmin) {
-				if (!selectedEmployerId) {
-					postError = 'Please choose an employer to create the job under.';
+				if (!selectedShipperId) {
+					postError = 'Please choose an shipper to create the job under.';
 					postLoading = false;
 					return;
 				}
 				await api.post(
-					`/api/admin/itineraries?employerId=${encodeURIComponent(selectedEmployerId)}`,
+					`/api/admin/itineraries?shipperId=${encodeURIComponent(selectedShipperId)}`,
 					payload
 				);
 			} else {
-				await api.post('/api/employer/itineraries', payload);
+				await api.post('/api/shipper/itineraries', payload);
 			}
 			postSuccess = 'Intermodal job created! Redirecting...';
 			setTimeout(() => goto('/dashboard/itineraries'), 1200);
@@ -226,8 +226,8 @@
 
 			<div class="form-grid">
 				{#if auth.isAdmin}
-					<Select bind:selected={selectedEmployerId} labelText="Create Job On Behalf Of (Employer)">
-						{#each employers as emp}
+					<Select bind:selected={selectedShipperId} labelText="Create Job On Behalf Of (Shipper)">
+						{#each shippers as emp}
 							<SelectItem value={String(emp.id)} text="{emp.companyName} ({emp.email})" />
 						{/each}
 					</Select>

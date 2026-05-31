@@ -6,7 +6,7 @@ import com.driverdirect.dto.ItineraryResponse;
 import com.driverdirect.dto.JobResponse;
 import com.driverdirect.model.Driver;
 import com.driverdirect.model.DriverLane;
-import com.driverdirect.model.Employer;
+import com.driverdirect.model.Shipper;
 import com.driverdirect.model.Itinerary;
 import com.driverdirect.model.Job;
 import com.driverdirect.model.JobStatus;
@@ -43,23 +43,23 @@ public class JobServiceImpl implements JobService {
 
     @Override
     @Transactional
-    public JobResponse createJob(Employer employer, CreateJobRequest request) {
+    public JobResponse createJob(Shipper shipper, CreateJobRequest request) {
         // Load-level fields only — customer-facing metadata lives on the tree.
         Job job = new Job();
-        job.setEmployer(employer);
+        job.setShipper(shipper);
         job.setEstimatedDurationHours(request.getEstimatedDurationHours());
         job.setRatePerHour(request.getRatePerHour());
         job.setRequiredLicenceCategory(request.getRequiredLicenceCategory());
         String currency = request.getCurrency() != null
                 ? request.getCurrency()
-                : (employer.getCurrency() != null ? employer.getCurrency() : "EUR");
+                : (shipper.getCurrency() != null ? shipper.getCurrency() : "EUR");
         job.setCurrency(currency);
         job.setStatus(JobStatus.OPEN);
         job = jobRepository.save(job);
 
         // Compose the TMS tree around the bare Job. Country defaults inherit
-        // from the employer unless the request explicitly overrides.
-        tmsTreeService.createTreeFor(job, TmsTreeService.TmsOrderInput.fromRequest(request, employer));
+        // from the shipper unless the request explicitly overrides.
+        tmsTreeService.createTreeFor(job, TmsTreeService.TmsOrderInput.fromRequest(request, shipper));
         job = jobRepository.save(job);
 
         // M3b: carry the per-mode pricing quantities onto the leg before pricing.
@@ -73,20 +73,20 @@ public class JobServiceImpl implements JobService {
         }
 
         // Price the leg now: carrier cost (rate-card basis or rate × hours) +
-        // per-mode platform commission + employer total, onto the Shipment.
+        // per-mode platform commission + shipper total, onto the Shipment.
         pricingService.priceJob(job);
         return JobResponse.from(job, 0);
     }
 
     @Override
     @Transactional
-    public ItineraryResponse createIntermodalJob(Employer employer, CreateIntermodalJobRequest request) {
+    public ItineraryResponse createIntermodalJob(Shipper shipper, CreateIntermodalJobRequest request) {
         if (request.getLegs() == null || request.getLegs().isEmpty()) {
             throw new IllegalArgumentException("An intermodal job needs at least one leg");
         }
         String currency = request.getCurrency() != null
                 ? request.getCurrency()
-                : (employer.getCurrency() != null ? employer.getCurrency() : "EUR");
+                : (shipper.getCurrency() != null ? shipper.getCurrency() : "EUR");
 
         List<TmsTreeService.LegInput> legs = new ArrayList<>();
         int i = 1;
@@ -113,7 +113,7 @@ public class JobServiceImpl implements JobService {
             i++;
         }
 
-        Itinerary itinerary = tmsTreeService.createIntermodalTreeFor(employer,
+        Itinerary itinerary = tmsTreeService.createIntermodalTreeFor(shipper,
                 new TmsTreeService.IntermodalOrderInput(
                         request.getTitle(), request.getDescription(), request.getDateNeeded(),
                         currency, legs));
@@ -122,19 +122,19 @@ public class JobServiceImpl implements JobService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<ItineraryResponse> getItinerariesByEmployer(Employer employer) {
-        return itineraryRepository.findByEmployerOrderByCreatedAtDesc(employer).stream()
+    public List<ItineraryResponse> getItinerariesByShipper(Shipper shipper) {
+        return itineraryRepository.findByShipperOrderByCreatedAtDesc(shipper).stream()
                 .map(ItineraryResponse::from)
                 .collect(Collectors.toList());
     }
 
     @Override
     @Transactional(readOnly = true)
-    public ItineraryResponse getItineraryById(Long id, Employer employer) {
+    public ItineraryResponse getItineraryById(Long id, Shipper shipper) {
         Itinerary it = itineraryRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Itinerary not found"));
-        if (employer != null && (it.getEmployer() == null
-                || !it.getEmployer().getId().equals(employer.getId()))) {
+        if (shipper != null && (it.getShipper() == null
+                || !it.getShipper().getId().equals(shipper.getId()))) {
             throw new IllegalArgumentException("You can only view your own itineraries");
         }
         return ItineraryResponse.from(it);
@@ -151,8 +151,8 @@ public class JobServiceImpl implements JobService {
     }
 
     @Override
-    public List<JobResponse> getJobsByEmployer(Employer employer) {
-        return jobRepository.findByEmployerOrderByCreatedAtDesc(employer).stream()
+    public List<JobResponse> getJobsByShipper(Shipper shipper) {
+        return jobRepository.findByShipperOrderByCreatedAtDesc(shipper).stream()
                 .map(job -> JobResponse.from(job, applicationRepository.findByJob(job).size()))
                 .collect(Collectors.toList());
     }
@@ -184,6 +184,7 @@ public class JobServiceImpl implements JobService {
         // Licence + lane are pure in-memory predicates; apply them first so the
         // two DB lookups below run only over the surviving candidate set.
         List<Job> candidates = jobs.stream()
+                .filter(job -> driver.supportsMode(job.getMode()))
                 .filter(job -> credentialMatchers.satisfies(job.getMode(), have, job.getRequiredLicenceCategory()))
                 .filter(job -> matchesAnyLane(job, lanes))
                 .collect(Collectors.toList());
@@ -236,11 +237,11 @@ public class JobServiceImpl implements JobService {
 
     @Override
     @Transactional
-    public JobResponse updateJobStatus(Long jobId, Employer employer, JobStatus status) {
+    public JobResponse updateJobStatus(Long jobId, Shipper shipper, JobStatus status) {
         Job job = jobRepository.findById(jobId)
                 .orElseThrow(() -> new IllegalArgumentException("Job not found"));
 
-        if (!job.getEmployer().getId().equals(employer.getId())) {
+        if (!job.getShipper().getId().equals(shipper.getId())) {
             throw new IllegalArgumentException("You can only update your own jobs");
         }
 

@@ -9,12 +9,12 @@ import javax.validation.constraints.NotBlank;
 import java.time.LocalDate;
 
 @Entity
-@Table(name = "employers")
+@Table(name = "shippers")
 @Data
 @EqualsAndHashCode(callSuper = true)
 @NoArgsConstructor
 @PrimaryKeyJoinColumn(name = "user_id")
-public class Employer extends User {
+public class Shipper extends User {
 
     @NotBlank
     @Column(name = "company_name")
@@ -45,7 +45,7 @@ public class Employer extends User {
     private String country = "IE";
 
     // ISO-4217 currency code (e.g. EUR, GBP, USD). Defaults to the
-    // currency of the employer's country.
+    // currency of the shipper's country.
     @Column(length = 3, nullable = false)
     private String currency = "EUR";
 
@@ -62,7 +62,7 @@ public class Employer extends User {
     }
 
     // Constructor with required fields
-    public Employer(String email, String password, String companyName) {
+    public Shipper(String email, String password, String companyName) {
         super(email, password);
         this.companyName = companyName;
     }

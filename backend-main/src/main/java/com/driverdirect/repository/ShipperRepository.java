@@ -1,17 +1,17 @@
 package com.driverdirect.repository;
 
-import com.driverdirect.model.Employer;
+import com.driverdirect.model.Shipper;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
 
 @Repository
-public interface EmployerRepository extends JpaRepository<Employer, Long> {
+public interface ShipperRepository extends JpaRepository<Shipper, Long> {
     
-    Optional<Employer> findByEmail(String email);
+    Optional<Shipper> findByEmail(String email);
     
-    Optional<Employer> findByCompanyName(String companyName);
+    Optional<Shipper> findByCompanyName(String companyName);
     
     Boolean existsByCompanyName(String companyName);
 }

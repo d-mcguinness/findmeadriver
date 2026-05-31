@@ -35,10 +35,10 @@
 						<div class="tile-stat">{stats.totalUsers}</div>
 						<div class="tile-breakdown">
 							<Tag type="blue" size="sm">{stats.totalDrivers} drivers</Tag>
-							<Tag type="green" size="sm">{stats.totalEmployers} employers</Tag>
+							<Tag type="green" size="sm">{stats.totalShippers} shippers</Tag>
 						</div>
 					{/if}
-					<p>View, edit, and manage all registered drivers and employers.</p>
+					<p>View, edit, and manage all registered drivers and shippers.</p>
 				</div>
 			</ClickableTile>
 		</Column>

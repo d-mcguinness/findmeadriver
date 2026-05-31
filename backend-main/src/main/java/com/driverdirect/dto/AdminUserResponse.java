@@ -15,7 +15,7 @@ public class AdminUserResponse {
     private String phone;
     private boolean enabled;
     private Set<String> roles;
-    private String userType; // DRIVER, EMPLOYER, or ADMIN
+    private String userType; // DRIVER, SHIPPER, or ADMIN
 
     // Driver-specific
     private String licenseNumber;
@@ -25,7 +25,7 @@ public class AdminUserResponse {
     private String licenceCategory;
     private Integer yearsExperience;
 
-    // Employer-specific
+    // Shipper-specific
     private String companyName;
     private String industry;
 
@@ -48,10 +48,10 @@ public class AdminUserResponse {
             // Keep the legacy field populated so existing frontend code keeps working.
             r.setCdlType(driver.getLicenceCategory());
             r.setYearsExperience(driver.getYearsExperience());
-        } else if (user instanceof Employer employer) {
-            r.setUserType("EMPLOYER");
-            r.setCompanyName(employer.getCompanyName());
-            r.setIndustry(employer.getIndustry() != null ? employer.getIndustry().name() : null);
+        } else if (user instanceof Shipper shipper) {
+            r.setUserType("SHIPPER");
+            r.setCompanyName(shipper.getCompanyName());
+            r.setIndustry(shipper.getIndustry() != null ? shipper.getIndustry().name() : null);
         } else {
             r.setUserType("ADMIN");
         }

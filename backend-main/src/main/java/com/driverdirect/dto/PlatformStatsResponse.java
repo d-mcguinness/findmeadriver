@@ -6,7 +6,7 @@ import lombok.Data;
 public class PlatformStatsResponse {
     private long totalUsers;
     private long totalDrivers;
-    private long totalEmployers;
+    private long totalShippers;
     private long totalJobs;
     private long openJobs;
     private long assignedJobs;

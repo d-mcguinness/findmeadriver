@@ -8,7 +8,7 @@ import javax.validation.constraints.NotBlank;
 
 /**
  * First-class address record. Replaces the free-text pickup/delivery strings
- * on Job. Owned by an Employer when curated (warehouse, customer DC); null
+ * on Job. Owned by an Shipper when curated (warehouse, customer DC); null
  * owner means ad-hoc (typed once on the post-a-job form).
  */
 @Entity
@@ -22,8 +22,8 @@ public class Location {
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "employer_id")
-    private Employer ownerEmployer; // null = ad-hoc
+    @JoinColumn(name = "shipper_id")
+    private Shipper ownerShipper; // null = ad-hoc
 
     @NotBlank
     private String name;

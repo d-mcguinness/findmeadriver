@@ -75,6 +75,33 @@ public class Driver extends User {
     @Column(name = "endorsement")
     private Set<String> endorsements = new HashSet<>();
 
+    /**
+     * Transport modes this carrier can operate (M4). Empty means road-only —
+     * the historical default — so existing carriers are unaffected. A leg's
+     * mode must be supported for the carrier to be eligible for it.
+     */
+    @ElementCollection
+    @Enumerated(EnumType.STRING)
+    @CollectionTable(
+        name = "driver_supported_modes",
+        joinColumns = @JoinColumn(name = "driver_id")
+    )
+    @Column(name = "mode")
+    private Set<Shipment.Mode> supportedModes = new HashSet<>();
+
+    /** True if this carrier can operate the given mode. Empty set = road-only. */
+    public boolean supportsMode(Shipment.Mode mode) {
+        return supportsMode(this.supportedModes, mode);
+    }
+
+    /** Mode-support rule, shared with the batch eligibility path (which fetches
+     *  the mode sets directly to avoid an N+1). Empty/null set = road-only. */
+    public static boolean supportsMode(Set<Shipment.Mode> supportedModes, Shipment.Mode mode) {
+        if (mode == null) return true;
+        if (supportedModes == null || supportedModes.isEmpty()) return mode == Shipment.Mode.ROAD;
+        return supportedModes.contains(mode);
+    }
+
     @Column(length = 2000)
     private String bio;
     private String licenseState;

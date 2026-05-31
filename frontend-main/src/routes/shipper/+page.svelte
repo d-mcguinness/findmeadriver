@@ -21,7 +21,7 @@
 					verified commercial drivers actively looking for work.
 				</p>
 				<div class="hero-actions">
-					<Button href="/register" icon={ArrowRight}>Register as an Employer</Button>
+					<Button href="/register" icon={ArrowRight}>Register as a Shipper</Button>
 					<Button href="/login" kind="secondary">Already have an account?</Button>
 				</div>
 			</div>
@@ -75,7 +75,7 @@
 
 	<Row>
 		<Column lg={8} md={8} sm={4}>
-			<h2>Why Employers Choose Us</h2>
+			<h2>Why Shippers Choose Us</h2>
 		</Column>
 	</Row>
 
@@ -118,7 +118,7 @@
 			<Tile>
 				<div class="cta-tile">
 					<h3>Ready to find drivers?</h3>
-					<p>Create your employer profile and start browsing qualified drivers today.</p>
+					<p>Create your shipper profile and start browsing qualified drivers today.</p>
 					<Button href="/register" icon={ArrowRight}>Register Now</Button>
 				</div>
 			</Tile>

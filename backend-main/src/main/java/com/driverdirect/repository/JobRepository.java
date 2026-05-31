@@ -1,6 +1,6 @@
 package com.driverdirect.repository;
 
-import com.driverdirect.model.Employer;
+import com.driverdirect.model.Shipper;
 import com.driverdirect.model.Job;
 import com.driverdirect.model.JobStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -13,7 +13,7 @@ import java.util.List;
 @Repository
 public interface JobRepository extends JpaRepository<Job, Long> {
 
-    List<Job> findByEmployerOrderByCreatedAtDesc(Employer employer);
+    List<Job> findByShipperOrderByCreatedAtDesc(Shipper shipper);
 
     // dateNeeded now lives on TransportOrder via Shipment → ShipmentLine → Order.
     // Spring Data can't derive an ORDER BY through a collection-typed join, so

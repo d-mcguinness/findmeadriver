@@ -3,7 +3,7 @@ package com.driverdirect.service;
 import com.driverdirect.dto.CreateJobRequest;
 import com.driverdirect.dto.CreateJobStopRequest;
 import com.driverdirect.model.Customer;
-import com.driverdirect.model.Employer;
+import com.driverdirect.model.Shipper;
 import com.driverdirect.model.Itinerary;
 import com.driverdirect.model.Job;
 import com.driverdirect.model.JobStatus;
@@ -108,19 +108,19 @@ public class TmsTreeService {
                     pickupCountry, deliveryCountry, currency, Collections.emptyList(), mode);
         }
 
-        public static TmsOrderInput fromRequest(CreateJobRequest req, Employer employer) {
-            String c = req.getCurrency() != null ? req.getCurrency() : employer.getCurrency();
-            List<TmsStopInput> stops = TmsStopInput.listFromRequest(req.getStops(), employer.getCountry());
+        public static TmsOrderInput fromRequest(CreateJobRequest req, Shipper shipper) {
+            String c = req.getCurrency() != null ? req.getCurrency() : shipper.getCurrency();
+            List<TmsStopInput> stops = TmsStopInput.listFromRequest(req.getStops(), shipper.getCountry());
 
             // When the client sent a stops list, derive origin/destination
-            // country from it; otherwise fall back to the explicit / employer
+            // country from it; otherwise fall back to the explicit / shipper
             // defaults so legacy single-pickup/single-delivery callers behave
             // exactly as before.
             String pc;
             String dc;
             if (!stops.isEmpty()) {
                 // A route must anchor on a real pickup and delivery. Without them
-                // origin/destination silently fall back to the employer's country
+                // origin/destination silently fall back to the shipper's country
                 // (see firstCountryOfType/lastCountryOfType), which mis-classifies
                 // cabotage and breaks lane matching. Reject instead — this also
                 // surfaces a mistyped stop type that listFromRequest coerced to
@@ -131,11 +131,11 @@ public class TmsTreeService {
                     throw new IllegalArgumentException(
                             "Route must include at least one PICKUP and one DELIVERY stop");
                 }
-                pc = firstCountryOfType(stops, Stop.StopType.PICKUP, employer.getCountry());
-                dc = lastCountryOfType(stops, Stop.StopType.DELIVERY, employer.getCountry());
+                pc = firstCountryOfType(stops, Stop.StopType.PICKUP, shipper.getCountry());
+                dc = lastCountryOfType(stops, Stop.StopType.DELIVERY, shipper.getCountry());
             } else {
-                pc = req.getPickupCountry() != null ? req.getPickupCountry() : employer.getCountry();
-                dc = req.getDeliveryCountry() != null ? req.getDeliveryCountry() : employer.getCountry();
+                pc = req.getPickupCountry() != null ? req.getPickupCountry() : shipper.getCountry();
+                dc = req.getDeliveryCountry() != null ? req.getDeliveryCountry() : shipper.getCountry();
             }
 
             return new TmsOrderInput(
@@ -212,13 +212,13 @@ public class TmsTreeService {
      */
     @Transactional
     public Shipment createTreeFor(Job job, TmsOrderInput input) {
-        Employer employer = job.getEmployer();
-        Customer customer = customerRepository.findFirstByEmployerOrderByIdAsc(employer)
+        Shipper shipper = job.getShipper();
+        Customer customer = customerRepository.findFirstByShipperOrderByIdAsc(shipper)
                 .orElseGet(() -> customerRepository.save(
-                        new Customer(employer, employer.getCompanyName() + " (default)")));
+                        new Customer(shipper, shipper.getCompanyName() + " (default)")));
 
         TransportOrder order = new TransportOrder();
-        order.setEmployer(employer);
+        order.setShipper(shipper);
         order.setCustomer(customer);
         order.setTitle(input.title());
         order.setDescription(input.description());
@@ -228,7 +228,7 @@ public class TmsTreeService {
         order = transportOrderRepository.save(order);
 
         Shipment shipment = new Shipment();
-        shipment.setEmployer(employer);
+        shipment.setShipper(shipper);
         shipment.setMode(input.mode() != null ? input.mode() : Shipment.Mode.ROAD);
         shipment.setStatus(mapShipmentStatus(job.getStatus()));
         shipment.setCurrency(input.currency());
@@ -291,15 +291,15 @@ public class TmsTreeService {
      * job still produces an itinerary-less Shipment exactly as before.
      */
     @Transactional
-    public Itinerary createIntermodalTreeFor(Employer employer, IntermodalOrderInput input) {
-        Customer customer = customerRepository.findFirstByEmployerOrderByIdAsc(employer)
+    public Itinerary createIntermodalTreeFor(Shipper shipper, IntermodalOrderInput input) {
+        Customer customer = customerRepository.findFirstByShipperOrderByIdAsc(shipper)
                 .orElseGet(() -> customerRepository.save(
-                        new Customer(employer, employer.getCompanyName() + " (default)")));
+                        new Customer(shipper, shipper.getCompanyName() + " (default)")));
         String currency = input.currency() != null ? input.currency()
-                : (employer.getCurrency() != null ? employer.getCurrency() : "EUR");
+                : (shipper.getCurrency() != null ? shipper.getCurrency() : "EUR");
 
         TransportOrder order = new TransportOrder();
-        order.setEmployer(employer);
+        order.setShipper(shipper);
         order.setCustomer(customer);
         order.setTitle(input.title());
         order.setDescription(input.description());
@@ -309,7 +309,7 @@ public class TmsTreeService {
         order = transportOrderRepository.save(order);
 
         Itinerary itinerary = new Itinerary();
-        itinerary.setEmployer(employer);
+        itinerary.setShipper(shipper);
         itinerary.setOrder(order);
         itinerary.setCurrency(currency);
         itinerary.setStatus(Itinerary.ItineraryStatus.PLANNED);
@@ -319,7 +319,7 @@ public class TmsTreeService {
         for (LegInput leg : input.legs()) {
             // Carrier assignment (Load) for this leg.
             Job job = new Job();
-            job.setEmployer(employer);
+            job.setShipper(shipper);
             // Rate × hours is the fallback basis; quantity-priced legs may omit
             // them, so default to zero (Job requires non-null values).
             job.setEstimatedDurationHours(leg.estimatedDurationHours() != null ? leg.estimatedDurationHours() : 0.0);
@@ -331,7 +331,7 @@ public class TmsTreeService {
 
             // The physical leg, attached to the itinerary at its sequence.
             Shipment shipment = new Shipment();
-            shipment.setEmployer(employer);
+            shipment.setShipper(shipper);
             shipment.setMode(leg.mode() != null ? leg.mode() : Shipment.Mode.ROAD);
             shipment.setStatus(Shipment.ShipmentStatus.PLANNED);
             shipment.setCurrency(currency);

@@ -7,7 +7,7 @@
 	import { auth } from '$lib/stores/auth.svelte';
 	import { api } from '$lib/api';
 	import { driverState } from '$lib/stores/driverState.svelte';
-	import { employerState } from '$lib/stores/employerState.svelte';
+	import { shipperState } from '$lib/stores/shipperState.svelte';
 	import type {
 		PlatformStats, Job, DriverComplianceSummary
 	} from '$lib/types';
@@ -17,15 +17,15 @@
 	let driverAvailableJobs = $state<Job[]>([]);
 	let driverCompliance = $state<DriverComplianceSummary | null>(null);
 
-	// Both employer and driver data come from shared stores so dashboard actions
+	// Both shipper and driver data come from shared stores so dashboard actions
 	// (apply/withdraw, accept/reject, status updates) refresh these tiles reactively.
 	let driverApplications = $derived(driverState.applications);
-	let employerJobs = $derived(employerState.jobs);
-	let employerAvgRating = $derived(employerState.averageRating);
+	let shipperJobs = $derived(shipperState.jobs);
+	let shipperAvgRating = $derived(shipperState.averageRating);
 
-	let employerCounts = $derived.by(() => {
+	let shipperCounts = $derived.by(() => {
 		const c = { open: 0, assigned: 0, inProgress: 0, completed: 0, cancelled: 0 };
-		for (const j of employerJobs) {
+		for (const j of shipperJobs) {
 			if (j.status === 'OPEN') c.open++;
 			else if (j.status === 'ASSIGNED') c.assigned++;
 			else if (j.status === 'IN_PROGRESS') c.inProgress++;
@@ -35,12 +35,12 @@
 		return c;
 	});
 
-	let employerMetrics = $derived.by(() => {
+	let shipperMetrics = $derived.by(() => {
 		let applications = 0;
 		let hours = 0;
 		let value = 0;
 		let completedSpend = 0;
-		for (const j of employerJobs) {
+		for (const j of shipperJobs) {
 			applications += j.applicationCount ?? 0;
 			const h = j.estimatedDurationHours ?? 0;
 			const r = Number(j.ratePerHour ?? 0);
@@ -66,10 +66,10 @@
 		try {
 			if (auth.isAdmin) {
 				platformStats = await api.get<PlatformStats>('/api/admin/stats');
-			} else if (auth.isEmployer) {
+			} else if (auth.isShipper) {
 				await Promise.all([
-					employerState.reloadJobs(),
-					employerState.reloadRatings()
+					shipperState.reloadJobs(),
+					shipperState.reloadRatings()
 				]);
 			} else if (auth.isDriver) {
 				const [, jobs, compliance] = await Promise.all([
@@ -97,7 +97,7 @@
 					<div class="stat-label">Total Users</div>
 					<div class="stat-breakdown">
 						<Tag type="blue" size="sm">{platformStats.totalDrivers} drivers</Tag>
-						<Tag type="green" size="sm">{platformStats.totalEmployers} employers</Tag>
+						<Tag type="green" size="sm">{platformStats.totalShippers} shippers</Tag>
 					</div>
 				</div>
 			</Tile>
@@ -143,40 +143,40 @@
 			</Tile>
 		</Column>
 	</Row>
-{:else if auth.isEmployer}
+{:else if auth.isShipper}
 	<Row>
 		<Column>
 			<Tile class="stat-tile">
 				<div class="stat-card">
 					<Van size={24} />
-					<div class="stat-value">{employerJobs.length}</div>
+					<div class="stat-value">{shipperJobs.length}</div>
 					<div class="stat-label">My Jobs</div>
 					<div class="metrics-row">
 						<div class="metric">
-							<div class="metric-value">{employerMetrics.applications}</div>
+							<div class="metric-value">{shipperMetrics.applications}</div>
 							<div class="metric-label">Applications received</div>
 						</div>
 						<div class="metric">
-							<div class="metric-value">{employerMetrics.hours.toFixed(1)}h</div>
+							<div class="metric-value">{shipperMetrics.hours.toFixed(1)}h</div>
 							<div class="metric-label">Hours posted</div>
 						</div>
 						<div class="metric">
-							<div class="metric-value">&euro;{employerMetrics.value.toFixed(0)}</div>
+							<div class="metric-value">&euro;{shipperMetrics.value.toFixed(0)}</div>
 							<div class="metric-label">Total job value</div>
 						</div>
 						<div class="metric">
-							<div class="metric-value">&euro;{employerMetrics.completedSpend.toFixed(0)}</div>
+							<div class="metric-value">&euro;{shipperMetrics.completedSpend.toFixed(0)}</div>
 							<div class="metric-label">Completed spend</div>
 						</div>
 					</div>
 					<div class="stat-breakdown">
-						<Tag type="green" size="sm">{employerCounts.open} open</Tag>
-						<Tag type="blue" size="sm">{employerCounts.assigned} assigned</Tag>
-						<Tag type="cyan" size="sm">{employerCounts.inProgress} in progress</Tag>
-						<Tag type="gray" size="sm">{employerCounts.completed} completed</Tag>
-						<Tag type="red" size="sm">{employerCounts.cancelled} cancelled</Tag>
+						<Tag type="green" size="sm">{shipperCounts.open} open</Tag>
+						<Tag type="blue" size="sm">{shipperCounts.assigned} assigned</Tag>
+						<Tag type="cyan" size="sm">{shipperCounts.inProgress} in progress</Tag>
+						<Tag type="gray" size="sm">{shipperCounts.completed} completed</Tag>
+						<Tag type="red" size="sm">{shipperCounts.cancelled} cancelled</Tag>
 						<Tag type="warm-gray" size="sm" icon={StarFilled}>
-							{employerAvgRating != null ? `${employerAvgRating.toFixed(1)} avg rating` : 'No ratings'}
+							{shipperAvgRating != null ? `${shipperAvgRating.toFixed(1)} avg rating` : 'No ratings'}
 						</Tag>
 					</div>
 				</div>

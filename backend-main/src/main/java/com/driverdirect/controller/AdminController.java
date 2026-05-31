@@ -13,12 +13,12 @@ import com.driverdirect.dto.OrderResponse;
 import com.driverdirect.dto.PlatformStatsResponse;
 import com.driverdirect.dto.ShipmentResponse;
 import com.driverdirect.model.Driver;
-import com.driverdirect.model.Employer;
+import com.driverdirect.model.Shipper;
 import com.driverdirect.model.Job;
 import com.driverdirect.model.JobStatus;
 import com.driverdirect.model.User;
 import com.driverdirect.repository.DriverRepository;
-import com.driverdirect.repository.EmployerRepository;
+import com.driverdirect.repository.ShipperRepository;
 import com.driverdirect.repository.JobApplicationRepository;
 import com.driverdirect.repository.ItineraryRepository;
 import com.driverdirect.repository.JobRepository;
@@ -50,7 +50,7 @@ public class AdminController {
     private final JobRepository jobRepository;
     private final JobApplicationRepository jobApplicationRepository;
     private final DriverRepository driverRepository;
-    private final EmployerRepository employerRepository;
+    private final ShipperRepository shipperRepository;
     private final TransportOrderRepository transportOrderRepository;
     private final ShipmentRepository shipmentRepository;
     private final ItineraryRepository itineraryRepository;
@@ -80,7 +80,7 @@ public class AdminController {
         PlatformStatsResponse stats = new PlatformStatsResponse();
         stats.setTotalUsers(adminService.getAllUsers().size());
         stats.setTotalDrivers(driverRepository.count());
-        stats.setTotalEmployers(employerRepository.count());
+        stats.setTotalShippers(shipperRepository.count());
 
         List<Job> allJobs = jobRepository.findAll();
         stats.setTotalJobs(allJobs.size());
@@ -96,9 +96,9 @@ public class AdminController {
 
     // ---- Jobs ----
 
-    @GetMapping("/employers")
-    public ResponseEntity<List<Map<String, Object>>> getAllEmployers() {
-        List<Map<String, Object>> response = employerRepository.findAll().stream()
+    @GetMapping("/shippers")
+    public ResponseEntity<List<Map<String, Object>>> getAllShippers() {
+        List<Map<String, Object>> response = shipperRepository.findAll().stream()
                 .map(e -> {
                     Map<String, Object> m = new java.util.LinkedHashMap<>();
                     m.put("id", e.getId());
@@ -128,11 +128,11 @@ public class AdminController {
 
     @PostMapping("/jobs")
     public ResponseEntity<JobResponse> createJobAsAdmin(
-            @RequestParam Long employerId,
+            @RequestParam Long shipperId,
             @RequestBody CreateJobRequest request) {
-        Employer employer = employerRepository.findById(employerId)
-                .orElseThrow(() -> new IllegalArgumentException("Employer not found: " + employerId));
-        return ResponseEntity.status(HttpStatus.CREATED).body(jobService.createJob(employer, request));
+        Shipper shipper = shipperRepository.findById(shipperId)
+                .orElseThrow(() -> new IllegalArgumentException("Shipper not found: " + shipperId));
+        return ResponseEntity.status(HttpStatus.CREATED).body(jobService.createJob(shipper, request));
     }
 
     @GetMapping("/jobs")
@@ -258,12 +258,12 @@ public class AdminController {
 
     @PostMapping("/itineraries")
     public ResponseEntity<ItineraryResponse> createItineraryAsAdmin(
-            @RequestParam Long employerId,
+            @RequestParam Long shipperId,
             @RequestBody CreateIntermodalJobRequest request) {
-        Employer employer = employerRepository.findById(employerId)
-                .orElseThrow(() -> new IllegalArgumentException("Employer not found: " + employerId));
+        Shipper shipper = shipperRepository.findById(shipperId)
+                .orElseThrow(() -> new IllegalArgumentException("Shipper not found: " + shipperId));
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(jobService.createIntermodalJob(employer, request));
+                .body(jobService.createIntermodalJob(shipper, request));
     }
 
     @GetMapping("/itineraries")

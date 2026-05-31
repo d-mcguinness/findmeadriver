@@ -15,7 +15,7 @@ public class CreateJobRequest {
     private Double estimatedDurationHours;
     private LocalDate dateNeeded;
     private BigDecimal ratePerHour;
-    // All optional; backend falls back to the employer's defaults.
+    // All optional; backend falls back to the shipper's defaults.
     private String currency;
     private String pickupCountry;
     private String deliveryCountry;

@@ -67,7 +67,7 @@
 						<div class="stat-label">Total Users</div>
 						<div class="stat-breakdown">
 							<Tag type="blue" size="sm">{stats.totalDrivers} drivers</Tag>
-							<Tag type="green" size="sm">{stats.totalEmployers} employers</Tag>
+							<Tag type="green" size="sm">{stats.totalShippers} shippers</Tag>
 						</div>
 					</div>
 				</Tile>

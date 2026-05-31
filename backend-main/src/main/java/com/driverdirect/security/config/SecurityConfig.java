@@ -60,7 +60,7 @@ public class SecurityConfig {
                     .requestMatchers("/error").permitAll()
                     .requestMatchers("/api/user/all").authenticated()
                     .requestMatchers("/api/admin/**").hasRole("ADMIN")
-                    .requestMatchers("/api/employer/**").hasRole("EMPLOYER")
+                    .requestMatchers("/api/shipper/**").hasRole("SHIPPER")
                     .requestMatchers("/api/driver/**").hasRole("DRIVER")
                     .anyRequest().authenticated()
             );

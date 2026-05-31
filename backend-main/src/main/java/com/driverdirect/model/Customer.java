@@ -7,8 +7,8 @@ import lombok.NoArgsConstructor;
 import javax.validation.constraints.NotBlank;
 
 /**
- * The buyer of transport, distinct from the platform Employer account that
- * runs this Customer's orders. In v1 every Employer gets one auto-created
+ * The buyer of transport, distinct from the platform Shipper account that
+ * runs this Customer's orders. In v1 every Shipper gets one auto-created
  * "(default)" Customer so existing flows keep working.
  */
 @Entity
@@ -22,8 +22,8 @@ public class Customer {
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "employer_id", nullable = false)
-    private Employer employer;
+    @JoinColumn(name = "shipper_id", nullable = false)
+    private Shipper shipper;
 
     @NotBlank
     private String name;
@@ -37,10 +37,10 @@ public class Customer {
     @Column(length = 256, name = "billing_address")
     private String billingAddress;
 
-    public Customer(Employer employer, String name) {
-        this.employer = employer;
+    public Customer(Shipper shipper, String name) {
+        this.shipper = shipper;
         this.name = name;
-        this.country = employer.getCountry();
-        this.currency = employer.getCurrency();
+        this.country = shipper.getCountry();
+        this.currency = shipper.getCurrency();
     }
 }

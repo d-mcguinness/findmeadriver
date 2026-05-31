@@ -75,11 +75,11 @@ export interface Job {
 	dateNeeded: string;
 	ratePerHour: number;
 	currency?: string;
-	/** Pricing (M1b): carrier cost, per-mode platform commission, employer total. */
+	/** Pricing (M1b): carrier cost, per-mode platform commission, shipper total. */
 	carrierCost?: number;
 	commissionPercent?: number;
 	commissionAmount?: number;
-	employerTotal?: number;
+	shipperTotal?: number;
 	pickupCountry?: string;
 	deliveryCountry?: string;
 	requiredLicenceCategory?: string;
@@ -88,7 +88,7 @@ export interface Job {
 	/** Transport mode of the underlying shipment leg: ROAD | RAIL | OCEAN | AIR | … */
 	transportMode?: string;
 	status: string;
-	employerCompanyName: string;
+	shipperCompanyName: string;
 	assignedDriverId?: number;
 	assignedDriverName?: string;
 	applicationCount: number;
@@ -114,13 +114,13 @@ export interface ItineraryLeg {
 	carrierCost?: number;
 	commissionPercent?: number;
 	commissionAmount?: number;
-	employerTotal?: number;
+	shipperTotal?: number;
 }
 
 export interface Itinerary {
 	id: number;
-	employerId?: number;
-	employerName?: string;
+	shipperId?: number;
+	shipperName?: string;
 	orderId?: number;
 	orderTitle?: string;
 	status?: string;
@@ -208,7 +208,7 @@ export interface AdminUser {
 export interface PlatformStats {
 	totalUsers: number;
 	totalDrivers: number;
-	totalEmployers: number;
+	totalShippers: number;
 	totalJobs: number;
 	openJobs: number;
 	assignedJobs: number;

@@ -38,12 +38,12 @@
 	let yearsExperience = $state(0);
 	let licenseState = $state('');
 
-	// Employer fields
-	let employerEmail = $state('');
-	let employerPassword = $state('');
-	let employerFirstName = $state('');
-	let employerLastName = $state('');
-	let employerPhone = $state('');
+	// Shipper fields
+	let shipperEmail = $state('');
+	let shipperPassword = $state('');
+	let shipperFirstName = $state('');
+	let shipperLastName = $state('');
+	let shipperPhone = $state('');
 	let companyName = $state('');
 	let industry = $state('');
 	let companyWebsite = $state('');
@@ -78,15 +78,15 @@
 		licenseState = pick(counties);
 	}
 
-	function fillEmployer() {
+	function fillShipper() {
 		const first = pick(firstNames);
 		const last = pick(lastNames);
 		const company = `${pick(companyPrefixes)} ${pick(companySuffixes)}`;
-		employerFirstName = first;
-		employerLastName = last;
-		employerEmail = `${first.toLowerCase()}.${last.toLowerCase()}${randInt(1, 999)}@test.com`;
-		employerPassword = 'password123';
-		employerPhone = randPhone();
+		shipperFirstName = first;
+		shipperLastName = last;
+		shipperEmail = `${first.toLowerCase()}.${last.toLowerCase()}${randInt(1, 999)}@test.com`;
+		shipperPassword = 'password123';
+		shipperPhone = randPhone();
 		companyName = company;
 		industry = pick(industries);
 		companyWebsite = `https://${company.toLowerCase().replace(/\s/g, '')}.ie`;
@@ -118,17 +118,17 @@
 		}
 	}
 
-	async function registerEmployer() {
+	async function registerShipper() {
 		error = '';
 		success = '';
 		loading = true;
 		try {
-			await api.post('/api/user/register/employer', {
-				email: employerEmail,
-				password: employerPassword,
-				firstName: employerFirstName,
-				lastName: employerLastName,
-				phone: employerPhone,
+			await api.post('/api/user/register/shipper', {
+				email: shipperEmail,
+				password: shipperPassword,
+				firstName: shipperFirstName,
+				lastName: shipperLastName,
+				phone: shipperPhone,
 				companyName,
 				industry: industry || undefined,
 				companyWebsite: companyWebsite || undefined
@@ -149,7 +149,7 @@
 			<div class="form-container">
 				<Tile>
 					<h2>Create an Account</h2>
-					<p class="form-subtitle">Join Driver Direct as a driver or employer</p>
+					<p class="form-subtitle">Join Driver Direct as a driver or shipper</p>
 
 					{#if error}
 						<InlineNotification
@@ -169,7 +169,7 @@
 
 					<Tabs bind:selected={selectedTab}>
 						<Tab label="Driver" />
-						<Tab label="Employer" />
+						<Tab label="Shipper" />
 						<svelte:fragment slot="content">
 							<TabContent>
 								<form onsubmit={(e: Event) => { e.preventDefault(); registerDriver(); }}>
@@ -237,29 +237,29 @@
 								</form>
 							</TabContent>
 							<TabContent>
-								<form onsubmit={(e: Event) => { e.preventDefault(); registerEmployer(); }}>
+								<form onsubmit={(e: Event) => { e.preventDefault(); registerShipper(); }}>
 									{#if isDev}
 										<div class="dev-fill">
-											<Button size="small" kind="ghost" on:click={fillEmployer}>Dev: Fill Employer</Button>
+											<Button size="small" kind="ghost" on:click={fillShipper}>Dev: Fill Shipper</Button>
 										</div>
 									{/if}
 									<h4>Personal Information</h4>
 									<div class="form-row">
 										<div class="form-field">
-											<TextInput labelText="First Name" bind:value={employerFirstName} />
+											<TextInput labelText="First Name" bind:value={shipperFirstName} />
 										</div>
 										<div class="form-field">
-											<TextInput labelText="Last Name" bind:value={employerLastName} />
+											<TextInput labelText="Last Name" bind:value={shipperLastName} />
 										</div>
 									</div>
 									<div class="form-field">
-										<TextInput labelText="Email" type="email" bind:value={employerEmail} required />
+										<TextInput labelText="Email" type="email" bind:value={shipperEmail} required />
 									</div>
 									<div class="form-field">
-										<PasswordInput labelText="Password" bind:value={employerPassword} required />
+										<PasswordInput labelText="Password" bind:value={shipperPassword} required />
 									</div>
 									<div class="form-field">
-										<TextInput labelText="Phone" type="tel" bind:value={employerPhone} />
+										<TextInput labelText="Phone" type="tel" bind:value={shipperPhone} />
 									</div>
 
 									<h4>Company Information</h4>
@@ -288,7 +288,7 @@
 
 									<div class="form-actions">
 										<Button type="submit" icon={UserAvatar} disabled={loading}>
-											{loading ? 'Registering...' : 'Register as Employer'}
+											{loading ? 'Registering...' : 'Register as Shipper'}
 										</Button>
 									</div>
 								</form>

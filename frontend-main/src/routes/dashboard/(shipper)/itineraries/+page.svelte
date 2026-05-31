@@ -43,7 +43,7 @@
 	onMount(async () => {
 		try {
 			itineraries = await api.get<Itinerary[]>(
-				auth.isAdmin ? '/api/admin/itineraries' : '/api/employer/itineraries'
+				auth.isAdmin ? '/api/admin/itineraries' : '/api/shipper/itineraries'
 			);
 		} catch (e: any) {
 			error = e.message || 'Failed to load itineraries';
@@ -87,7 +87,7 @@
 									<div class="it-tags">
 										<Tag type={modeTagColor(it.mode)}>{transportModeLabel(it.mode)}</Tag>
 										<Tag type={statusKind(it.status)}>{it.status ?? '—'}</Tag>
-										{#if auth.isAdmin && it.employerName}<Tag type="outline">{it.employerName}</Tag>{/if}
+										{#if auth.isAdmin && it.shipperName}<Tag type="outline">{it.shipperName}</Tag>{/if}
 									</div>
 								</div>
 								<div class="it-route">
@@ -110,7 +110,7 @@
 										<span class="leg-money">
 											{formatMoney(leg.carrierCost, leg.currency)}
 											<span class="leg-fee">+{leg.commissionPercent}% fee</span>
-											= <strong>{formatMoney(leg.employerTotal, leg.currency)}</strong>
+											= <strong>{formatMoney(leg.shipperTotal, leg.currency)}</strong>
 										</span>
 									</div>
 								{/each}

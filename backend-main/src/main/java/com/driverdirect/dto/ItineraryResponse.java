@@ -17,8 +17,8 @@ import java.util.List;
 @Data
 public class ItineraryResponse {
     private Long id;
-    private Long employerId;
-    private String employerName;
+    private Long shipperId;
+    private String shipperName;
     private Long orderId;
     private String orderTitle;
     private String status;
@@ -54,7 +54,7 @@ public class ItineraryResponse {
         private BigDecimal carrierCost;
         private BigDecimal commissionPercent;
         private BigDecimal commissionAmount;
-        private BigDecimal employerTotal;
+        private BigDecimal shipperTotal;
 
         static LegSummary from(Shipment s) {
             LegSummary l = new LegSummary();
@@ -82,7 +82,7 @@ public class ItineraryResponse {
             l.carrierCost = s.getTotalRate();
             l.commissionPercent = s.getCommissionPercent();
             l.commissionAmount = s.getCommissionAmount();
-            l.employerTotal = s.getEmployerTotal();
+            l.shipperTotal = s.getShipperTotal();
             return l;
         }
 
@@ -109,9 +109,9 @@ public class ItineraryResponse {
     public static ItineraryResponse from(Itinerary it) {
         ItineraryResponse r = new ItineraryResponse();
         r.setId(it.getId());
-        if (it.getEmployer() != null) {
-            r.setEmployerId(it.getEmployer().getId());
-            r.setEmployerName(it.getEmployer().getCompanyName());
+        if (it.getShipper() != null) {
+            r.setShipperId(it.getShipper().getId());
+            r.setShipperName(it.getShipper().getCompanyName());
         }
         if (it.getOrder() != null) {
             r.setOrderId(it.getOrder().getId());

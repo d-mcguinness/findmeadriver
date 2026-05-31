@@ -91,9 +91,9 @@
 
 {#snippet userActions(user: AdminUser)}
 	<div class="row-actions">
-		{#if user.userType === 'EMPLOYER'}
+		{#if user.userType === 'SHIPPER'}
 			<Button size="small" kind="primary" icon={Add}
-				href="/dashboard/jobs/post?employerId={user.id}">
+				href="/dashboard/jobs/post?shipperId={user.id}">
 				Post Job
 			</Button>
 		{:else if user.userType === 'DRIVER'}
