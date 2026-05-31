@@ -2,9 +2,11 @@ package com.driverdirect.controller;
 
 import com.driverdirect.dto.AdminUserResponse;
 import com.driverdirect.dto.ComplianceDocumentResponse;
+import com.driverdirect.dto.CreateIntermodalJobRequest;
 import com.driverdirect.dto.CreateJobRequest;
 import com.driverdirect.dto.JobApplicationRequest;
 import com.driverdirect.dto.JobApplicationResponse;
+import com.driverdirect.dto.ItineraryResponse;
 import com.driverdirect.dto.JobResponse;
 import com.driverdirect.dto.LocationResponse;
 import com.driverdirect.dto.OrderResponse;
@@ -18,6 +20,7 @@ import com.driverdirect.model.User;
 import com.driverdirect.repository.DriverRepository;
 import com.driverdirect.repository.EmployerRepository;
 import com.driverdirect.repository.JobApplicationRepository;
+import com.driverdirect.repository.ItineraryRepository;
 import com.driverdirect.repository.JobRepository;
 import com.driverdirect.repository.LocationRepository;
 import com.driverdirect.repository.ShipmentRepository;
@@ -50,6 +53,7 @@ public class AdminController {
     private final EmployerRepository employerRepository;
     private final TransportOrderRepository transportOrderRepository;
     private final ShipmentRepository shipmentRepository;
+    private final ItineraryRepository itineraryRepository;
     private final LocationRepository locationRepository;
 
     // ---- Users ----
@@ -250,6 +254,29 @@ public class AdminController {
         return ResponseEntity.ok(shipmentRepository.findById(id)
                 .map(ShipmentResponse::from)
                 .orElseThrow(() -> new IllegalArgumentException("Shipment not found: " + id)));
+    }
+
+    @PostMapping("/itineraries")
+    public ResponseEntity<ItineraryResponse> createItineraryAsAdmin(
+            @RequestParam Long employerId,
+            @RequestBody CreateIntermodalJobRequest request) {
+        Employer employer = employerRepository.findById(employerId)
+                .orElseThrow(() -> new IllegalArgumentException("Employer not found: " + employerId));
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(jobService.createIntermodalJob(employer, request));
+    }
+
+    @GetMapping("/itineraries")
+    public ResponseEntity<List<ItineraryResponse>> getAllItineraries() {
+        return ResponseEntity.ok(itineraryRepository.findAll().stream()
+                .map(ItineraryResponse::from).toList());
+    }
+
+    @GetMapping("/itineraries/{id}")
+    public ResponseEntity<ItineraryResponse> getItinerary(@PathVariable Long id) {
+        return ResponseEntity.ok(itineraryRepository.findById(id)
+                .map(ItineraryResponse::from)
+                .orElseThrow(() -> new IllegalArgumentException("Itinerary not found: " + id)));
     }
 
     @GetMapping("/locations")

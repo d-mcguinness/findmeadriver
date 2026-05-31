@@ -1,7 +1,25 @@
 <script lang="ts">
 	import { Grid, Row, Column, Button, Tile } from 'carbon-components-svelte';
-	import { DeliveryTruck, Enterprise, ArrowRight, Time, Checkmark, Star, CertificateCheck } from 'carbon-icons-svelte';
+	import {
+		DeliveryTruck, Enterprise, ArrowRight, Time, Checkmark, Star, CertificateCheck,
+		Train, Plane, Anchor, ChartLineData
+	} from 'carbon-icons-svelte';
 	import { auth } from '$lib/stores/auth.svelte';
+	import { onMount } from 'svelte';
+	import { loadModePricing, FALLBACK_MODE_PRICING, type ModePricing } from '$lib/pricing';
+
+	const MODE_ICON: Record<string, typeof DeliveryTruck> = {
+		ROAD: DeliveryTruck,
+		RAIL: Train,
+		OCEAN: Anchor,
+		AIR: Plane
+	};
+
+	// Renders instantly from the fallback, then swaps in live rates from the API.
+	let modes = $state<ModePricing[]>(FALLBACK_MODE_PRICING);
+	onMount(async () => {
+		modes = await loadModePricing();
+	});
 </script>
 
 <div class="landing">
@@ -10,11 +28,12 @@
 		<Row>
 			<Column>
 				<div class="hero">
-					<h1>Your Spare Driving Hours, Put to Work</h1>
+					<h1>Spare Capacity, Every Mode, Put to Work</h1>
 					<p class="hero-subtitle">
-						FindMeADriver connects self-employed commercial drivers who have spare tachograph hours
-						with employers who need short-haul deliveries done. No agencies, no long-term commitments
-						&mdash; just hours matched to jobs.
+						FindMeADriver is the spare-hours freight marketplace &mdash; now multimodal. Connect with
+						self-employed carriers across <strong>road, rail, sea and air</strong>, and pay one
+						transparent platform fee per mode. No agencies, no long-term commitments &mdash; just
+						capacity matched to jobs.
 					</p>
 					<div class="hero-actions">
 						{#if auth.isAuthenticated}
@@ -24,6 +43,46 @@
 							<Button href="/register" kind="secondary" icon={Enterprise}>I'm an Employer</Button>
 						{/if}
 					</div>
+				</div>
+			</Column>
+		</Row>
+
+		<!-- Multimodal + transparent pricing -->
+		<Row>
+			<Column>
+				<h2 class="section-heading">One platform. Every mode.</h2>
+				<p class="section-sub">
+					Post a job by road, rail, sea or air and we match it to the right carrier. You pay the
+					carrier's cost plus a single, transparent platform fee that depends only on the mode &mdash;
+					shown before you post, with no agency markup.
+				</p>
+			</Column>
+		</Row>
+		<Row class="modes-row">
+			{#each modes as m}
+				{@const Icon = MODE_ICON[m.mode] ?? DeliveryTruck}
+				<Column lg={4} md={4} sm={4}>
+					<Tile>
+						<div class="mode-tile">
+							<Icon size={32} />
+							<h3>{m.label}</h3>
+							<div class="mode-fee">
+								<span class="fee-num">{m.commissionPercent}%</span>
+								<span class="fee-label">platform fee</span>
+							</div>
+							<p class="mode-basis">{m.basis}</p>
+							<p class="mode-tagline">{m.tagline}</p>
+						</div>
+					</Tile>
+				</Column>
+			{/each}
+		</Row>
+		<Row>
+			<Column>
+				<div class="pricing-cta">
+					<ChartLineData size={20} />
+					<span>Transparent, mode-based pricing &mdash; you always see the platform fee before you post.</span>
+					<Button kind="ghost" size="small" href="/pricing" icon={ArrowRight}>See full pricing</Button>
 				</div>
 			</Column>
 		</Row>
@@ -204,6 +263,66 @@
 		font-size: 1.5rem;
 		font-weight: 600;
 		margin: 2.5rem 0 1rem;
+	}
+	.section-sub {
+		color: var(--cds-text-secondary);
+		font-size: 1rem;
+		line-height: 1.6;
+		max-width: 760px;
+		margin: -0.5rem 0 1.25rem;
+	}
+	.modes-row {
+		margin-bottom: 1rem;
+	}
+	.mode-tile {
+		padding: 0.5rem 0;
+		text-align: center;
+	}
+	.mode-tile h3 {
+		margin: 0.5rem 0 0.5rem;
+	}
+	.mode-fee {
+		display: flex;
+		align-items: baseline;
+		justify-content: center;
+		gap: 0.35rem;
+		margin-bottom: 0.5rem;
+	}
+	.fee-num {
+		font-size: 1.75rem;
+		font-weight: 700;
+		color: var(--cds-interactive, #0f62fe);
+		line-height: 1;
+	}
+	.fee-label {
+		font-size: 0.8125rem;
+		color: var(--cds-text-secondary);
+	}
+	.mode-basis {
+		font-size: 0.8125rem;
+		font-weight: 600;
+		margin: 0 0 0.35rem;
+	}
+	.mode-tagline {
+		color: var(--cds-text-secondary);
+		font-size: 0.8125rem;
+		line-height: 1.5;
+		margin: 0;
+	}
+	.pricing-cta {
+		display: flex;
+		align-items: center;
+		gap: 0.75rem;
+		flex-wrap: wrap;
+		background: var(--cds-layer, #f4f4f4);
+		border-left: 3px solid var(--cds-support-success, #24a148);
+		padding: 0.75rem 1rem;
+		font-size: 0.9375rem;
+		margin-bottom: 1rem;
+	}
+	.pricing-cta span {
+		flex: 1 1 auto;
+		min-width: 12rem;
 	}
 	.steps-row {
 		margin-bottom: 1rem;

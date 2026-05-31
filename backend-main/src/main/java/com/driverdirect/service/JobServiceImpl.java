@@ -1,13 +1,17 @@
 package com.driverdirect.service;
 
+import com.driverdirect.dto.CreateIntermodalJobRequest;
 import com.driverdirect.dto.CreateJobRequest;
+import com.driverdirect.dto.ItineraryResponse;
 import com.driverdirect.dto.JobResponse;
 import com.driverdirect.model.Driver;
 import com.driverdirect.model.DriverLane;
 import com.driverdirect.model.Employer;
+import com.driverdirect.model.Itinerary;
 import com.driverdirect.model.Job;
 import com.driverdirect.model.JobStatus;
-import com.driverdirect.model.LicenceCategory;
+import com.driverdirect.model.Shipment;
+import com.driverdirect.repository.ItineraryRepository;
 import com.driverdirect.repository.JobApplicationRepository;
 import com.driverdirect.repository.JobRepository;
 import lombok.RequiredArgsConstructor;
@@ -15,6 +19,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -32,6 +37,9 @@ public class JobServiceImpl implements JobService {
     private final TmsTreeService tmsTreeService;
     private final DriverLaneService driverLaneService;
     private final CabotageService cabotageService;
+    private final PricingService pricingService;
+    private final CredentialMatcherRegistry credentialMatchers;
+    private final ItineraryRepository itineraryRepository;
 
     @Override
     @Transactional
@@ -53,7 +61,93 @@ public class JobServiceImpl implements JobService {
         // from the employer unless the request explicitly overrides.
         tmsTreeService.createTreeFor(job, TmsTreeService.TmsOrderInput.fromRequest(request, employer));
         job = jobRepository.save(job);
+
+        // M3b: carry the per-mode pricing quantities onto the leg before pricing.
+        Shipment shipment = job.getShipment();
+        if (shipment != null) {
+            shipment.setDistanceKm(request.getDistanceKm());
+            shipment.setWeightKg(request.getWeightKg());
+            shipment.setVolumeM3(request.getVolumeM3());
+            shipment.setContainerCount(request.getContainerCount());
+            shipment.setPieceCount(request.getPieceCount());
+        }
+
+        // Price the leg now: carrier cost (rate-card basis or rate × hours) +
+        // per-mode platform commission + employer total, onto the Shipment.
+        pricingService.priceJob(job);
         return JobResponse.from(job, 0);
+    }
+
+    @Override
+    @Transactional
+    public ItineraryResponse createIntermodalJob(Employer employer, CreateIntermodalJobRequest request) {
+        if (request.getLegs() == null || request.getLegs().isEmpty()) {
+            throw new IllegalArgumentException("An intermodal job needs at least one leg");
+        }
+        String currency = request.getCurrency() != null
+                ? request.getCurrency()
+                : (employer.getCurrency() != null ? employer.getCurrency() : "EUR");
+
+        List<TmsTreeService.LegInput> legs = new ArrayList<>();
+        int i = 1;
+        for (var leg : request.getLegs()) {
+            if (leg.getPickupLocation() == null || leg.getPickupLocation().isBlank()
+                    || leg.getDeliveryLocation() == null || leg.getDeliveryLocation().isBlank()) {
+                throw new IllegalArgumentException("Leg " + i + " needs a pickup and delivery location");
+            }
+            boolean hasQuantity = leg.getDistanceKm() != null || leg.getWeightKg() != null
+                    || leg.getVolumeM3() != null || leg.getContainerCount() != null
+                    || leg.getPieceCount() != null;
+            if (leg.getRatePerHour() == null && !hasQuantity) {
+                throw new IllegalArgumentException(
+                        "Leg " + i + " needs a quantity for its mode (or a rate per hour)");
+            }
+            legs.add(new TmsTreeService.LegInput(
+                    parseMode(leg.getTransportMode()),
+                    leg.getPickupLocation(), leg.getDeliveryLocation(),
+                    leg.getPickupCountry(), leg.getDeliveryCountry(),
+                    leg.getRatePerHour(), leg.getEstimatedDurationHours(),
+                    leg.getRequiredLicenceCategory(),
+                    leg.getDistanceKm(), leg.getWeightKg(), leg.getVolumeM3(),
+                    leg.getContainerCount(), leg.getPieceCount()));
+            i++;
+        }
+
+        Itinerary itinerary = tmsTreeService.createIntermodalTreeFor(employer,
+                new TmsTreeService.IntermodalOrderInput(
+                        request.getTitle(), request.getDescription(), request.getDateNeeded(),
+                        currency, legs));
+        return ItineraryResponse.from(itinerary);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ItineraryResponse> getItinerariesByEmployer(Employer employer) {
+        return itineraryRepository.findByEmployerOrderByCreatedAtDesc(employer).stream()
+                .map(ItineraryResponse::from)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public ItineraryResponse getItineraryById(Long id, Employer employer) {
+        Itinerary it = itineraryRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Itinerary not found"));
+        if (employer != null && (it.getEmployer() == null
+                || !it.getEmployer().getId().equals(employer.getId()))) {
+            throw new IllegalArgumentException("You can only view your own itineraries");
+        }
+        return ItineraryResponse.from(it);
+    }
+
+    /** Parse a client mode string to {@link Shipment.Mode}, defaulting to ROAD. */
+    private static Shipment.Mode parseMode(String raw) {
+        if (raw == null || raw.isBlank()) return Shipment.Mode.ROAD;
+        try {
+            return Shipment.Mode.valueOf(raw.trim().toUpperCase());
+        } catch (IllegalArgumentException e) {
+            return Shipment.Mode.ROAD;
+        }
     }
 
     @Override
@@ -90,7 +184,7 @@ public class JobServiceImpl implements JobService {
         // Licence + lane are pure in-memory predicates; apply them first so the
         // two DB lookups below run only over the surviving candidate set.
         List<Job> candidates = jobs.stream()
-                .filter(job -> LicenceCategory.satisfies(have, job.getRequiredLicenceCategory()))
+                .filter(job -> credentialMatchers.satisfies(job.getMode(), have, job.getRequiredLicenceCategory()))
                 .filter(job -> matchesAnyLane(job, lanes))
                 .collect(Collectors.toList());
 
@@ -124,6 +218,9 @@ public class JobServiceImpl implements JobService {
 
     private boolean matchesAnyLane(Job job, List<DriverLane> lanes) {
         if (lanes.isEmpty()) return true;
+        // DriverLane is a road country-pair concept; non-road legs aren't
+        // constrained by it (node-based lanes for sea/air arrive in M3).
+        if (job.getMode() != Shipment.Mode.ROAD) return true;
         String origin = job.getPickupCountry();
         String destination = job.getDeliveryCountry();
         // Job without country metadata (no Shipment yet) doesn't match any lane.

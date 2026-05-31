@@ -33,6 +33,17 @@ public class Shipment {
     @Column(nullable = false)
     private Mode mode = Mode.ROAD;
 
+    // Intermodal (M2): when this Shipment is one leg of a multi-leg movement it
+    // points at its Itinerary and carries its 1-indexed position. Null for a
+    // standalone single-leg job, so pre-M2 rows are unaffected.
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "itinerary_id")
+    @ToString.Exclude
+    private Itinerary itinerary;
+
+    @Column(name = "leg_sequence")
+    private Integer legSequence;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private ShipmentStatus status = ShipmentStatus.PLANNED;
@@ -40,8 +51,48 @@ public class Shipment {
     @Column(length = 3, nullable = false)
     private String currency = "EUR";
 
+    // Per-mode pricing inputs (M3b). All nullable; when the unit for this leg's
+    // mode has a value here, PricingService prices on that basis, otherwise it
+    // falls back to the carrier's rate × hours.
+    @Column(name = "distance_km")
+    private BigDecimal distanceKm;
+
+    @Column(name = "weight_kg")
+    private BigDecimal weightKg;
+
+    @Column(name = "volume_m3")
+    private BigDecimal volumeM3;
+
+    @Column(name = "container_count")
+    private Integer containerCount;
+
+    @Column(name = "piece_count")
+    private Integer pieceCount;
+
+    // The basis actually used to price this leg + the resolved quantity, so the
+    // charge is explainable (e.g. PER_CONTAINER × 2).
+    @Enumerated(EnumType.STRING)
+    @Column(name = "charge_unit")
+    private ChargeUnit chargeUnit;
+
+    @Column(name = "chargeable_quantity")
+    private BigDecimal chargeableQuantity;
+
+    // Carrier-payable cost for this leg (what the carrier earns). Populated by
+    // PricingService; was previously never set.
     @Column(name = "total_rate")
     private BigDecimal totalRate;
+
+    // Per-mode platform commission: the snapshotted rate (%), the resulting fee
+    // amount, and the employer-payable total = totalRate + commissionAmount.
+    @Column(name = "commission_percent")
+    private BigDecimal commissionPercent;
+
+    @Column(name = "commission_amount")
+    private BigDecimal commissionAmount;
+
+    @Column(name = "employer_total")
+    private BigDecimal employerTotal;
 
     @Column(name = "tendered_at")
     private LocalDateTime tenderedAt;

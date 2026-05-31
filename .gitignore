@@ -39,3 +39,6 @@ settings.xml
 # Node / SvelteKit
 node_modules/
 .svelte-kit/
+
+# Claude Code (local config / transcripts)
+.claude/

@@ -134,6 +134,17 @@ public class Job {
         return shipment != null ? shipment.getDestinationCountry() : null;
     }
 
+    /**
+     * Transport mode of this Load, read off the linked Shipment leg. Defaults
+     * to ROAD for a Job not yet linked to a Shipment, mirroring the tree-
+     * navigation shims above. This is the dispatch key for mode-aware pricing
+     * and compliance.
+     */
+    public Shipment.Mode getMode() {
+        return shipment != null && shipment.getMode() != null
+                ? shipment.getMode() : Shipment.Mode.ROAD;
+    }
+
     private TransportOrder orderOf() {
         if (shipment == null || shipment.getShipmentLines() == null
                 || shipment.getShipmentLines().isEmpty()) return null;

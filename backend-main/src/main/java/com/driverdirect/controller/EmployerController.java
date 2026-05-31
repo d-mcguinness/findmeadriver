@@ -46,6 +46,29 @@ public class EmployerController {
         return ResponseEntity.ok(jobService.getJobById(id));
     }
 
+    // ---- Intermodal (M2b): post a multi-leg movement ----
+
+    @PostMapping("/itineraries")
+    public ResponseEntity<ItineraryResponse> createItinerary(
+            Authentication auth,
+            @RequestBody CreateIntermodalJobRequest request) {
+        Employer employer = getEmployer(auth);
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(jobService.createIntermodalJob(employer, request));
+    }
+
+    @GetMapping("/itineraries")
+    public ResponseEntity<List<ItineraryResponse>> getMyItineraries(Authentication auth) {
+        Employer employer = getEmployer(auth);
+        return ResponseEntity.ok(jobService.getItinerariesByEmployer(employer));
+    }
+
+    @GetMapping("/itineraries/{id}")
+    public ResponseEntity<ItineraryResponse> getItinerary(Authentication auth, @PathVariable Long id) {
+        Employer employer = getEmployer(auth);
+        return ResponseEntity.ok(jobService.getItineraryById(id, employer));
+    }
+
     @PutMapping("/jobs/{id}/status")
     public ResponseEntity<JobResponse> updateJobStatus(
             Authentication auth,

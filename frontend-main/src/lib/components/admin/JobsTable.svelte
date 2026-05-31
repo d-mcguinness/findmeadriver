@@ -5,6 +5,8 @@
 	import { Add } from 'carbon-icons-svelte';
 	import type { Snippet } from 'svelte';
 	import type { Job } from '$lib/types';
+	import { transportModeLabel } from '$lib/transport-modes';
+	import { formatMoney } from '$lib/money';
 
 	let {
 		jobs,
@@ -36,11 +38,14 @@
 		{ key: 'pickupLocation', value: 'From' },
 		{ key: 'deliveryLocation', value: 'To' },
 		{ key: 'dateNeeded', value: 'Date' },
+		{ key: 'transportMode', value: 'Mode' },
 		{ key: 'status', value: 'Status' },
 		{ key: 'applicationCount', value: 'Applications' },
 		{ key: 'hours', value: 'Hours' },
 		{ key: 'ratePerHour', value: 'Rate' },
-		{ key: 'value', value: 'Value' },
+		{ key: 'value', value: 'Carrier cost' },
+		{ key: 'platformFee', value: 'Platform fee' },
+		{ key: 'employerTotal', value: 'Employer total' },
 		{ key: 'completedSpend', value: 'Completed spend' }
 	];
 
@@ -48,7 +53,10 @@
 		? [...baseHeaders, { key: 'actions', value: 'Actions' }]
 		: baseHeaders);
 
+	// Carrier cost: prefer the server-computed figure, fall back to hours × rate
+	// for any job not yet priced.
 	function jobValue(j: Job): number {
+		if (j.carrierCost != null) return Number(j.carrierCost);
 		const h = j.estimatedDurationHours ?? 0;
 		const r = Number(j.ratePerHour ?? 0);
 		return h * r;
@@ -63,12 +71,17 @@
 			pickupLocation: j.pickupLocation || '—',
 			deliveryLocation: j.deliveryLocation || '—',
 			dateNeeded: j.dateNeeded,
+			transportMode: transportModeLabel(j.transportMode),
 			status: j.status,
 			applicationCount: j.applicationCount,
 			hours: j.estimatedDurationHours != null ? `${j.estimatedDurationHours.toFixed(1)}h` : '—',
 			ratePerHour: j.ratePerHour != null ? `€${Number(j.ratePerHour).toFixed(0)}/h` : '—',
-			value: v > 0 ? `€${v.toFixed(0)}` : '—',
-			completedSpend: j.status === 'COMPLETED' && v > 0 ? `€${v.toFixed(0)}` : '—',
+			value: v > 0 ? formatMoney(v, j.currency) : '—',
+			platformFee: j.commissionAmount != null ? formatMoney(j.commissionAmount, j.currency) : '—',
+			employerTotal: j.employerTotal != null
+				? formatMoney(j.employerTotal, j.currency)
+				: (v > 0 ? formatMoney(v, j.currency) : '—'),
+			completedSpend: j.status === 'COMPLETED' && v > 0 ? formatMoney(v, j.currency) : '—',
 			actions: ''
 		};
 	}));

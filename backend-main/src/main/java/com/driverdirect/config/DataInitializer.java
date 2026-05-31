@@ -40,6 +40,7 @@ import com.driverdirect.repository.ShipmentRepository;
 import com.driverdirect.repository.StopRepository;
 import com.driverdirect.repository.TransportOrderRepository;
 import com.driverdirect.repository.UserRepository;
+import com.driverdirect.service.PricingService;
 import com.driverdirect.service.TmsTreeService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.CommandLineRunner;
@@ -71,6 +72,7 @@ public class DataInitializer implements CommandLineRunner {
     @Autowired private CabotageOperationRepository cabotageOperationRepository;
     @Autowired private LocationRepository locationRepository;
     @Autowired private TmsTreeService tmsTreeService;
+    @Autowired private PricingService pricingService;
     @Autowired private PasswordEncoder passwordEncoder;
 
     @Override
@@ -165,6 +167,18 @@ public class DataInitializer implements CommandLineRunner {
         seedDriver.setHomeCountry("IE");
         driverRepository.save(seedDriver);
 
+        // ---- Reference geography (M3): typed port/airport/terminal nodes ----
+        // Seeded BEFORE jobs so the tree builder's name+country upsert reuses
+        // them — existing road/sea/air/rail jobs then anchor on real nodes.
+        seedNode("Dublin Port", "IE", Location.LocationType.SEAPORT, "IEDUB", null);
+        seedNode("Port of Rotterdam", "NL", Location.LocationType.SEAPORT, "NLRTM", null);
+        seedNode("Ringaskiddy Port", "IE", Location.LocationType.SEAPORT, "IERAK", null);
+        seedNode("Cork Airport", "IE", Location.LocationType.AIRPORT, null, "ORK");
+        seedNode("Paris Charles de Gaulle", "IE", Location.LocationType.AIRPORT, null, "CDG");
+        seedNode("Madrid Barajas", "ES", Location.LocationType.AIRPORT, null, "MAD");
+        seedNode("Dublin North Wall", "IE", Location.LocationType.RAIL_TERMINAL, "IEDUB", null);
+        seedNode("Ballina Railhead", "IE", Location.LocationType.RAIL_TERMINAL, null, null);
+
         // ---- Jobs across all statuses ----
         Job j1 = createJob(acme, "Pallet run Dublin → Cork",
                 "Standard pallet delivery, 4 stops along the route.",
@@ -189,6 +203,69 @@ public class DataInitializer implements CommandLineRunner {
                 "Galway Wholesale Market", "Galway City Centre",
                 2.0, LocalDate.now().plusDays(1), new BigDecimal("22.00"),
                 Driver.CDLType.CLASS_C, JobStatus.OPEN, null);
+
+        // ---- Multi-modal demo jobs (M1: transport mode is now selectable) ----
+        Job jAir = createJob(fresh, "Air freight Cork → Paris CDG",
+                "Time-critical chilled pharma on a palletised ULD.",
+                "Cork Airport", "Paris Charles de Gaulle",
+                3.0, LocalDate.now().plusDays(2), new BigDecimal("80.00"),
+                Driver.CDLType.CLASS_C, JobStatus.OPEN, null, Shipment.Mode.AIR);
+
+        Job jSea = createJob(acme, "Sea freight Dublin → Rotterdam",
+                "FCL container on the Dublin–Rotterdam lane, drayage included.",
+                "Dublin Port", "Port of Rotterdam",
+                8.0, LocalDate.now().plusDays(6), new BigDecimal("12.00"),
+                Driver.CDLType.CLASS_A, JobStatus.OPEN, null, Shipment.Mode.OCEAN);
+
+        Job jRail = createJob(murphy, "Rail intermodal Dublin → Ballina",
+                "Containerised rail haul, terminal-to-terminal block-train slot.",
+                "Dublin North Wall", "Ballina Railhead",
+                6.0, LocalDate.now().plusDays(5), new BigDecimal("18.00"),
+                Driver.CDLType.CLASS_A, JobStatus.OPEN, null, Shipment.Mode.RAIL);
+
+        // ---- Intermodal demo (M2): true multi-leg door-to-door movement ----
+        // Dublin → Amsterdam: road drayage → ocean main leg → road delivery,
+        // priced per leg then rolled up to the itinerary grand total.
+        tmsTreeService.createIntermodalTreeFor(acme, new TmsTreeService.IntermodalOrderInput(
+                "Intermodal Dublin → Amsterdam",
+                "Door-to-door: road drayage to port, ocean main leg, road delivery.",
+                LocalDate.now().plusDays(9), "EUR",
+                List.of(
+                        // ROAD drayage priced per-km (hits the €150 minimum).
+                        new TmsTreeService.LegInput(Shipment.Mode.ROAD,
+                                "Acme Dublin Warehouse", "Dublin Port", "IE", "IE",
+                                new BigDecimal("30.00"), 1.5, "C",
+                                new BigDecimal("12"), null, null, null, null),
+                        // OCEAN main leg priced per-container (2 × FEU).
+                        new TmsTreeService.LegInput(Shipment.Mode.OCEAN,
+                                "Dublin Port", "Port of Rotterdam", "IE", "NL",
+                                new BigDecimal("12.00"), 8.0, "C",
+                                null, null, null, 2, null),
+                        // ROAD delivery priced per-km (hits the €150 minimum).
+                        new TmsTreeService.LegInput(Shipment.Mode.ROAD,
+                                "Port of Rotterdam", "Amsterdam DC", "NL", "NL",
+                                new BigDecimal("28.00"), 2.0, "C",
+                                new BigDecimal("25"), null, null, null, null))));
+
+        // A second intermodal demo with an AIR leg — showcases chargeable-weight
+        // pricing where volumetric weight (0.6 m³ → 100 kg) beats the 80 kg actual.
+        tmsTreeService.createIntermodalTreeFor(fresh, new TmsTreeService.IntermodalOrderInput(
+                "Express intermodal Cork → Madrid",
+                "Road feeder to Cork Airport, air main leg, road delivery in Madrid.",
+                LocalDate.now().plusDays(4), "EUR",
+                List.of(
+                        new TmsTreeService.LegInput(Shipment.Mode.ROAD,
+                                "Fresh Foods Depot", "Cork Airport", "IE", "IE",
+                                new BigDecimal("30.00"), 1.0, "C",
+                                new BigDecimal("8"), null, null, null, null),
+                        new TmsTreeService.LegInput(Shipment.Mode.AIR,
+                                "Cork Airport", "Madrid Barajas", "IE", "ES",
+                                new BigDecimal("80.00"), 3.0, "C",
+                                null, new BigDecimal("80"), new BigDecimal("0.6"), null, null),
+                        new TmsTreeService.LegInput(Shipment.Mode.ROAD,
+                                "Madrid Barajas", "Madrid DC", "ES", "ES",
+                                new BigDecimal("28.00"), 1.5, "C",
+                                new BigDecimal("15"), null, null, null, null))));
 
         Job j5 = createJob(buildwell, "Concrete blocks to site",
                 "Building materials delivery, forklift access on site.",
@@ -407,7 +484,9 @@ public class DataInitializer implements CommandLineRunner {
                 title, description, dateNeeded,
                 null, null, pickupCountry, deliveryCountry, currency, stops);
         tmsTreeService.createTreeFor(j, input);
-        return jobRepository.save(j);
+        j = jobRepository.save(j);
+        pricingService.priceJob(j);
+        return j;
     }
 
     /** Add lanes from a flat (origin, destination, origin, destination, ...) list. */
@@ -497,6 +576,15 @@ public class DataInitializer implements CommandLineRunner {
                           String pickup, String delivery,
                           double hours, LocalDate dateNeeded, BigDecimal rate,
                           Driver.CDLType cdl, JobStatus status, Driver assigned) {
+        return createJob(employer, title, description, pickup, delivery, hours,
+                dateNeeded, rate, cdl, status, assigned, Shipment.Mode.ROAD);
+    }
+
+    private Job createJob(Employer employer, String title, String description,
+                          String pickup, String delivery,
+                          double hours, LocalDate dateNeeded, BigDecimal rate,
+                          Driver.CDLType cdl, JobStatus status, Driver assigned,
+                          Shipment.Mode mode) {
         // Load-level fields only — customer metadata lives on the tree.
         Job j = new Job();
         j.setEmployer(employer);
@@ -513,9 +601,25 @@ public class DataInitializer implements CommandLineRunner {
         String currency = employer.getCurrency() != null ? employer.getCurrency() : "EUR";
         TmsTreeService.TmsOrderInput input = new TmsTreeService.TmsOrderInput(
                 title, description, dateNeeded,
-                pickup, delivery, country, country, currency);
+                pickup, delivery, country, country, currency, mode);
         tmsTreeService.createTreeFor(j, input);
-        return jobRepository.save(j);
+        j = jobRepository.save(j);
+        pricingService.priceJob(j);
+        return j;
+    }
+
+    /** Upsert a typed geography node (port / airport / terminal) by name+country. */
+    private void seedNode(String name, String country, Location.LocationType type,
+                          String unlocode, String iata) {
+        Location loc = locationRepository.findFirstByNameIgnoreCaseAndCountry(name, country)
+                .orElseGet(Location::new);
+        loc.setName(name);
+        if (loc.getAddressLine() == null) loc.setAddressLine(name);
+        loc.setCountry(country);
+        loc.setLocationType(type);
+        loc.setUnlocode(unlocode);
+        loc.setIata(iata);
+        locationRepository.save(loc);
     }
 
     private void createApplication(Job job, Driver driver, ApplicationStatus status, String note) {

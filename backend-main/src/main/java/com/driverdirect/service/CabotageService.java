@@ -5,6 +5,7 @@ import com.driverdirect.model.CabotageOperation;
 import com.driverdirect.model.Driver;
 import com.driverdirect.model.Job;
 import com.driverdirect.model.Location;
+import com.driverdirect.model.Shipment;
 import com.driverdirect.model.Stop;
 import com.driverdirect.repository.CabotageOperationRepository;
 import lombok.RequiredArgsConstructor;
@@ -35,6 +36,16 @@ public class CabotageService {
 
     private final CabotageOperationRepository repository;
 
+    /**
+     * Cabotage (EU 1072/2009) is a road-haulage concept. Air/sea/rail legs have
+     * entirely different (or no) cabotage regimes, so every entry point below
+     * short-circuits for non-road jobs rather than relying on the
+     * origin==destination test coincidentally holding.
+     */
+    private boolean isRoad(Job job) {
+        return job != null && job.getMode() == Shipment.Mode.ROAD;
+    }
+
     public enum CheckResult {
         OK,
         NOT_CABOTAGE,
@@ -56,6 +67,10 @@ public class CabotageService {
     public CabotageCheck check(Driver driver, Job job) {
         String origin = job.getPickupCountry();
         String destination = job.getDeliveryCountry();
+        if (!isRoad(job)) {
+            // Non-road leg → cabotage doesn't apply; never blocks.
+            return new CabotageCheck(CheckResult.NOT_CABOTAGE, destination, 0, LIMIT_PER_WINDOW);
+        }
         if (origin == null || destination == null) {
             // No country metadata → can't classify; allow.
             return new CabotageCheck(CheckResult.NOT_CABOTAGE, destination, 0, LIMIT_PER_WINDOW);
@@ -90,7 +105,8 @@ public class CabotageService {
     public Map<Long, Integer> countInWindowByDriver(Collection<Driver> drivers, Job job) {
         String origin = job.getPickupCountry();
         String destination = job.getDeliveryCountry();
-        if (origin == null || destination == null || !origin.equals(destination) || drivers.isEmpty()) {
+        if (!isRoad(job) || origin == null || destination == null
+                || !origin.equals(destination) || drivers.isEmpty()) {
             return Map.of();
         }
         LocalDate since = LocalDate.now().minusDays(WINDOW_DAYS);
@@ -109,6 +125,7 @@ public class CabotageService {
      * {@link #countInWindowByDriver}.
      */
     public boolean isOverLimit(Driver driver, Job job, int opsInWindow) {
+        if (!isRoad(job)) return false;
         String origin = job.getPickupCountry();
         String destination = job.getDeliveryCountry();
         if (origin == null || destination == null || !origin.equals(destination)) return false;
@@ -124,6 +141,7 @@ public class CabotageService {
     @Transactional
     public Optional<CabotageOperation> recordIfApplicable(Driver driver, Job job) {
         if (driver == null || job == null) return Optional.empty();
+        if (!isRoad(job)) return Optional.empty();
         String origin = job.getPickupCountry();
         String destination = job.getDeliveryCountry();
         if (origin == null || destination == null) return Optional.empty();

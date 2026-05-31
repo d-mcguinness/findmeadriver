@@ -9,6 +9,7 @@
 	import { api } from '$lib/api';
 	import { driverState } from '$lib/stores/driverState.svelte';
 	import type { AvailabilityResponse, Job, JobApplication, DriverComplianceSummary, TimeSlot, DriverLane, CabotageExposure } from '$lib/types';
+	import { transportModeLabel, modeTagColor } from '$lib/transport-modes';
 	import { HAULAGE_COUNTRIES, countryName } from '$lib/countries';
 	import { onMount } from 'svelte';
 	import { page } from '$app/state';
@@ -755,6 +756,7 @@
 											<div class="job-header">
 												<h4>{job.title}</h4>
 												<div class="header-tags">
+													<Tag type={modeTagColor(job.transportMode)}>{transportModeLabel(job.transportMode)}</Tag>
 													<Tag type="blue">{job.requiredLicenceCategory ?? job.requiredCdlType ?? 'Any licence'}</Tag>
 													{#if isWithdrawn}
 														<Tag type="magenta" icon={Undo}>Withdrawn</Tag>
