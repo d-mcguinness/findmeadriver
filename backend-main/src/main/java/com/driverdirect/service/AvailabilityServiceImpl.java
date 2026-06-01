@@ -23,13 +23,8 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class AvailabilityServiceImpl implements AvailabilityService {
 
-    private static final double MAX_DAILY_HOURS = 10.0;
-    private static final double DEFAULT_DAILY_MAX = 9.0;
-    private static final int MAX_EXTENDED_DAYS_PER_WEEK = 2;
-    private static final double MAX_WEEKLY_HOURS = 56.0;
-    private static final double MAX_FORTNIGHTLY_HOURS = 90.0;
-
     private final CarrierAvailabilityRepository availabilityRepository;
+    private final ComplianceRuleSetRegistry ruleSets;
 
     @Override
     @Transactional
@@ -76,10 +71,11 @@ public class AvailabilityServiceImpl implements AvailabilityService {
         double prevWeekTotal = calculateTotalHours(carrier, prevWeekStart, weekStart.minusDays(1));
         double fortnightlyTotal = weeklyTotal + prevWeekTotal;
 
+        ComplianceRuleSet rs = ruleSets.forCarrier(carrier);
         response.setWeeklyTotal(weeklyTotal);
         response.setFortnightlyTotal(fortnightlyTotal);
-        response.setWeeklyRemaining(MAX_WEEKLY_HOURS - weeklyTotal);
-        response.setFortnightlyRemaining(MAX_FORTNIGHTLY_HOURS - fortnightlyTotal);
+        response.setWeeklyRemaining(rs.maxWeeklyHours() - weeklyTotal);
+        response.setFortnightlyRemaining(rs.maxFortnightlyHours() - fortnightlyTotal);
 
         return response;
     }
@@ -112,16 +108,18 @@ public class AvailabilityServiceImpl implements AvailabilityService {
     }
 
     private void validateEntry(Carrier carrier, AvailabilityEntry entry, List<AvailabilityEntry> allEntries) {
+        // Mode-specific duty/rest ceilings (M5): road = EU 561, air = FTL, sea = STCW, …
+        ComplianceRuleSet rs = ruleSets.forCarrier(carrier);
         if (entry.getAvailableHours() < 0) {
             throw new IllegalArgumentException("Available hours cannot be negative");
         }
-        if (entry.getAvailableHours() > MAX_DAILY_HOURS) {
+        if (entry.getAvailableHours() > rs.maxDailyHours()) {
             throw new IllegalArgumentException(
-                    "Maximum " + MAX_DAILY_HOURS + " hours per day (EU tachograph regulation)");
+                    "Maximum " + rs.maxDailyHours() + " hours per day (" + rs.regulation() + ")");
         }
 
-        // Check extended day limit: max 2 days per week over 9 hours
-        if (entry.getAvailableHours() > DEFAULT_DAILY_MAX) {
+        // Extended-day limit: only modes where defaultDailyMax < maxDailyHours.
+        if (entry.getAvailableHours() > rs.defaultDailyMax()) {
             LocalDate weekStart = entry.getDate().with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
             LocalDate weekEnd = weekStart.plusDays(6);
 
@@ -130,22 +128,22 @@ public class AvailabilityServiceImpl implements AvailabilityService {
                     .findByCarrierAndDateBetween(carrier, weekStart, weekEnd);
             long extendedDays = weekEntries.stream()
                     .filter(e -> !e.getDate().equals(entry.getDate()))
-                    .filter(e -> e.getAvailableHours() > DEFAULT_DAILY_MAX)
+                    .filter(e -> e.getAvailableHours() > rs.defaultDailyMax())
                     .count();
 
             // Also count from the current batch being submitted
             long batchExtendedDays = allEntries.stream()
                     .filter(e -> !e.getDate().equals(entry.getDate()))
                     .filter(e -> e.getDate().compareTo(weekStart) >= 0 && e.getDate().compareTo(weekEnd) <= 0)
-                    .filter(e -> e.getAvailableHours() > DEFAULT_DAILY_MAX)
+                    .filter(e -> e.getAvailableHours() > rs.defaultDailyMax())
                     .count();
 
             // Use the higher of the two counts (batch entries will replace DB entries)
             long totalExtended = Math.max(extendedDays, batchExtendedDays);
-            if (totalExtended >= MAX_EXTENDED_DAYS_PER_WEEK) {
+            if (totalExtended >= rs.maxExtendedDaysPerWeek()) {
                 throw new IllegalArgumentException(
-                        "Maximum " + MAX_EXTENDED_DAYS_PER_WEEK + " days per week can exceed " +
-                        DEFAULT_DAILY_MAX + " hours (EU tachograph regulation)");
+                        "Maximum " + rs.maxExtendedDaysPerWeek() + " days per week can exceed " +
+                        rs.defaultDailyMax() + " hours (" + rs.regulation() + ")");
             }
         }
 
@@ -162,18 +160,18 @@ public class AvailabilityServiceImpl implements AvailabilityService {
                 .sum();
 
         double projectedWeekly = Math.max(currentWeekTotal, batchTotal) + entry.getAvailableHours();
-        if (projectedWeekly > MAX_WEEKLY_HOURS) {
+        if (projectedWeekly > rs.maxWeeklyHours()) {
             throw new IllegalArgumentException(
-                    "Weekly total would exceed " + MAX_WEEKLY_HOURS + " hours (EU tachograph regulation). " +
+                    "Weekly total would exceed " + rs.maxWeeklyHours() + " hours (" + rs.regulation() + "). " +
                     "Current week: " + currentWeekTotal + "h, this entry: " + entry.getAvailableHours() + "h");
         }
 
         // Check fortnightly total
         LocalDate prevWeekStart = weekStart.minusWeeks(1);
         double prevWeekTotal = calculateTotalHours(carrier, prevWeekStart, weekStart.minusDays(1));
-        if (projectedWeekly + prevWeekTotal > MAX_FORTNIGHTLY_HOURS) {
+        if (projectedWeekly + prevWeekTotal > rs.maxFortnightlyHours()) {
             throw new IllegalArgumentException(
-                    "Fortnightly total would exceed " + MAX_FORTNIGHTLY_HOURS + " hours (EU tachograph regulation). " +
+                    "Fortnightly total would exceed " + rs.maxFortnightlyHours() + " hours (" + rs.regulation() + "). " +
                     "Previous week: " + prevWeekTotal + "h, projected this week: " + projectedWeekly + "h");
         }
     }
