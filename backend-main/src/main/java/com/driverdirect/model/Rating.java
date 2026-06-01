@@ -8,7 +8,7 @@ import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "ratings",
-       uniqueConstraints = @UniqueConstraint(columnNames = {"job_id", "reviewer_id"}))
+       uniqueConstraints = @UniqueConstraint(columnNames = {"load_id", "reviewer_id"}))
 @Data
 @NoArgsConstructor
 public class Rating {
@@ -18,8 +18,8 @@ public class Rating {
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "job_id", nullable = false)
-    private Job job;
+    @JoinColumn(name = "load_id", nullable = false)
+    private Load load;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "reviewer_id", nullable = false)

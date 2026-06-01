@@ -14,7 +14,7 @@ import java.util.Map;
  *
  * <p>For now only ROAD has a real matcher (the HGV/CDL covers-lattice via
  * {@link LicenceCategory#satisfies}). Non-road modes match permissively: the
- * road licensing regime simply does not apply to them, so air/sea/rail jobs are
+ * road licensing regime simply does not apply to them, so air/sea/rail loads are
  * no longer wrongly blocked at browse/apply time.
  */
 @Component

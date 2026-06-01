@@ -8,8 +8,8 @@ import javax.validation.constraints.NotBlank;
 
 /**
  * First-class address record. Replaces the free-text pickup/delivery strings
- * on Job. Owned by an Shipper when curated (warehouse, customer DC); null
- * owner means ad-hoc (typed once on the post-a-job form).
+ * on Load. Owned by an Shipper when curated (warehouse, customer DC); null
+ * owner means ad-hoc (typed once on the post-a-load form).
  */
 @Entity
 @Table(name = "locations")
@@ -60,5 +60,16 @@ public class Location {
     @Column(length = 1024, name = "operating_hours")
     private String operatingHours; // "MO-FR 08:00-18:00" — parsed by a later phase
 
-    public enum LocationType { ADDRESS, SEAPORT, AIRPORT, RAIL_TERMINAL, INLAND_TERMINAL }
+    public enum
+
+
+
+
+
+
+
+
+
+
+    LocationType { ADDRESS, SEAPORT, AIRPORT, RAIL_TERMINAL, INLAND_TERMINAL }
 }

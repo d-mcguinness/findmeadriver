@@ -5,7 +5,7 @@
 	} from 'carbon-components-svelte';
 	import { ArrowLeft, UserAdmin, Add, Document } from 'carbon-icons-svelte';
 	import { api } from '$lib/api';
-	import type { AdminUser, Job, JobApplication } from '$lib/types';
+	import type { AdminUser, Load, LoadApplication } from '$lib/types';
 	import { onMount } from 'svelte';
 	import UsersTable from '$lib/components/admin/UsersTable.svelte';
 
@@ -15,9 +15,9 @@
 
 	// Apply-on-behalf modal state
 	let applyOpen = $state(false);
-	let applyDriver = $state<AdminUser | null>(null);
-	let openJobs = $state<Job[]>([]);
-	let applyJobId = $state<string>('');
+	let applyCarrier = $state<AdminUser | null>(null);
+	let openLoads = $state<Load[]>([]);
+	let applyLoadId = $state<string>('');
 	let applyNote = $state('');
 	let applyError = $state('');
 	let applySuccess = $state('');
@@ -35,49 +35,49 @@
 		}
 	}
 
-	async function openApplyModal(driver: AdminUser) {
-		applyDriver = driver;
+	async function openApplyModal(carrier: AdminUser) {
+		applyCarrier = carrier;
 		applyError = '';
 		applySuccess = '';
 		applyNote = '';
-		applyJobId = '';
+		applyLoadId = '';
 		applyOpen = true;
 		try {
-			const [allJobs, driverApps] = await Promise.all([
-				api.get<Job[]>('/api/admin/jobs'),
-				api.get<JobApplication[]>(`/api/admin/drivers/${driver.id}/applications`)
+			const [allLoads, carrierApps] = await Promise.all([
+				api.get<Load[]>('/api/admin/loads'),
+				api.get<LoadApplication[]>(`/api/admin/carriers/${carrier.id}/applications`)
 			]);
-			// Block jobs with a non-withdrawn application; withdrawn ones are eligible
+			// Block loads with a non-withdrawn application; withdrawn ones are eligible
 			// for re-apply (backend revives the existing row).
-			const blockedJobIds = new Set(
-				driverApps.filter(a => a.status !== 'WITHDRAWN').map(a => a.jobId)
+			const blockedLoadIds = new Set(
+				carrierApps.filter(a => a.status !== 'WITHDRAWN').map(a => a.loadId)
 			);
-			const jobLicence = (j: Job) => j.requiredLicenceCategory ?? j.requiredCdlType;
-			const driverLicence = driver.licenceCategory ?? driver.cdlType;
-			openJobs = allJobs.filter(j =>
+			const loadLicence = (j: Load) => j.requiredLicenceCategory ?? j.requiredCdlType;
+			const carrierLicence = carrier.licenceCategory ?? carrier.cdlType;
+			openLoads = allLoads.filter(j =>
 				j.status === 'OPEN' &&
-				!blockedJobIds.has(j.id) &&
-				(!jobLicence(j) || !driverLicence || jobLicence(j) === driverLicence)
+				!blockedLoadIds.has(j.id) &&
+				(!loadLicence(j) || !carrierLicence || loadLicence(j) === carrierLicence)
 			);
-			if (openJobs.length > 0) applyJobId = String(openJobs[0].id);
+			if (openLoads.length > 0) applyLoadId = String(openLoads[0].id);
 		} catch (e: any) {
-			applyError = e?.error || e?.message || 'Failed to load jobs';
-			openJobs = [];
+			applyError = e?.error || e?.message || 'Failed to load loads';
+			openLoads = [];
 		}
 	}
 
 	async function submitApply() {
-		if (!applyDriver || !applyJobId) return;
+		if (!applyCarrier || !applyLoadId) return;
 		applyError = '';
 		applySuccess = '';
 		applyLoading = true;
 		try {
 			await api.post(
-				`/api/admin/applications?driverId=${applyDriver.id}&jobId=${applyJobId}`,
+				`/api/admin/applications?carrierId=${applyCarrier.id}&loadId=${applyLoadId}`,
 				{ coverNote: applyNote }
 			);
 			applySuccess = 'Application submitted on behalf of ' +
-				`${applyDriver.firstName} ${applyDriver.lastName}.`;
+				`${applyCarrier.firstName} ${applyCarrier.lastName}.`;
 			setTimeout(() => { applyOpen = false; }, 1200);
 		} catch (e: any) {
 			applyError = e?.error || e?.message || 'Failed to apply';
@@ -93,13 +93,13 @@
 	<div class="row-actions">
 		{#if user.userType === 'SHIPPER'}
 			<Button size="small" kind="primary" icon={Add}
-				href="/dashboard/jobs/post?shipperId={user.id}">
-				Post Job
+				href="/dashboard/loads/post?shipperId={user.id}">
+				Post Load
 			</Button>
-		{:else if user.userType === 'DRIVER'}
+		{:else if user.userType === 'CARRIER'}
 			<Button size="small" kind="tertiary" icon={Document}
 				on:click={() => openApplyModal(user)}>
-				Apply for Job
+				Apply for Load
 			</Button>
 		{/if}
 	</div>
@@ -136,12 +136,12 @@
 
 <Modal
 	bind:open={applyOpen}
-	modalHeading={applyDriver
-		? `Apply for a job — ${applyDriver.firstName} ${applyDriver.lastName}`
-		: 'Apply for a job'}
+	modalHeading={applyCarrier
+		? `Apply for a load — ${applyCarrier.firstName} ${applyCarrier.lastName}`
+		: 'Apply for a load'}
 	primaryButtonText="Submit Application"
 	secondaryButtonText="Cancel"
-	primaryButtonDisabled={!applyJobId || applyLoading || openJobs.length === 0}
+	primaryButtonDisabled={!applyLoadId || applyLoading || openLoads.length === 0}
 	on:click:button--primary={submitApply}
 	on:click:button--secondary={() => applyOpen = false}
 >
@@ -154,18 +154,18 @@
 			hideCloseButton />
 	{/if}
 
-	{#if openJobs.length === 0}
-		<p>No open jobs match this driver's licence category ({applyDriver?.licenceCategory ?? applyDriver?.cdlType ?? 'none set'}).</p>
+	{#if openLoads.length === 0}
+		<p>No open loads match this carrier's licence category ({applyCarrier?.licenceCategory ?? applyCarrier?.cdlType ?? 'none set'}).</p>
 	{:else}
-		<Select bind:selected={applyJobId} labelText="Choose an open job">
-			{#each openJobs as job}
-				<SelectItem value={String(job.id)}
-					text="#{job.id} · {job.title} · {job.pickupLocation} → {job.deliveryLocation} · {job.dateNeeded}" />
+		<Select bind:selected={applyLoadId} labelText="Choose an open load">
+			{#each openLoads as load}
+				<SelectItem value={String(load.id)}
+					text="#{load.id} · {load.title} · {load.pickupLocation} → {load.deliveryLocation} · {load.dateNeeded}" />
 			{/each}
 		</Select>
 		<br />
 		<TextArea bind:value={applyNote} labelText="Cover note (optional)"
-			placeholder="Why is this driver a good fit?" rows={3} />
+			placeholder="Why is this carrier a good fit?" rows={3} />
 	{/if}
 </Modal>
 

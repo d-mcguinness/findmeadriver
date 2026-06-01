@@ -23,6 +23,6 @@ public class Role {
     public enum RoleType {
         ROLE_ADMIN,
         ROLE_SHIPPER,
-        ROLE_DRIVER
+        ROLE_CARRIER
     }
 }

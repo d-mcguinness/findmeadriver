@@ -15,9 +15,9 @@ public class AdminUserResponse {
     private String phone;
     private boolean enabled;
     private Set<String> roles;
-    private String userType; // DRIVER, SHIPPER, or ADMIN
+    private String userType; // CARRIER, SHIPPER, or ADMIN
 
-    // Driver-specific
+    // Carrier-specific
     private String licenseNumber;
     /** @deprecated kept for backwards compatibility; use {@link #licenceCategory}. */
     @Deprecated
@@ -41,13 +41,13 @@ public class AdminUserResponse {
                 .map(role -> role.getName().name())
                 .collect(Collectors.toSet()));
 
-        if (user instanceof Driver driver) {
-            r.setUserType("DRIVER");
-            r.setLicenseNumber(driver.getLicenseNumber());
-            r.setLicenceCategory(driver.getLicenceCategory());
+        if (user instanceof Carrier carrier) {
+            r.setUserType("CARRIER");
+            r.setLicenseNumber(carrier.getLicenseNumber());
+            r.setLicenceCategory(carrier.getLicenceCategory());
             // Keep the legacy field populated so existing frontend code keeps working.
-            r.setCdlType(driver.getLicenceCategory());
-            r.setYearsExperience(driver.getYearsExperience());
+            r.setCdlType(carrier.getLicenceCategory());
+            r.setYearsExperience(carrier.getYearsExperience());
         } else if (user instanceof Shipper shipper) {
             r.setUserType("SHIPPER");
             r.setCompanyName(shipper.getCompanyName());

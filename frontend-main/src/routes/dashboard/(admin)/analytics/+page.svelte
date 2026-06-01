@@ -4,12 +4,12 @@
 	} from 'carbon-components-svelte';
 	import { ArrowLeft, Analytics, UserMultiple, Van, Document } from 'carbon-icons-svelte';
 	import { api } from '$lib/api';
-	import type { PlatformStats, Job } from '$lib/types';
+	import type { PlatformStats, Load } from '$lib/types';
 	import { onMount } from 'svelte';
-	import JobsTable from '$lib/components/admin/JobsTable.svelte';
+	import LoadsTable from '$lib/components/admin/LoadsTable.svelte';
 
 	let stats = $state<PlatformStats | null>(null);
-	let jobs = $state<Job[]>([]);
+	let loads = $state<Load[]>([]);
 	let loading = $state(true);
 	let error = $state('');
 
@@ -19,10 +19,10 @@
 		try {
 			const [s, j] = await Promise.all([
 				api.get<PlatformStats>('/api/admin/stats'),
-				api.get<Job[]>('/api/admin/jobs')
+				api.get<Load[]>('/api/admin/loads')
 			]);
 			stats = s;
-			jobs = j;
+			loads = j;
 		} catch (e: any) {
 			error = e.message || 'Failed to load analytics';
 		} finally {
@@ -66,7 +66,7 @@
 						<div class="stat-value">{stats.totalUsers}</div>
 						<div class="stat-label">Total Users</div>
 						<div class="stat-breakdown">
-							<Tag type="blue" size="sm">{stats.totalDrivers} drivers</Tag>
+							<Tag type="blue" size="sm">{stats.totalCarriers} carriers</Tag>
 							<Tag type="green" size="sm">{stats.totalShippers} shippers</Tag>
 						</div>
 					</div>
@@ -76,12 +76,12 @@
 				<Tile class="stat-tile">
 					<div class="stat-card">
 						<Van size={24} />
-						<div class="stat-value">{stats.totalJobs}</div>
-						<div class="stat-label">Total Jobs</div>
+						<div class="stat-value">{stats.totalLoads}</div>
+						<div class="stat-label">Total Loads</div>
 						<div class="stat-breakdown">
-							<Tag type="green" size="sm">{stats.openJobs} open</Tag>
-							<Tag type="blue" size="sm">{stats.assignedJobs} assigned</Tag>
-							<Tag type="cyan" size="sm">{stats.inProgressJobs} in progress</Tag>
+							<Tag type="green" size="sm">{stats.openLoads} open</Tag>
+							<Tag type="blue" size="sm">{stats.assignedLoads} assigned</Tag>
+							<Tag type="cyan" size="sm">{stats.inProgressLoads} in progress</Tag>
 						</div>
 					</div>
 				</Tile>
@@ -90,10 +90,10 @@
 				<Tile class="stat-tile">
 					<div class="stat-card">
 						<Van size={24} />
-						<div class="stat-value">{stats.completedJobs}</div>
-						<div class="stat-label">Completed Jobs</div>
+						<div class="stat-value">{stats.completedLoads}</div>
+						<div class="stat-label">Completed Loads</div>
 						<div class="stat-breakdown">
-							<Tag type="red" size="sm">{stats.cancelledJobs} cancelled</Tag>
+							<Tag type="red" size="sm">{stats.cancelledLoads} cancelled</Tag>
 						</div>
 					</div>
 				</Tile>
@@ -116,11 +116,11 @@
 
 		<Row>
 			<Column>
-				<h2 id="jobs" class="section-heading">All Jobs</h2>
-				{#if jobs.length === 0}
-					<InlineNotification kind="info" title="No jobs" subtitle="No jobs have been posted yet." hideCloseButton />
+				<h2 id="loads" class="section-heading">All Loads</h2>
+				{#if loads.length === 0}
+					<InlineNotification kind="info" title="No loads" subtitle="No loads have been posted yet." hideCloseButton />
 				{:else}
-					<JobsTable {jobs} />
+					<LoadsTable {loads} />
 				{/if}
 			</Column>
 		</Row>

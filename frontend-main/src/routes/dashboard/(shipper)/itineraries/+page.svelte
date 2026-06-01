@@ -60,7 +60,7 @@
 				<Button kind="ghost" size="small" href="/dashboard" icon={ArrowLeft}>Back to Dashboard</Button>
 				<div class="head-row">
 					<h1>Intermodal Itineraries</h1>
-					<Button size="small" icon={Add} href="/dashboard/jobs/post-intermodal">Post intermodal job</Button>
+					<Button size="small" icon={Add} href="/dashboard/loads/post-intermodal">Post intermodal load</Button>
 				</div>
 			</div>
 		</Column>
@@ -76,7 +76,7 @@
 				<p>Loading itineraries...</p>
 			{:else if itineraries.length === 0}
 				<InlineNotification kind="info" title="No itineraries yet"
-					subtitle="Post a multi-leg intermodal job to see it here." hideCloseButton />
+					subtitle="Post a multi-leg intermodal load to see it here." hideCloseButton />
 			{:else}
 				<div class="it-list">
 					{#each itineraries as it}

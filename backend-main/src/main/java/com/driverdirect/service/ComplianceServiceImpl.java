@@ -2,10 +2,10 @@ package com.driverdirect.service;
 
 import com.driverdirect.dto.ComplianceDocumentResponse;
 import com.driverdirect.dto.CreateComplianceDocumentRequest;
-import com.driverdirect.dto.DriverComplianceSummary;
+import com.driverdirect.dto.CarrierComplianceSummary;
 import com.driverdirect.model.ComplianceDocument;
 import com.driverdirect.model.DocumentStatus;
-import com.driverdirect.model.Driver;
+import com.driverdirect.model.Carrier;
 import com.driverdirect.repository.ComplianceDocumentRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -23,13 +23,13 @@ public class ComplianceServiceImpl implements ComplianceService {
 
     @Override
     @Transactional
-    public ComplianceDocumentResponse addDocument(Driver driver, CreateComplianceDocumentRequest request) {
+    public ComplianceDocumentResponse addDocument(Carrier carrier, CreateComplianceDocumentRequest request) {
         // Replace existing document of same type
-        documentRepository.findByDriverAndDocumentType(driver, request.getDocumentType())
+        documentRepository.findByCarrierAndDocumentType(carrier, request.getDocumentType())
                 .ifPresent(existing -> documentRepository.delete(existing));
 
         ComplianceDocument doc = new ComplianceDocument();
-        doc.setDriver(driver);
+        doc.setCarrier(carrier);
         doc.setDocumentType(request.getDocumentType());
         doc.setDocumentNumber(request.getDocumentNumber());
         doc.setExpiryDate(request.getExpiryDate());
@@ -40,10 +40,10 @@ public class ComplianceServiceImpl implements ComplianceService {
     }
 
     @Override
-    public DriverComplianceSummary getComplianceSummary(Driver driver) {
-        List<ComplianceDocument> docs = documentRepository.findByDriverOrderByUploadedAtDesc(driver);
+    public CarrierComplianceSummary getComplianceSummary(Carrier carrier) {
+        List<ComplianceDocument> docs = documentRepository.findByCarrierOrderByUploadedAtDesc(carrier);
 
-        DriverComplianceSummary summary = new DriverComplianceSummary();
+        CarrierComplianceSummary summary = new CarrierComplianceSummary();
         summary.setDocuments(docs.stream().map(ComplianceDocumentResponse::from).collect(Collectors.toList()));
         summary.setTotalCount(docs.size());
 
@@ -69,11 +69,11 @@ public class ComplianceServiceImpl implements ComplianceService {
 
     @Override
     @Transactional
-    public void deleteDocument(Long documentId, Driver driver) {
+    public void deleteDocument(Long documentId, Carrier carrier) {
         ComplianceDocument doc = documentRepository.findById(documentId)
                 .orElseThrow(() -> new IllegalArgumentException("Document not found"));
 
-        if (!doc.getDriver().getId().equals(driver.getId())) {
+        if (!doc.getCarrier().getId().equals(carrier.getId())) {
             throw new IllegalArgumentException("You can only delete your own documents");
         }
 
@@ -81,8 +81,8 @@ public class ComplianceServiceImpl implements ComplianceService {
     }
 
     @Override
-    public boolean isDriverVerified(Driver driver) {
-        List<ComplianceDocument> docs = documentRepository.findByDriverOrderByUploadedAtDesc(driver);
+    public boolean isCarrierVerified(Carrier carrier) {
+        List<ComplianceDocument> docs = documentRepository.findByCarrierOrderByUploadedAtDesc(carrier);
         if (docs.isEmpty()) return false;
         return docs.stream().allMatch(d -> d.getStatus() == DocumentStatus.VERIFIED);
     }

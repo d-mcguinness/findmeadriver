@@ -61,7 +61,7 @@ public class SecurityConfig {
                     .requestMatchers("/api/user/all").authenticated()
                     .requestMatchers("/api/admin/**").hasRole("ADMIN")
                     .requestMatchers("/api/shipper/**").hasRole("SHIPPER")
-                    .requestMatchers("/api/driver/**").hasRole("DRIVER")
+                    .requestMatchers("/api/carrier/**").hasRole("CARRIER")
                     .anyRequest().authenticated()
             );
 

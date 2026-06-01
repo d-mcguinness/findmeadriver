@@ -15,10 +15,10 @@
 		<Column lg={10} md={6} sm={4}>
 			<div class="hero">
 				<Enterprise size={48} />
-				<h1>Hire Qualified Drivers, Directly</h1>
+				<h1>Hire Qualified Carriers, Directly</h1>
 				<p class="hero-subtitle">
-					Skip the recruiting agencies. Driver Direct gives you direct access to a pool of
-					verified commercial drivers actively looking for work.
+					Skip the recruiting agencies. Carrier Direct gives you direct access to a pool of
+					verified commercial carriers actively looking for work.
 				</p>
 				<div class="hero-actions">
 					<Button href="/register" icon={ArrowRight}>Register as a Shipper</Button>
@@ -41,7 +41,7 @@
 					<Enterprise size={32} />
 					<h3>1. Set Up Your Company</h3>
 					<p>
-						Create your company profile with industry, size, and location. Let drivers
+						Create your company profile with industry, size, and location. Let carriers
 						know who you are and what you offer.
 					</p>
 				</div>
@@ -51,10 +51,10 @@
 			<Tile>
 				<div class="feature-tile">
 					<Search size={32} />
-					<h3>2. Browse Drivers</h3>
+					<h3>2. Browse Carriers</h3>
 					<p>
 						Search by CDL type, endorsements, experience, and location. Filter to find
-						exactly the drivers you need.
+						exactly the carriers you need.
 					</p>
 				</div>
 			</Tile>
@@ -87,28 +87,28 @@
 						<Time size={24} />
 						<div>
 							<h4>Faster Hiring</h4>
-							<p>Cut weeks off your hiring timeline by connecting directly with available drivers in your area.</p>
+							<p>Cut weeks off your hiring timeline by connecting directly with available carriers in your area.</p>
 						</div>
 					</div>
 					<div class="benefit-item">
 						<CheckmarkOutline size={24} />
 						<div>
 							<h4>Verified Profiles</h4>
-							<p>Every driver profile includes CDL type, endorsements, and experience — no guesswork.</p>
+							<p>Every carrier profile includes CDL type, endorsements, and experience — no guesswork.</p>
 						</div>
 					</div>
 					<div class="benefit-item">
 						<Search size={24} />
 						<div>
 							<h4>Targeted Search</h4>
-							<p>Filter by Class A, B, C, or non-CDL. Find drivers with the exact endorsements you need.</p>
+							<p>Filter by Class A, B, C, or non-CDL. Find carriers with the exact endorsements you need.</p>
 						</div>
 					</div>
 					<div class="benefit-item">
 						<Enterprise size={24} />
 						<div>
 							<h4>Built for Your Industry</h4>
-							<p>Whether you're in logistics, construction, agriculture, or food service — we've got drivers for you.</p>
+							<p>Whether you're in logistics, construction, agriculture, or food service — we've got carriers for you.</p>
 						</div>
 					</div>
 				</div>
@@ -117,8 +117,8 @@
 		<Column lg={4} md={2} sm={4}>
 			<Tile>
 				<div class="cta-tile">
-					<h3>Ready to find drivers?</h3>
-					<p>Create your shipper profile and start browsing qualified drivers today.</p>
+					<h3>Ready to find carriers?</h3>
+					<p>Create your shipper profile and start browsing qualified carriers today.</p>
 					<Button href="/register" icon={ArrowRight}>Register Now</Button>
 				</div>
 			</Tile>

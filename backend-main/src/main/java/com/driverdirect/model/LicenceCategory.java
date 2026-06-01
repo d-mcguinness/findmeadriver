@@ -7,12 +7,12 @@ import java.util.Set;
 
 /**
  * Typed licence categories for the EU, UK, and US driving regimes. Stored as
- * the enum {@code name()} on Driver.licenceCategory and Job.requiredLicenceCategory
+ * the enum {@code name()} on Carrier.licenceCategory and Load.requiredLicenceCategory
  * (both still typed as String for forward-compatibility with regimes we haven't
  * modelled yet — e.g. AU, CA).
  *
- * <p>Categories form a "covers" lattice: a driver holding category X can apply
- * to a job requiring category Y when {@code X.covers(Y)} — i.e. X grants at
+ * <p>Categories form a "covers" lattice: a carrier holding category X can apply
+ * to a load requiring category Y when {@code X.covers(Y)} — i.e. X grants at
  * least the entitlement of Y, possibly under a different national naming
  * (UK HGV class 1 ≡ EU C+E).
  *
@@ -73,7 +73,7 @@ public enum LicenceCategory {
         COVERS.put(D1E, EnumSet.of(D1));
         COVERS.put(D1,  EnumSet.noneOf(LicenceCategory.class));
 
-        // UK ↔ EU equivalence (two-way: a CE driver can take an HGV-Class-1 job
+        // UK ↔ EU equivalence (two-way: a CE carrier can take an HGV-Class-1 load
         // and vice versa).
         COVERS.put(HGV_CLASS_1, EnumSet.of(CE, C, C1, C1E, HGV_CLASS_2));
         COVERS.put(HGV_CLASS_2, EnumSet.of(C, C1));

@@ -26,12 +26,12 @@
 	let error = $state('');
 	let success = $state('');
 
-	// Driver fields
-	let driverEmail = $state('');
-	let driverPassword = $state('');
-	let driverFirstName = $state('');
-	let driverLastName = $state('');
-	let driverPhone = $state('');
+	// Carrier fields
+	let carrierEmail = $state('');
+	let carrierPassword = $state('');
+	let carrierFirstName = $state('');
+	let carrierLastName = $state('');
+	let carrierPhone = $state('');
 	let licenseNumber = $state('');
 	let licenseExpiration = $state('');
 	let cdlType = $state('');
@@ -63,14 +63,14 @@
 	function randPhone() { return '08' + randInt(1, 9) + String(randInt(1000000, 9999999)); }
 	function randId() { return String(randInt(10000, 99999)); }
 
-	function fillDriver() {
+	function fillCarrier() {
 		const first = pick(firstNames);
 		const last = pick(lastNames);
-		driverFirstName = first;
-		driverLastName = last;
-		driverEmail = `${first.toLowerCase()}.${last.toLowerCase()}${randInt(1, 999)}@test.com`;
-		driverPassword = 'password123';
-		driverPhone = randPhone();
+		carrierFirstName = first;
+		carrierLastName = last;
+		carrierEmail = `${first.toLowerCase()}.${last.toLowerCase()}${randInt(1, 999)}@test.com`;
+		carrierPassword = 'password123';
+		carrierPhone = randPhone();
 		licenseNumber = 'DL-' + randId();
 		licenseExpiration = `${randInt(2026, 2030)}-${String(randInt(1, 12)).padStart(2, '0')}-${String(randInt(1, 28)).padStart(2, '0')}`;
 		cdlType = pick(cdlTypes);
@@ -92,17 +92,17 @@
 		companyWebsite = `https://${company.toLowerCase().replace(/\s/g, '')}.ie`;
 	}
 
-	async function registerDriver() {
+	async function registerCarrier() {
 		error = '';
 		success = '';
 		loading = true;
 		try {
-			await api.post('/api/user/register/driver', {
-				email: driverEmail,
-				password: driverPassword,
-				firstName: driverFirstName,
-				lastName: driverLastName,
-				phone: driverPhone,
+			await api.post('/api/user/register/carrier', {
+				email: carrierEmail,
+				password: carrierPassword,
+				firstName: carrierFirstName,
+				lastName: carrierLastName,
+				phone: carrierPhone,
 				licenseNumber,
 				licenseExpiration: licenseExpiration || undefined,
 				cdlType: cdlType || undefined,
@@ -149,7 +149,7 @@
 			<div class="form-container">
 				<Tile>
 					<h2>Create an Account</h2>
-					<p class="form-subtitle">Join Driver Direct as a driver or shipper</p>
+					<p class="form-subtitle">Join Carrier Direct as a carrier or shipper</p>
 
 					{#if error}
 						<InlineNotification
@@ -168,33 +168,33 @@
 					{/if}
 
 					<Tabs bind:selected={selectedTab}>
-						<Tab label="Driver" />
+						<Tab label="Carrier" />
 						<Tab label="Shipper" />
 						<svelte:fragment slot="content">
 							<TabContent>
-								<form onsubmit={(e: Event) => { e.preventDefault(); registerDriver(); }}>
+								<form onsubmit={(e: Event) => { e.preventDefault(); registerCarrier(); }}>
 									{#if isDev}
 										<div class="dev-fill">
-											<Button size="small" kind="ghost" on:click={fillDriver}>Dev: Fill Driver</Button>
+											<Button size="small" kind="ghost" on:click={fillCarrier}>Dev: Fill Carrier</Button>
 										</div>
 									{/if}
 									<h4>Personal Information</h4>
 									<div class="form-row">
 										<div class="form-field">
-											<TextInput labelText="First Name" bind:value={driverFirstName} />
+											<TextInput labelText="First Name" bind:value={carrierFirstName} />
 										</div>
 										<div class="form-field">
-											<TextInput labelText="Last Name" bind:value={driverLastName} />
+											<TextInput labelText="Last Name" bind:value={carrierLastName} />
 										</div>
 									</div>
 									<div class="form-field">
-										<TextInput labelText="Email" type="email" bind:value={driverEmail} required />
+										<TextInput labelText="Email" type="email" bind:value={carrierEmail} required />
 									</div>
 									<div class="form-field">
-										<PasswordInput labelText="Password" bind:value={driverPassword} required />
+										<PasswordInput labelText="Password" bind:value={carrierPassword} required />
 									</div>
 									<div class="form-field">
-										<TextInput labelText="Phone" type="tel" bind:value={driverPhone} />
+										<TextInput labelText="Phone" type="tel" bind:value={carrierPhone} />
 									</div>
 
 									<h4>License Information</h4>
@@ -231,7 +231,7 @@
 
 									<div class="form-actions">
 										<Button type="submit" icon={UserAvatar} disabled={loading}>
-											{loading ? 'Registering...' : 'Register as Driver'}
+											{loading ? 'Registering...' : 'Register as Carrier'}
 										</Button>
 									</div>
 								</form>

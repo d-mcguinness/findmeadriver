@@ -78,7 +78,7 @@ function createAuth() {
 		get token() { return token; },
 		get user() { return user; },
 		get isAuthenticated() { return token !== null; },
-		get isDriver() { return user?.roles?.includes('ROLE_DRIVER') ?? false; },
+		get isCarrier() { return user?.roles?.includes('ROLE_CARRIER') ?? false; },
 		get isShipper() { return user?.roles?.includes('ROLE_SHIPPER') ?? false; },
 		get isAdmin() { return user?.roles?.includes('ROLE_ADMIN') ?? false; },
 		initialize,

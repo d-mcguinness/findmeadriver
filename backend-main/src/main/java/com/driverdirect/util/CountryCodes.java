@@ -4,7 +4,7 @@ package com.driverdirect.util;
  * Single source of truth for ISO-3166 alpha-2 country-code handling. Lanes,
  * cabotage operations, shipments, and locations must all store the same
  * canonical (uppercase) form, otherwise case-sensitive comparisons — e.g. the
- * lane filter's {@code Objects.equals(jobCountry, laneCountry)} — silently miss.
+ * lane filter's {@code Objects.equals(loadCountry, laneCountry)} — silently miss.
  */
 public final class CountryCodes {
 
@@ -12,7 +12,7 @@ public final class CountryCodes {
 
     /**
      * Canonical storage form: trimmed + uppercased. Null/blank → null. Use on
-     * write paths where the value is optional (job/shipment/stop countries).
+     * write paths where the value is optional (load/shipment/stop countries).
      */
     public static String normalize(String raw) {
         if (raw == null) return null;

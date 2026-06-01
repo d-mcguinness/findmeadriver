@@ -5,9 +5,9 @@ import lombok.Data;
 import java.time.LocalDate;
 
 /**
- * Per-country exposure snapshot — how many cabotage ops a driver has logged
- * in {@link #country} over the rolling 7-day window. Surfaced on the driver
- * dashboard so the driver can self-assess before they apply.
+ * Per-country exposure snapshot — how many cabotage ops a carrier has logged
+ * in {@link #country} over the rolling 7-day window. Surfaced on the carrier
+ * dashboard so the carrier can self-assess before they apply.
  */
 @Data
 public class CabotageExposureResponse {

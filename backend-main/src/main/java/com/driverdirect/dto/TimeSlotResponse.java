@@ -1,6 +1,6 @@
 package com.driverdirect.dto;
 
-import com.driverdirect.model.DriverTimeSlot;
+import com.driverdirect.model.CarrierTimeSlot;
 import lombok.Data;
 
 import java.time.Duration;
@@ -15,7 +15,7 @@ public class TimeSlotResponse {
     private LocalTime endTime;
     private double hours;
 
-    public static TimeSlotResponse from(DriverTimeSlot s) {
+    public static TimeSlotResponse from(CarrierTimeSlot s) {
         TimeSlotResponse r = new TimeSlotResponse();
         r.setId(s.getId());
         r.setDate(s.getDate());

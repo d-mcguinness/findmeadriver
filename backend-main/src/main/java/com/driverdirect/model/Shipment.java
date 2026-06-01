@@ -35,7 +35,7 @@ public class Shipment {
 
     // Intermodal (M2): when this Shipment is one leg of a multi-leg movement it
     // points at its Itinerary and carries its 1-indexed position. Null for a
-    // standalone single-leg job, so pre-M2 rows are unaffected.
+    // standalone single-leg load, so pre-M2 rows are unaffected.
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "itinerary_id")
     @ToString.Exclude
@@ -113,7 +113,7 @@ public class Shipment {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
-    // Read-only collections so JobResponse can navigate the tree without an
+    // Read-only collections so LoadResponse can navigate the tree without an
     // extra repo round-trip. @ToString.Exclude prevents Lombok from looping.
     @OneToMany(mappedBy = "shipment", fetch = FetchType.LAZY)
     @OrderBy("sequence ASC")

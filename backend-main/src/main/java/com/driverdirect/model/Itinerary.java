@@ -16,7 +16,7 @@ import java.util.List;
  * {@link TransportOrder} and carries the rolled-up totals. The mode INTERMODAL
  * lives only here (derived) — a leg always resolves to one concrete mode.
  *
- * <p>Single-leg jobs (the pre-M2 norm) simply have no Itinerary — a Shipment's
+ * <p>Single-leg loads (the pre-M2 norm) simply have no Itinerary — a Shipment's
  * {@code itinerary} is nullable, so existing rows are unaffected.
  */
 @Entity

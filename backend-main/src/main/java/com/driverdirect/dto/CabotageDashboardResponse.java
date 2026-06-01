@@ -5,8 +5,8 @@ import lombok.Data;
 import java.util.List;
 
 /**
- * Bundle of everything the driver dashboard needs to render the cabotage
- * compliance section: the driver's declared home country (nullable) and the
+ * Bundle of everything the carrier dashboard needs to render the cabotage
+ * compliance section: the carrier's declared home country (nullable) and the
  * per-country exposure rows for the current 7-day window.
  */
 @Data

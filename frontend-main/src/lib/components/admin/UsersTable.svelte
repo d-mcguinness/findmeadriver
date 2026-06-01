@@ -18,7 +18,7 @@
 	function roleKind(role: string): 'blue' | 'green' | 'red' | 'cyan' | 'gray' {
 		switch (role) {
 			case 'ROLE_ADMIN': return 'red';
-			case 'ROLE_DRIVER': return 'blue';
+			case 'ROLE_CARRIER': return 'blue';
 			case 'ROLE_SHIPPER': return 'green';
 			default: return 'gray';
 		}
@@ -30,7 +30,7 @@
 
 	function typeKind(type: string): 'blue' | 'green' | 'cyan' | 'gray' {
 		switch (type) {
-			case 'DRIVER': return 'blue';
+			case 'CARRIER': return 'blue';
 			case 'SHIPPER': return 'green';
 			case 'ADMIN': return 'cyan';
 			default: return 'gray';
@@ -56,7 +56,7 @@
 		name: `${u.firstName || ''} ${u.lastName || ''}`.trim() || '—',
 		email: u.email,
 		userType: u.userType,
-		detail: u.userType === 'DRIVER'
+		detail: u.userType === 'CARRIER'
 			? `Licence: ${u.licenceCategory ?? u.cdlType ?? '—'}, ${u.licenseNumber || '—'}`
 			: u.userType === 'SHIPPER'
 				? u.companyName || '—'

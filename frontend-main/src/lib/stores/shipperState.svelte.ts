@@ -1,19 +1,19 @@
 import { api } from '$lib/api';
-import type { Job } from '$lib/types';
+import type { Load } from '$lib/types';
 
-// Shared reactive state for shipper jobs + ratings so accept/reject/start/
+// Shared reactive state for shipper loads + ratings so accept/reject/start/
 // complete/cancel actions in the ShipperDashboard refresh the StatsRow tiles.
 function createShipperState() {
-	let jobs = $state<Job[]>([]);
+	let loads = $state<Load[]>([]);
 	let averageRating = $state<number | null>(null);
 	let loaded = $state(false);
 
-	async function reloadJobs() {
+	async function reloadLoads() {
 		try {
-			jobs = await api.get<Job[]>('/api/shipper/jobs');
+			loads = await api.get<Load[]>('/api/shipper/loads');
 			loaded = true;
 		} catch {
-			jobs = [];
+			loads = [];
 		}
 	}
 
@@ -27,10 +27,10 @@ function createShipperState() {
 	}
 
 	return {
-		get jobs() { return jobs; },
+		get loads() { return loads; },
 		get averageRating() { return averageRating; },
 		get loaded() { return loaded; },
-		reloadJobs,
+		reloadLoads,
 		reloadRatings
 	};
 }

@@ -1,6 +1,6 @@
 package com.driverdirect.repository;
 
-import com.driverdirect.model.Job;
+import com.driverdirect.model.Load;
 import com.driverdirect.model.Rating;
 import com.driverdirect.model.User;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -16,7 +16,7 @@ public interface RatingRepository extends JpaRepository<Rating, Long> {
 
     List<Rating> findByRevieweeOrderByCreatedAtDesc(User reviewee);
 
-    boolean existsByJobAndReviewer(Job job, User reviewer);
+    boolean existsByLoadAndReviewer(Load load, User reviewer);
 
     @Query("SELECT AVG(r.score) FROM Rating r WHERE r.reviewee.id = :id")
     Optional<Double> findAverageScoreByRevieweeId(@Param("id") Long revieweeId);

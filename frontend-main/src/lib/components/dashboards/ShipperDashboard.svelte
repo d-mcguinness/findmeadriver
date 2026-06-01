@@ -8,18 +8,18 @@
 	import { auth } from '$lib/stores/auth.svelte';
 	import { api } from '$lib/api';
 	import { shipperState } from '$lib/stores/shipperState.svelte';
-	import type { Job, JobApplication } from '$lib/types';
+	import type { Load, LoadApplication } from '$lib/types';
 	import { onMount } from 'svelte';
-	import JobsTable from '$lib/components/admin/JobsTable.svelte';
+	import LoadsTable from '$lib/components/admin/LoadsTable.svelte';
 
-	// My Jobs state — backed by the shared store so mutations refresh StatsRow too.
-	let jobs = $derived(shipperState.jobs);
-	let jobsLoading = $state(false);
+	// My Loads state — backed by the shared store so mutations refresh StatsRow too.
+	let loads = $derived(shipperState.loads);
+	let loadsLoading = $state(false);
 
 	// Aggregate metrics for the summary row above the table.
 	let metrics = $derived.by(() => {
 		let applications = 0, hours = 0, value = 0, completedSpend = 0;
-		for (const j of jobs) {
+		for (const j of loads) {
 			applications += j.applicationCount ?? 0;
 			const h = j.estimatedDurationHours ?? 0;
 			const r = Number(j.ratePerHour ?? 0);
@@ -31,50 +31,50 @@
 	});
 
 	// Applications state
-	let selectedJobForApps = $state<Job | null>(null);
-	let applications = $state<JobApplication[]>([]);
+	let selectedLoadForApps = $state<Load | null>(null);
+	let applications = $state<LoadApplication[]>([]);
 	let appsLoading = $state(false);
 	let appsModalOpen = $state(false);
 
 	// Rating state
 	let ratingModalOpen = $state(false);
-	let ratingJobId = $state<number | null>(null);
-	let ratingJobTitle = $state('');
+	let ratingLoadId = $state<number | null>(null);
+	let ratingLoadTitle = $state('');
 	let ratingScore = $state(0);
 	let ratingComment = $state('');
 	let ratingError = $state('');
 
 
 
-	async function loadJobs() {
-		jobsLoading = true;
+	async function loadLoads() {
+		loadsLoading = true;
 		try {
-			await shipperState.reloadJobs();
+			await shipperState.reloadLoads();
 		} finally {
-			jobsLoading = false;
+			loadsLoading = false;
 		}
 	}
 
-	async function cancelJob(id: number) {
+	async function cancelLoad(id: number) {
 		try {
-			await api.put(`/api/shipper/jobs/${id}/cancel`, {});
-			loadJobs();
+			await api.put(`/api/shipper/loads/${id}/cancel`, {});
+			loadLoads();
 		} catch { /* ignore */ }
 	}
 
-	async function startJob(id: number) {
+	async function startLoad(id: number) {
 		try {
-			await api.put(`/api/shipper/jobs/${id}/status`, { status: 'IN_PROGRESS' });
-			loadJobs();
+			await api.put(`/api/shipper/loads/${id}/status`, { status: 'IN_PROGRESS' });
+			loadLoads();
 		} catch { /* ignore */ }
 	}
 
-	async function completeJob(id: number, title: string) {
+	async function completeLoad(id: number, title: string) {
 		try {
-			await api.put(`/api/shipper/jobs/${id}/status`, { status: 'COMPLETED' });
-			loadJobs();
-			ratingJobId = id;
-			ratingJobTitle = title;
+			await api.put(`/api/shipper/loads/${id}/status`, { status: 'COMPLETED' });
+			loadLoads();
+			ratingLoadId = id;
+			ratingLoadTitle = title;
 			ratingScore = 0;
 			ratingComment = '';
 			ratingError = '';
@@ -83,10 +83,10 @@
 	}
 
 	async function submitRating() {
-		if (!ratingJobId || ratingScore === 0) return;
+		if (!ratingLoadId || ratingScore === 0) return;
 		ratingError = '';
 		try {
-			await api.post(`/api/shipper/jobs/${ratingJobId}/rate`, {
+			await api.post(`/api/shipper/loads/${ratingLoadId}/rate`, {
 				score: ratingScore,
 				comment: ratingComment
 			});
@@ -96,12 +96,12 @@
 		}
 	}
 
-	async function viewApplications(job: Job) {
-		selectedJobForApps = job;
+	async function viewApplications(load: Load) {
+		selectedLoadForApps = load;
 		appsModalOpen = true;
 		appsLoading = true;
 		try {
-			applications = await api.get<JobApplication[]>(`/api/shipper/jobs/${job.id}/applications`);
+			applications = await api.get<LoadApplication[]>(`/api/shipper/loads/${load.id}/applications`);
 		} catch {
 			applications = [];
 		} finally {
@@ -112,15 +112,15 @@
 	async function acceptApplication(id: number) {
 		try {
 			await api.put(`/api/shipper/applications/${id}/accept`, {});
-			if (selectedJobForApps) viewApplications(selectedJobForApps);
-			loadJobs();
+			if (selectedLoadForApps) viewApplications(selectedLoadForApps);
+			loadLoads();
 		} catch { /* ignore */ }
 	}
 
 	async function rejectApplication(id: number) {
 		try {
 			await api.put(`/api/shipper/applications/${id}/reject`, {});
-			if (selectedJobForApps) viewApplications(selectedJobForApps);
+			if (selectedLoadForApps) viewApplications(selectedLoadForApps);
 		} catch { /* ignore */ }
 	}
 
@@ -149,32 +149,32 @@
 		return '\u2605'.repeat(full) + '\u2606'.repeat(5 - full);
 	}
 
-	onMount(loadJobs);
+	onMount(loadLoads);
 </script>
 
-{#snippet shipperActions(job: Job)}
+{#snippet shipperActions(load: Load)}
 	<div class="row-actions">
-		{#if job.applicationCount > 0}
+		{#if load.applicationCount > 0}
 			<Button size="small" kind="secondary"
-				on:click={() => viewApplications(job)}>
-				Applications ({job.applicationCount})
+				on:click={() => viewApplications(load)}>
+				Applications ({load.applicationCount})
 			</Button>
 		{/if}
-		{#if job.status === 'ASSIGNED'}
+		{#if load.status === 'ASSIGNED'}
 			<Button size="small" kind="primary"
-				on:click={() => startJob(job.id)}>
+				on:click={() => startLoad(load.id)}>
 				Start
 			</Button>
 		{/if}
-		{#if job.status === 'IN_PROGRESS'}
+		{#if load.status === 'IN_PROGRESS'}
 			<Button size="small" kind="primary"
-				on:click={() => completeJob(job.id, job.title)}>
+				on:click={() => completeLoad(load.id, load.title)}>
 				Complete
 			</Button>
 		{/if}
-		{#if job.status === 'OPEN' || job.status === 'ASSIGNED'}
+		{#if load.status === 'OPEN' || load.status === 'ASSIGNED'}
 			<Button size="small" kind="danger-tertiary"
-				on:click={() => cancelJob(job.id)}>
+				on:click={() => cancelLoad(load.id)}>
 				Cancel
 			</Button>
 		{/if}
@@ -184,23 +184,23 @@
 <Grid>
 	<Row>
 		<Column>
-			<h2>My Jobs</h2>
+			<h2>My Loads</h2>
 			<div class="dash-actions">
-				<Button size="small" kind="tertiary" href="/dashboard/jobs/post-intermodal">
-					Post intermodal job
+				<Button size="small" kind="tertiary" href="/dashboard/loads/post-intermodal">
+					Post intermodal load
 				</Button>
 				<Button size="small" kind="ghost" href="/dashboard/itineraries">
 					View itineraries
 				</Button>
 			</div>
 
-			{#if jobsLoading}
-				<p>Loading jobs...</p>
-			{:else if jobs.length === 0}
-				<InlineNotification kind="info" title="No jobs yet"
-					subtitle="Create your first job to start finding drivers."
+			{#if loadsLoading}
+				<p>Loading loads...</p>
+			{:else if loads.length === 0}
+				<InlineNotification kind="info" title="No loads yet"
+					subtitle="Create your first load to start finding carriers."
 					hideCloseButton />
-				<Button href="/dashboard/jobs/post" icon={Add}>Create a Job</Button>
+				<Button href="/dashboard/loads/post" icon={Add}>Create a Load</Button>
 			{:else}
 				<div class="metrics-row">
 					<div class="metric">
@@ -213,14 +213,14 @@
 					</div>
 					<div class="metric">
 						<div class="metric-value">&euro;{metrics.value.toFixed(0)}</div>
-						<div class="metric-label">Total job value</div>
+						<div class="metric-label">Total load value</div>
 					</div>
 					<div class="metric">
 						<div class="metric-value">&euro;{metrics.completedSpend.toFixed(0)}</div>
 						<div class="metric-label">Completed spend</div>
 					</div>
 				</div>
-				<JobsTable {jobs} actions={shipperActions} addHref="/dashboard/jobs/post" addLabel="Create a Job" />
+				<LoadsTable {loads} actions={shipperActions} addHref="/dashboard/loads/post" addLabel="Create a Load" />
 			{/if}
 		</Column>
 	</Row>
@@ -229,35 +229,35 @@
 <!-- Applications Modal -->
 <Modal
 	bind:open={appsModalOpen}
-	modalHeading="Applications for {selectedJobForApps?.title}"
+	modalHeading="Applications for {selectedLoadForApps?.title}"
 	passiveModal
 	size="lg"
 >
 	{#if appsLoading}
 		<p>Loading applications...</p>
 	{:else if applications.length === 0}
-		<p>No applications yet for this job.</p>
+		<p>No applications yet for this load.</p>
 	{:else}
 		<div class="applications-list">
 			{#each applications as app}
 				<Tile class="app-tile">
 					<div class="app-header">
-						<div class="driver-info">
-							<strong>{app.driverName}</strong>
-							{#if app.driverVerified}
+						<div class="carrier-info">
+							<strong>{app.carrierName}</strong>
+							{#if app.carrierVerified}
 								<span class="verified-badge" title="All documents verified">
 									<Checkmark size={16} /> Verified
 								</span>
 							{/if}
-							{#if app.driverAverageRating}
-								<span class="driver-rating" title="{app.driverRatingCount} ratings">
-									{renderStars(app.driverAverageRating)} ({app.driverAverageRating.toFixed(1)})
+							{#if app.carrierAverageRating}
+								<span class="carrier-rating" title="{app.carrierRatingCount} ratings">
+									{renderStars(app.carrierAverageRating)} ({app.carrierAverageRating.toFixed(1)})
 								</span>
 							{/if}
 						</div>
 						<Tag type={appStatusKind(app.status)}>{app.status}</Tag>
 					</div>
-					<p class="app-email">{app.driverEmail}</p>
+					<p class="app-email">{app.carrierEmail}</p>
 					{#if app.coverNote}
 						<p class="cover-note">"{app.coverNote}"</p>
 					{/if}
@@ -283,7 +283,7 @@
 <!-- Rating Modal -->
 <Modal
 	bind:open={ratingModalOpen}
-	modalHeading="Rate Driver - {ratingJobTitle}"
+	modalHeading="Rate Carrier - {ratingLoadTitle}"
 	primaryButtonText="Submit Rating"
 	secondaryButtonText="Skip"
 	on:click:button--primary={submitRating}
@@ -292,7 +292,7 @@
 	{#if ratingError}
 		<InlineNotification kind="error" title="Error" subtitle={ratingError} />
 	{/if}
-	<p class="rating-prompt">How was the driver's performance?</p>
+	<p class="rating-prompt">How was the carrier's performance?</p>
 	<div class="star-rating">
 		{#each [1, 2, 3, 4, 5] as s}
 			<button class="star-btn" on:click={() => ratingScore = s} aria-label="Rate {s} stars">
@@ -309,7 +309,7 @@
 	<TextArea
 		bind:value={ratingComment}
 		labelText="Comment (optional)"
-		placeholder="Share your experience with this driver..."
+		placeholder="Share your experience with this carrier..."
 		rows={3}
 	/>
 </Modal>
@@ -362,7 +362,7 @@
 		gap: 0.25rem;
 		flex-wrap: wrap;
 	}
-	.driver-info {
+	.carrier-info {
 		display: flex;
 		align-items: center;
 		gap: 0.75rem;
@@ -376,7 +376,7 @@
 		font-size: 0.8125rem;
 		font-weight: 600;
 	}
-	.driver-rating {
+	.carrier-rating {
 		color: #f1c40f;
 		font-size: 0.875rem;
 	}

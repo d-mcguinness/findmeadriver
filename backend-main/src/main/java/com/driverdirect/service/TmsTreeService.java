@@ -1,12 +1,12 @@
 package com.driverdirect.service;
 
-import com.driverdirect.dto.CreateJobRequest;
-import com.driverdirect.dto.CreateJobStopRequest;
+import com.driverdirect.dto.CreateLoadRequest;
+import com.driverdirect.dto.CreateLoadStopRequest;
 import com.driverdirect.model.Customer;
 import com.driverdirect.model.Shipper;
 import com.driverdirect.model.Itinerary;
-import com.driverdirect.model.Job;
-import com.driverdirect.model.JobStatus;
+import com.driverdirect.model.Load;
+import com.driverdirect.model.LoadStatus;
 import com.driverdirect.model.Location;
 import com.driverdirect.model.Shipment;
 import com.driverdirect.model.ShipmentLine;
@@ -14,7 +14,7 @@ import com.driverdirect.model.Stop;
 import com.driverdirect.model.TransportOrder;
 import com.driverdirect.repository.CustomerRepository;
 import com.driverdirect.repository.ItineraryRepository;
-import com.driverdirect.repository.JobRepository;
+import com.driverdirect.repository.LoadRepository;
 import com.driverdirect.repository.LocationRepository;
 import com.driverdirect.repository.ShipmentLineRepository;
 import com.driverdirect.repository.ShipmentRepository;
@@ -34,8 +34,8 @@ import java.util.List;
 
 /**
  * Composes the Phase-0 TMS entity tree (Customer / TransportOrder / Shipment
- * / Stops / Locations / ShipmentLine) around a Job. Used by both the seed
- * backfill and live createJob flows so the structure stays identical.
+ * / Stops / Locations / ShipmentLine) around a Load. Used by both the seed
+ * backfill and live createLoad flows so the structure stays identical.
  */
 @Service
 @RequiredArgsConstructor
@@ -47,14 +47,14 @@ public class TmsTreeService {
     private final ShipmentRepository shipmentRepository;
     private final ShipmentLineRepository shipmentLineRepository;
     private final StopRepository stopRepository;
-    private final JobRepository jobRepository;
+    private final LoadRepository loadRepository;
     private final ItineraryRepository itineraryRepository;
     private final PricingService pricingService;
 
     /**
-     * Customer-facing data needed to compose the tree around a Job. Replaces
-     * the columns that used to live on Job (title/description/dateNeeded/
-     * pickup/delivery/countries). Currency is the order-side currency — Job
+     * Customer-facing data needed to compose the tree around a Load. Replaces
+     * the columns that used to live on Load (title/description/dateNeeded/
+     * pickup/delivery/countries). Currency is the order-side currency — Load
      * keeps its own currency for the carrier rate.
      */
     public record TmsOrderInput(
@@ -97,7 +97,7 @@ public class TmsTreeService {
         }
 
         // 9-arg mode form (no explicit route) — lets the seed compose a
-        // single-leg non-road demo job. Differs from the route form by the
+        // single-leg non-road demo load. Differs from the route form by the
         // final parameter type, so there is no overload ambiguity.
         public TmsOrderInput(String title, String description,
                              java.time.LocalDate dateNeeded,
@@ -108,7 +108,7 @@ public class TmsTreeService {
                     pickupCountry, deliveryCountry, currency, Collections.emptyList(), mode);
         }
 
-        public static TmsOrderInput fromRequest(CreateJobRequest req, Shipper shipper) {
+        public static TmsOrderInput fromRequest(CreateLoadRequest req, Shipper shipper) {
             String c = req.getCurrency() != null ? req.getCurrency() : shipper.getCurrency();
             List<TmsStopInput> stops = TmsStopInput.listFromRequest(req.getStops(), shipper.getCountry());
 
@@ -184,10 +184,10 @@ public class TmsTreeService {
             LocalDateTime earliestAt,
             LocalDateTime latestAt) {
 
-        public static List<TmsStopInput> listFromRequest(List<CreateJobStopRequest> raw, String defaultCountry) {
+        public static List<TmsStopInput> listFromRequest(List<CreateLoadStopRequest> raw, String defaultCountry) {
             if (raw == null || raw.isEmpty()) return Collections.emptyList();
             List<TmsStopInput> out = new ArrayList<>(raw.size());
-            for (CreateJobStopRequest r : raw) {
+            for (CreateLoadStopRequest r : raw) {
                 if (r.getLocationName() == null || r.getLocationName().isBlank()) continue;
                 Stop.StopType type;
                 try {
@@ -207,12 +207,12 @@ public class TmsTreeService {
     }
 
     /**
-     * Build the full TMS tree for an existing Job and attach the resulting
-     * Shipment back to the Job (caller re-saves the Job).
+     * Build the full TMS tree for an existing Load and attach the resulting
+     * Shipment back to the Load (caller re-saves the Load).
      */
     @Transactional
-    public Shipment createTreeFor(Job job, TmsOrderInput input) {
-        Shipper shipper = job.getShipper();
+    public Shipment createTreeFor(Load load, TmsOrderInput input) {
+        Shipper shipper = load.getShipper();
         Customer customer = customerRepository.findFirstByShipperOrderByIdAsc(shipper)
                 .orElseGet(() -> customerRepository.save(
                         new Customer(shipper, shipper.getCompanyName() + " (default)")));
@@ -224,13 +224,13 @@ public class TmsTreeService {
         order.setDescription(input.description());
         order.setDateNeeded(input.dateNeeded());
         order.setCurrency(input.currency());
-        order.setStatus(mapOrderStatus(job.getStatus()));
+        order.setStatus(mapOrderStatus(load.getStatus()));
         order = transportOrderRepository.save(order);
 
         Shipment shipment = new Shipment();
         shipment.setShipper(shipper);
         shipment.setMode(input.mode() != null ? input.mode() : Shipment.Mode.ROAD);
-        shipment.setStatus(mapShipmentStatus(job.getStatus()));
+        shipment.setStatus(mapShipmentStatus(load.getStatus()));
         shipment.setCurrency(input.currency());
         // Canonicalise to uppercase so the lane filter (Objects.equals) and the
         // cabotage origin==destination test compare against the same form lanes
@@ -250,7 +250,7 @@ public class TmsTreeService {
         line.setOrder(order);
         shipmentLineRepository.save(line);
 
-        job.setShipment(shipment);
+        load.setShipment(shipment);
         return shipment;
     }
 
@@ -283,12 +283,12 @@ public class TmsTreeService {
 
     /**
      * Build a true intermodal movement: one TransportOrder and one Itinerary
-     * sequencing N single-mode leg-Shipments, each with its own carrier Job
+     * sequencing N single-mode leg-Shipments, each with its own carrier Load
      * (Load), stops, and price. Each leg is priced via {@link PricingService},
      * then the itinerary totals are rolled up. Returns the saved Itinerary.
      *
      * <p>The single-leg {@link #createTreeFor} path is untouched — a standalone
-     * job still produces an itinerary-less Shipment exactly as before.
+     * load still produces an itinerary-less Shipment exactly as before.
      */
     @Transactional
     public Itinerary createIntermodalTreeFor(Shipper shipper, IntermodalOrderInput input) {
@@ -318,16 +318,16 @@ public class TmsTreeService {
         int seq = 1;
         for (LegInput leg : input.legs()) {
             // Carrier assignment (Load) for this leg.
-            Job job = new Job();
-            job.setShipper(shipper);
+            Load load = new Load();
+            load.setShipper(shipper);
             // Rate × hours is the fallback basis; quantity-priced legs may omit
-            // them, so default to zero (Job requires non-null values).
-            job.setEstimatedDurationHours(leg.estimatedDurationHours() != null ? leg.estimatedDurationHours() : 0.0);
-            job.setRatePerHour(leg.ratePerHour() != null ? leg.ratePerHour() : BigDecimal.ZERO);
-            job.setRequiredLicenceCategory(leg.requiredLicenceCategory());
-            job.setCurrency(currency);
-            job.setStatus(JobStatus.OPEN);
-            job = jobRepository.save(job);
+            // them, so default to zero (Load requires non-null values).
+            load.setEstimatedDurationHours(leg.estimatedDurationHours() != null ? leg.estimatedDurationHours() : 0.0);
+            load.setRatePerHour(leg.ratePerHour() != null ? leg.ratePerHour() : BigDecimal.ZERO);
+            load.setRequiredLicenceCategory(leg.requiredLicenceCategory());
+            load.setCurrency(currency);
+            load.setStatus(LoadStatus.OPEN);
+            load = loadRepository.save(load);
 
             // The physical leg, attached to the itinerary at its sequence.
             Shipment shipment = new Shipment();
@@ -354,11 +354,11 @@ public class TmsTreeService {
             line.setOrder(order);
             shipmentLineRepository.save(line);
 
-            job.setShipment(shipment);
-            jobRepository.save(job);
+            load.setShipment(shipment);
+            loadRepository.save(load);
 
             // Price this leg now (carrier cost + per-mode commission on the leg).
-            pricingService.priceJob(job);
+            pricingService.priceLoad(load);
 
             // Keep the inverse side in sync so the just-built Itinerary reports
             // its legs + derived mode correctly when mapped in this same session
@@ -461,7 +461,7 @@ public class TmsTreeService {
 
     /** Richer upsert that captures address line, city, and lat/lng from the
      *  client when a fresh Location is being created. Existing rows are not
-     *  back-filled so multiple jobs at the same name+country stay stable. */
+     *  back-filled so multiple loads at the same name+country stay stable. */
     private Location upsertLocation(TmsStopInput s) {
         if (s.locationName() == null || s.locationName().isBlank()) return null;
         String iso = CountryCodes.normalize(s.country()) == null ? "IE" : CountryCodes.normalize(s.country());
@@ -478,7 +478,7 @@ public class TmsTreeService {
                 });
     }
 
-    private TransportOrder.OrderStatus mapOrderStatus(JobStatus js) {
+    private TransportOrder.OrderStatus mapOrderStatus(LoadStatus js) {
         switch (js) {
             case OPEN:        return TransportOrder.OrderStatus.NEW;
             case ASSIGNED:    return TransportOrder.OrderStatus.PLANNED;
@@ -489,7 +489,7 @@ public class TmsTreeService {
         }
     }
 
-    private Shipment.ShipmentStatus mapShipmentStatus(JobStatus js) {
+    private Shipment.ShipmentStatus mapShipmentStatus(LoadStatus js) {
         switch (js) {
             case OPEN:        return Shipment.ShipmentStatus.PLANNED;
             case ASSIGNED:    return Shipment.ShipmentStatus.ACCEPTED;

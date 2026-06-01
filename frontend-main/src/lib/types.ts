@@ -12,7 +12,7 @@ export interface AvailabilityResponse {
 	fortnightlyRemaining: number;
 }
 
-export interface DriverLane {
+export interface CarrierLane {
 	id: number;
 	originCountry: string;
 	destinationCountry: string;
@@ -29,7 +29,7 @@ export interface CabotageExposure {
 	newestOpLocation?: string;
 }
 
-export type JobStopType =
+export type LoadStopType =
 	| 'PICKUP'
 	| 'DELIVERY'
 	| 'WAYPOINT'
@@ -38,7 +38,7 @@ export type JobStopType =
 	| 'FERRY_TERMINAL'
 	| 'EUROTUNNEL';
 
-export interface JobStopLocation {
+export interface LoadStopLocation {
 	id?: number;
 	name: string;
 	addressLine?: string;
@@ -49,28 +49,28 @@ export interface JobStopLocation {
 	timezone?: string;
 }
 
-export interface JobStop {
+export interface LoadStop {
 	id?: number;
 	sequence: number;
-	type: JobStopType;
-	location: JobStopLocation;
+	type: LoadStopType;
+	location: LoadStopLocation;
 	earliestAt?: string;
 	latestAt?: string;
 	actualAt?: string;
 }
 
-export interface Job {
+export interface Load {
 	id: number;
 	title: string;
 	description: string;
 	pickupLocation: string;
 	deliveryLocation: string;
 	/**
-	 * Full ordered route. Present on jobs linked to a Shipment (Phase-0 TMS
-	 * tree); empty array on legacy jobs. Consumers should prefer this over
+	 * Full ordered route. Present on loads linked to a Shipment (Phase-0 TMS
+	 * tree); empty array on legacy loads. Consumers should prefer this over
 	 * pickupLocation/deliveryLocation when length > 0.
 	 */
-	stops?: JobStop[];
+	stops?: LoadStop[];
 	estimatedDurationHours: number;
 	dateNeeded: string;
 	ratePerHour: number;
@@ -89,8 +89,8 @@ export interface Job {
 	transportMode?: string;
 	status: string;
 	shipperCompanyName: string;
-	assignedDriverId?: number;
-	assignedDriverName?: string;
+	assignedCarrierId?: number;
+	assignedCarrierName?: string;
 	applicationCount: number;
 	createdAt: string;
 }
@@ -137,26 +137,26 @@ export interface Itinerary {
 	updatedAt?: string;
 }
 
-export interface JobApplication {
+export interface LoadApplication {
 	id: number;
-	jobId: number;
-	jobTitle: string;
-	jobStatus: string;
-	driverName: string;
-	driverEmail: string;
-	driverId: number;
+	loadId: number;
+	loadTitle: string;
+	loadStatus: string;
+	carrierName: string;
+	carrierEmail: string;
+	carrierId: number;
 	status: string;
 	coverNote: string;
 	appliedAt: string;
-	driverAverageRating?: number;
-	driverRatingCount?: number;
-	driverVerified: boolean;
+	carrierAverageRating?: number;
+	carrierRatingCount?: number;
+	carrierVerified: boolean;
 }
 
 export interface RatingResponse {
 	id: number;
-	jobId: number;
-	jobTitle: string;
+	loadId: number;
+	loadTitle: string;
 	reviewerName: string;
 	score: number;
 	comment: string;
@@ -180,7 +180,7 @@ export interface ComplianceDocument {
 	notes?: string;
 }
 
-export interface DriverComplianceSummary {
+export interface CarrierComplianceSummary {
 	documents: ComplianceDocument[];
 	allVerified: boolean;
 	verifiedCount: number;
@@ -207,14 +207,14 @@ export interface AdminUser {
 
 export interface PlatformStats {
 	totalUsers: number;
-	totalDrivers: number;
+	totalCarriers: number;
 	totalShippers: number;
-	totalJobs: number;
-	openJobs: number;
-	assignedJobs: number;
-	inProgressJobs: number;
-	completedJobs: number;
-	cancelledJobs: number;
+	totalLoads: number;
+	openLoads: number;
+	assignedLoads: number;
+	inProgressLoads: number;
+	completedLoads: number;
+	cancelledLoads: number;
 	pendingDocuments: number;
 }
 

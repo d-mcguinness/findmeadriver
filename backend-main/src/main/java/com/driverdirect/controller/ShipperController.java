@@ -2,10 +2,10 @@ package com.driverdirect.controller;
 
 import com.driverdirect.dto.*;
 import com.driverdirect.model.Shipper;
-import com.driverdirect.model.JobStatus;
+import com.driverdirect.model.LoadStatus;
 import com.driverdirect.repository.ShipperRepository;
-import com.driverdirect.service.JobApplicationService;
-import com.driverdirect.service.JobService;
+import com.driverdirect.service.LoadApplicationService;
+import com.driverdirect.service.LoadService;
 import com.driverdirect.service.RatingService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -23,27 +23,27 @@ import java.util.Map;
 public class ShipperController {
 
     private final ShipperRepository shipperRepository;
-    private final JobService jobService;
-    private final JobApplicationService applicationService;
+    private final LoadService loadService;
+    private final LoadApplicationService applicationService;
     private final RatingService ratingService;
 
-    @PostMapping("/jobs")
-    public ResponseEntity<JobResponse> createJob(
+    @PostMapping("/loads")
+    public ResponseEntity<LoadResponse> createLoad(
             Authentication auth,
-            @RequestBody CreateJobRequest request) {
+            @RequestBody CreateLoadRequest request) {
         Shipper shipper = getShipper(auth);
-        return ResponseEntity.status(HttpStatus.CREATED).body(jobService.createJob(shipper, request));
+        return ResponseEntity.status(HttpStatus.CREATED).body(loadService.createLoad(shipper, request));
     }
 
-    @GetMapping("/jobs")
-    public ResponseEntity<List<JobResponse>> getMyJobs(Authentication auth) {
+    @GetMapping("/loads")
+    public ResponseEntity<List<LoadResponse>> getMyLoads(Authentication auth) {
         Shipper shipper = getShipper(auth);
-        return ResponseEntity.ok(jobService.getJobsByShipper(shipper));
+        return ResponseEntity.ok(loadService.getLoadsByShipper(shipper));
     }
 
-    @GetMapping("/jobs/{id}")
-    public ResponseEntity<JobResponse> getJob(@PathVariable Long id) {
-        return ResponseEntity.ok(jobService.getJobById(id));
+    @GetMapping("/loads/{id}")
+    public ResponseEntity<LoadResponse> getLoad(@PathVariable Long id) {
+        return ResponseEntity.ok(loadService.getLoadById(id));
     }
 
     // ---- Intermodal (M2b): post a multi-leg movement ----
@@ -51,52 +51,52 @@ public class ShipperController {
     @PostMapping("/itineraries")
     public ResponseEntity<ItineraryResponse> createItinerary(
             Authentication auth,
-            @RequestBody CreateIntermodalJobRequest request) {
+            @RequestBody CreateIntermodalLoadRequest request) {
         Shipper shipper = getShipper(auth);
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(jobService.createIntermodalJob(shipper, request));
+                .body(loadService.createIntermodalLoad(shipper, request));
     }
 
     @GetMapping("/itineraries")
     public ResponseEntity<List<ItineraryResponse>> getMyItineraries(Authentication auth) {
         Shipper shipper = getShipper(auth);
-        return ResponseEntity.ok(jobService.getItinerariesByShipper(shipper));
+        return ResponseEntity.ok(loadService.getItinerariesByShipper(shipper));
     }
 
     @GetMapping("/itineraries/{id}")
     public ResponseEntity<ItineraryResponse> getItinerary(Authentication auth, @PathVariable Long id) {
         Shipper shipper = getShipper(auth);
-        return ResponseEntity.ok(jobService.getItineraryById(id, shipper));
+        return ResponseEntity.ok(loadService.getItineraryById(id, shipper));
     }
 
-    @PutMapping("/jobs/{id}/status")
-    public ResponseEntity<JobResponse> updateJobStatus(
+    @PutMapping("/loads/{id}/status")
+    public ResponseEntity<LoadResponse> updateLoadStatus(
             Authentication auth,
             @PathVariable Long id,
             @RequestBody Map<String, String> body) {
         Shipper shipper = getShipper(auth);
-        JobStatus status = JobStatus.valueOf(body.get("status"));
-        return ResponseEntity.ok(jobService.updateJobStatus(id, shipper, status));
+        LoadStatus status = LoadStatus.valueOf(body.get("status"));
+        return ResponseEntity.ok(loadService.updateLoadStatus(id, shipper, status));
     }
 
-    @PutMapping("/jobs/{id}/cancel")
-    public ResponseEntity<JobResponse> cancelJob(
+    @PutMapping("/loads/{id}/cancel")
+    public ResponseEntity<LoadResponse> cancelLoad(
             Authentication auth,
             @PathVariable Long id) {
         Shipper shipper = getShipper(auth);
-        return ResponseEntity.ok(jobService.updateJobStatus(id, shipper, JobStatus.CANCELLED));
+        return ResponseEntity.ok(loadService.updateLoadStatus(id, shipper, LoadStatus.CANCELLED));
     }
 
-    @GetMapping("/jobs/{id}/applications")
-    public ResponseEntity<List<JobApplicationResponse>> getApplicationsForJob(
+    @GetMapping("/loads/{id}/applications")
+    public ResponseEntity<List<LoadApplicationResponse>> getApplicationsForLoad(
             Authentication auth,
             @PathVariable Long id) {
         Shipper shipper = getShipper(auth);
-        return ResponseEntity.ok(applicationService.getApplicationsForJob(id, shipper));
+        return ResponseEntity.ok(applicationService.getApplicationsForLoad(id, shipper));
     }
 
     @PutMapping("/applications/{id}/accept")
-    public ResponseEntity<JobApplicationResponse> acceptApplication(
+    public ResponseEntity<LoadApplicationResponse> acceptApplication(
             Authentication auth,
             @PathVariable Long id) {
         Shipper shipper = getShipper(auth);
@@ -104,26 +104,26 @@ public class ShipperController {
     }
 
     @PutMapping("/applications/{id}/reject")
-    public ResponseEntity<JobApplicationResponse> rejectApplication(
+    public ResponseEntity<LoadApplicationResponse> rejectApplication(
             Authentication auth,
             @PathVariable Long id) {
         Shipper shipper = getShipper(auth);
         return ResponseEntity.ok(applicationService.rejectApplication(id, shipper));
     }
 
-    @PostMapping("/jobs/{jobId}/rate")
-    public ResponseEntity<RatingResponse> rateDriver(
+    @PostMapping("/loads/{loadId}/rate")
+    public ResponseEntity<RatingResponse> rateCarrier(
             Authentication auth,
-            @PathVariable Long jobId,
+            @PathVariable Long loadId,
             @RequestBody CreateRatingRequest request) {
         Shipper shipper = getShipper(auth);
-        return ResponseEntity.ok(ratingService.createRating(shipper, jobId, request));
+        return ResponseEntity.ok(ratingService.createRating(shipper, loadId, request));
     }
 
-    @GetMapping("/jobs/{jobId}/rated")
-    public ResponseEntity<Boolean> hasRated(Authentication auth, @PathVariable Long jobId) {
+    @GetMapping("/loads/{loadId}/rated")
+    public ResponseEntity<Boolean> hasRated(Authentication auth, @PathVariable Long loadId) {
         Shipper shipper = getShipper(auth);
-        return ResponseEntity.ok(ratingService.hasRated(shipper, jobId));
+        return ResponseEntity.ok(ratingService.hasRated(shipper, loadId));
     }
 
     @GetMapping("/ratings")
