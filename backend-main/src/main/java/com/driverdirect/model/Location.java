@@ -60,16 +60,5 @@ public class Location {
     @Column(length = 1024, name = "operating_hours")
     private String operatingHours; // "MO-FR 08:00-18:00" — parsed by a later phase
 
-    public enum
-
-
-
-
-
-
-
-
-
-
-    LocationType { ADDRESS, SEAPORT, AIRPORT, RAIL_TERMINAL, INLAND_TERMINAL }
+    public enum LocationType { ADDRESS, SEAPORT, AIRPORT, RAIL_TERMINAL, INLAND_TERMINAL }
 }

@@ -185,7 +185,8 @@ public class LoadServiceImpl implements LoadService {
         // two DB lookups below run only over the surviving candidate set.
         List<Load> candidates = loads.stream()
                 .filter(load -> carrier.supportsMode(load.getMode()))
-                .filter(load -> credentialMatchers.satisfies(load.getMode(), have, load.getRequiredLicenceCategory()))
+                .filter(load -> credentialMatchers.satisfies(load.getMode(), have,
+                        carrier.getCredentials(), load.getRequiredLicenceCategory()))
                 .filter(load -> matchesAnyLane(load, lanes))
                 .collect(Collectors.toList());
 

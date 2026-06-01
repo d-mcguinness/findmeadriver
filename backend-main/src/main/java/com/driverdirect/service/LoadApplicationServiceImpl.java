@@ -33,7 +33,8 @@ public class LoadApplicationServiceImpl implements LoadApplicationService {
         double hours = availabilityService.getAvailableHoursOnDate(carrier, load.getDateNeeded());
         boolean cabotageBlocking = cabotageService.check(carrier, load).isBlocking();
         boolean modeOk = carrier.supportsMode(load.getMode());
-        return evaluate(load, existing, carrier.getLicenceCategory(), modeOk, hours, cabotageBlocking);
+        return evaluate(load, existing, carrier.getLicenceCategory(), carrier.getCredentials(),
+                modeOk, hours, cabotageBlocking);
     }
 
     @Override
@@ -50,10 +51,16 @@ public class LoadApplicationServiceImpl implements LoadApplicationService {
         Map<Long, Integer> cabotageByCarrier = cabotageService.countInWindowByCarrier(carriers, load);
         //  - supported modes per carrier (1 query; carriers absent = road-only)
         Map<Long, java.util.Set<Shipment.Mode>> modesByCarrier = new java.util.HashMap<>();
+        Map<Long, java.util.Set<String>> credsByCarrier = new java.util.HashMap<>();
         if (!carriers.isEmpty()) {
             for (Object[] row : carrierRepository.findSupportedModesByCarriers(carriers)) {
                 modesByCarrier.computeIfAbsent((Long) row[0], k -> new java.util.HashSet<>())
                         .add((Shipment.Mode) row[1]);
+            }
+            //  - mode credentials per carrier (1 query)
+            for (Object[] row : carrierRepository.findCredentialsByCarriers(carriers)) {
+                credsByCarrier.computeIfAbsent((Long) row[0], k -> new java.util.HashSet<>())
+                        .add((String) row[1]);
             }
         }
 
@@ -64,7 +71,7 @@ public class LoadApplicationServiceImpl implements LoadApplicationService {
             boolean cabotageBlocking =
                     cabotageService.isOverLimit(d, load, cabotageByCarrier.getOrDefault(id, 0));
             out.put(id, evaluate(load, appByCarrier.get(id), d.getLicenceCategory(),
-                    modeOk, hoursByCarrier.getOrDefault(id, 0.0), cabotageBlocking));
+                    credsByCarrier.get(id), modeOk, hoursByCarrier.getOrDefault(id, 0.0), cabotageBlocking));
         }
         return out;
     }
@@ -73,20 +80,21 @@ public class LoadApplicationServiceImpl implements LoadApplicationService {
     // and the batch preview so they can never drift. Order matters: the first
     // failing gate wins. Takes resolved facts so it issues no queries itself.
     private Eligibility evaluate(Load load, LoadApplication existing, String licenceCategory,
-                                 boolean carrierSupportsMode, double availableHours,
-                                 boolean cabotageBlocking) {
+                                 java.util.Set<String> credentials, boolean carrierSupportsMode,
+                                 double availableHours, boolean cabotageBlocking) {
         if (load.getStatus() != LoadStatus.OPEN) return Eligibility.LOAD_NOT_OPEN;
         // Active application (non-withdrawn) blocks re-applying; a withdrawn one
         // can be revived for a fresh attempt.
         if (existing != null && existing.getStatus() != ApplicationStatus.WITHDRAWN) {
             return Eligibility.ALREADY_APPLIED;
         }
-        // The carrier must operate this leg's transport mode at all (M4).
+        // The carrier must operate this leg's transport mode at all (M4a).
         if (!carrierSupportsMode) return Eligibility.MODE_UNSUPPORTED;
-        // Credential gate, dispatched by mode: road uses the cross-regime
-        // covers() lattice (e.g. C+E ≡ HGV class 1); non-road modes don't carry
-        // a road-licence requirement (M1c).
-        if (!credentialMatchers.satisfies(load.getMode(), licenceCategory, load.getRequiredLicenceCategory())) {
+        // Credential gate, dispatched by mode (M4): road uses the cross-regime
+        // covers() lattice (e.g. C+E ≡ HGV class 1); air/sea/rail require the
+        // carrier to hold a credential for that mode (e.g. "AIR:ATPL").
+        if (!credentialMatchers.satisfies(load.getMode(), licenceCategory, credentials,
+                load.getRequiredLicenceCategory())) {
             return Eligibility.LICENCE;
         }
         if (availableHours < load.getEstimatedDurationHours()) return Eligibility.AVAILABILITY;
@@ -108,7 +116,8 @@ public class LoadApplicationServiceImpl implements LoadApplicationService {
         // rich, value-bearing message for the gate that failed — reusing the
         // facts above so no check is recomputed.
         boolean modeOk = carrier.supportsMode(load.getMode());
-        switch (evaluate(load, existing, carrier.getLicenceCategory(), modeOk, available, cab.isBlocking())) {
+        switch (evaluate(load, existing, carrier.getLicenceCategory(), carrier.getCredentials(),
+                modeOk, available, cab.isBlocking())) {
             case LOAD_NOT_OPEN ->
                 throw new IllegalArgumentException("This load is no longer accepting applications");
             case ALREADY_APPLIED ->
@@ -117,7 +126,9 @@ public class LoadApplicationServiceImpl implements LoadApplicationService {
                 throw new IllegalArgumentException(
                         "You are not set up to carry " + load.getMode() + " loads");
             case LICENCE ->
-                throw new IllegalArgumentException("Your licence category does not satisfy the load requirement");
+                throw new IllegalArgumentException(load.getMode() == Shipment.Mode.ROAD
+                        ? "Your licence category does not satisfy the load requirement"
+                        : "You need a " + load.getMode() + " credential on file to carry this load");
             case AVAILABILITY ->
                 throw new IllegalArgumentException(
                         "You need " + load.getEstimatedDurationHours() + " available hours on " +

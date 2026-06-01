@@ -6,31 +6,46 @@ import org.springframework.stereotype.Component;
 
 import java.util.EnumMap;
 import java.util.Map;
+import java.util.Set;
 
 /**
- * Dispatches credential matching by transport mode (M1c). This is the seam that
- * M4's air-crew / maritime / rail credential models plug into — register a
- * {@link CredentialMatcher} per mode here.
- *
- * <p>For now only ROAD has a real matcher (the HGV/CDL covers-lattice via
- * {@link LicenceCategory#satisfies}). Non-road modes match permissively: the
- * road licensing regime simply does not apply to them, so air/sea/rail loads are
- * no longer wrongly blocked at browse/apply time.
+ * Dispatches credential matching by transport mode. The seam M1c opened and M4
+ * fills in:
+ * <ul>
+ *   <li>ROAD — the cross-regime HGV/CDL covers-lattice via {@link LicenceCategory#satisfies}.</li>
+ *   <li>AIR / OCEAN / RAIL — the carrier must hold at least one credential tagged
+ *       for that mode (e.g. "AIR:ATPL", "OCEAN:STCW", "RAIL:RUL").</li>
+ *   <li>INTERMODAL / PARCEL — open (INTERMODAL is never a leg mode; PARCEL has no
+ *       credential regime yet).</li>
+ * </ul>
  */
 @Component
 public class CredentialMatcherRegistry {
 
     /** Road: the existing cross-regime HGV/CDL lattice. */
-    private static final CredentialMatcher ROAD = LicenceCategory::satisfies;
+    private static final CredentialMatcher ROAD =
+            (roadLicence, credentials, required) -> LicenceCategory.satisfies(roadLicence, required);
 
-    /** Non-road (M1c): no road-licence requirement yet. */
-    private static final CredentialMatcher OPEN = (have, required) -> true;
+    /** Fallback: no credential regime modelled for this mode. */
+    private static final CredentialMatcher OPEN =
+            (roadLicence, credentials, required) -> true;
+
+    /** Non-road: carrier must hold ≥1 credential tagged for the mode. */
+    private static CredentialMatcher modeMatcher(Shipment.Mode mode) {
+        String prefix = mode.name() + ":";
+        return (roadLicence, credentials, required) ->
+                credentials != null && credentials.stream()
+                        .anyMatch(c -> c != null && c.startsWith(prefix));
+    }
 
     private final Map<Shipment.Mode, CredentialMatcher> byMode = new EnumMap<>(Shipment.Mode.class);
 
     public CredentialMatcherRegistry() {
         byMode.put(Shipment.Mode.ROAD, ROAD);
-        // RAIL / OCEAN / AIR / INTERMODAL / PARCEL fall through to OPEN until M4.
+        byMode.put(Shipment.Mode.AIR, modeMatcher(Shipment.Mode.AIR));
+        byMode.put(Shipment.Mode.OCEAN, modeMatcher(Shipment.Mode.OCEAN));
+        byMode.put(Shipment.Mode.RAIL, modeMatcher(Shipment.Mode.RAIL));
+        // INTERMODAL / PARCEL → OPEN.
     }
 
     public CredentialMatcher forMode(Shipment.Mode mode) {
@@ -39,7 +54,7 @@ public class CredentialMatcherRegistry {
     }
 
     /** Convenience: dispatch and evaluate in one call. */
-    public boolean satisfies(Shipment.Mode mode, String have, String required) {
-        return forMode(mode).satisfies(have, required);
+    public boolean satisfies(Shipment.Mode mode, String roadLicence, Set<String> credentials, String required) {
+        return forMode(mode).satisfies(roadLicence, credentials, required);
     }
 }

@@ -168,6 +168,8 @@ public class DataInitializer implements CommandLineRunner {
         seedCarrier.setHomeCountry("IE");
         seedCarrier.setSupportedModes(new java.util.HashSet<>(java.util.List.of(
                 Shipment.Mode.ROAD, Shipment.Mode.OCEAN, Shipment.Mode.AIR)));
+        // Mode credentials so it's eligible for the air/sea demo loads (M4).
+        seedCarrier.setCredentials(new java.util.HashSet<>(java.util.List.of("AIR:ATPL", "OCEAN:STCW")));
         carrierRepository.save(seedCarrier);
 
         // ---- Reference geography (M3): typed port/airport/terminal nodes ----

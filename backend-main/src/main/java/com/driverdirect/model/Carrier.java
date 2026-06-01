@@ -89,6 +89,19 @@ public class Carrier extends User {
     @Column(name = "mode")
     private Set<Shipment.Mode> supportedModes = new HashSet<>();
 
+    /**
+     * Mode-specific credentials the carrier holds, tagged "MODE:NAME" (e.g.
+     * "AIR:ATPL", "OCEAN:STCW", "RAIL:RUL"). A non-road load requires the carrier
+     * to hold at least one credential for its mode; road uses the licence lattice.
+     */
+    @ElementCollection
+    @CollectionTable(
+        name = "carrier_credentials",
+        joinColumns = @JoinColumn(name = "carrier_id")
+    )
+    @Column(name = "credential")
+    private Set<String> credentials = new HashSet<>();
+
     /** True if this carrier can operate the given mode. Empty set = road-only. */
     public boolean supportsMode(Shipment.Mode mode) {
         return supportsMode(this.supportedModes, mode);

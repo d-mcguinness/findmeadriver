@@ -480,6 +480,9 @@
 		<Column>
 			<h1>Welcome, {auth.user?.firstName}!</h1>
 			<p class="dashboard-subtitle">Your carrier dashboard</p>
+			<Button size="small" kind="tertiary" href="/dashboard/capabilities">
+				Modes &amp; credentials
+			</Button>
 		</Column>
 	</Row>
 

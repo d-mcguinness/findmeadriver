@@ -24,4 +24,9 @@ public interface CarrierRepository extends JpaRepository<Carrier, Long> {
      *  Carriers with no rows are road-only (empty set). */
     @Query("select d.id, m from Carrier d join d.supportedModes m where d in :carriers")
     List<Object[]> findSupportedModesByCarriers(@Param("carriers") Collection<Carrier> carriers);
+
+    /** (carrierId, credential) rows for the given carriers — one query, used by
+     *  the batch eligibility preview to avoid an N+1 over each carrier's creds. */
+    @Query("select c.id, cr from Carrier c join c.credentials cr where c in :carriers")
+    List<Object[]> findCredentialsByCarriers(@Param("carriers") Collection<Carrier> carriers);
 }

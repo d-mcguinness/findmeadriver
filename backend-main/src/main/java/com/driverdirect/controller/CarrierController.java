@@ -4,6 +4,7 @@ import com.driverdirect.dto.*;
 import com.driverdirect.model.Carrier;
 import com.driverdirect.model.CarrierAvailability;
 import com.driverdirect.model.CarrierTimeSlot;
+import com.driverdirect.model.Shipment;
 import com.driverdirect.repository.CarrierAvailabilityRepository;
 import com.driverdirect.repository.CarrierRepository;
 import com.driverdirect.repository.CarrierTimeSlotRepository;
@@ -44,6 +45,32 @@ public class CarrierController {
     private final CarrierAvailabilityRepository availabilityRepository;
     private final CarrierLaneService carrierLaneService;
     private final CabotageService cabotageService;
+
+    // ---- Capabilities (M4): the modes a carrier operates + its mode credentials ----
+
+    @GetMapping("/capabilities")
+    public ResponseEntity<CarrierCapabilitiesResponse> getCapabilities(Authentication auth) {
+        return ResponseEntity.ok(CarrierCapabilitiesResponse.from(getCarrier(auth)));
+    }
+
+    @PutMapping("/capabilities")
+    public ResponseEntity<CarrierCapabilitiesResponse> setCapabilities(
+            Authentication auth,
+            @RequestBody CarrierCapabilitiesRequest request) {
+        Carrier carrier = getCarrier(auth);
+        java.util.Set<Shipment.Mode> modes = new java.util.HashSet<>();
+        if (request.getSupportedModes() != null) {
+            for (String m : request.getSupportedModes()) {
+                try { modes.add(Shipment.Mode.valueOf(m.trim().toUpperCase())); }
+                catch (IllegalArgumentException ignored) { /* skip unknown mode */ }
+            }
+        }
+        carrier.setSupportedModes(modes);
+        carrier.setCredentials(request.getCredentials() != null
+                ? new java.util.HashSet<>(request.getCredentials()) : new java.util.HashSet<>());
+        carrierRepository.save(carrier);
+        return ResponseEntity.ok(CarrierCapabilitiesResponse.from(carrier));
+    }
 
     @PutMapping("/availability")
     public ResponseEntity<AvailabilityResponse> setWeeklyAvailability(
