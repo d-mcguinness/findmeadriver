@@ -210,7 +210,7 @@
 										<div class="form-field">
 											<DatePicker datePickerType="single" on:change={(e) => {
 												const detail = e.detail;
-												if (detail.dateStr) licenseExpiration = detail.dateStr;
+												if (detail && typeof detail === 'object' && typeof detail.dateStr === 'string') licenseExpiration = detail.dateStr;
 											}}>
 												<DatePickerInput labelText="License Expiration" placeholder="mm/dd/yyyy" />
 											</DatePicker>
