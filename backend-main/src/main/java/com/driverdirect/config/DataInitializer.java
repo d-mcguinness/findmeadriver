@@ -397,6 +397,12 @@ public class DataInitializer implements CommandLineRunner {
         seedAvailability(siobhan,    new double[]{6, 0, 6, 6, 6, 0, 0,  6, 6, 0, 6, 6, 6, 0});
         seedAvailability(patrick,    new double[]{0, 0, 8, 8, 8, 0, 0,  8, 8, 8, 8, 0, 0, 8});
 
+        // Per-mode duty clocks for the multi-modal demo carrier: separate OCEAN
+        // (STCW: 14h/day, 91h/wk) and AIR (EASA FTL: 13h/day, 60h/wk) calendars
+        // beside the ROAD one above — each governed by its own ceilings.
+        seedModeAvailability(seedCarrier, Shipment.Mode.OCEAN, new double[]{0, 12, 12, 0, 10, 0, 0,  12, 12, 0, 10, 0, 0, 0});
+        seedModeAvailability(seedCarrier, Shipment.Mode.AIR,   new double[]{11, 0, 0, 11, 0, 0, 0,  11, 0, 11, 0, 0, 9, 0});
+
         // ---- Multi-stop international loads (exercise the route renderer +
         //      bookkeeping StopTypes: FERRY_TERMINAL / EUROTUNNEL / BORDER / REST) ----
         Load jFerry = createMultiStopLoad(acme,
@@ -523,6 +529,15 @@ public class DataInitializer implements CommandLineRunner {
             LocalDate date = start.plusDays(i);
             carrierAvailabilityRepository.save(new CarrierAvailability(carrier, date, h));
             seedTimeSlotsForDay(carrier, date, h);
+        }
+    }
+
+    private void seedModeAvailability(Carrier carrier, Shipment.Mode mode, double[] hoursForNext14Days) {
+        LocalDate start = LocalDate.now();
+        for (int i = 0; i < hoursForNext14Days.length; i++) {
+            double h = hoursForNext14Days[i];
+            if (h <= 0) continue;
+            carrierAvailabilityRepository.save(new CarrierAvailability(carrier, start.plusDays(i), mode, h));
         }
     }
 

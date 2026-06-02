@@ -33,6 +33,8 @@
 	// Availability state
 	let availability = $state<AvailabilityResponse | null>(null);
 	let weekDays = $state<{ date: string; dayName: string; hours: number }[]>([]);
+	let availMode = $state('ROAD');     // which mode's calendar the editor declares
+	const barPct = (v: number, max: number) => (max > 0 ? Math.min(100, Math.round((v / max) * 100)) : 0);
 
 	// Calendar view state
 	let calendarMonth = $state(new Date(new Date().getFullYear(), new Date().getMonth(), 1));
@@ -117,7 +119,7 @@
 		weekDays = dayNames.map((name, i) => {
 			const date = new Date(monday);
 			date.setDate(monday.getDate() + i);
-			const existing = availability?.days.find(d => d.date === formatDate(date));
+			const existing = availability?.days.find(d => d.date === formatDate(date) && d.mode === availMode);
 			return { date: formatDate(date), dayName: name, hours: existing?.availableHours ?? 0 };
 		});
 	}
@@ -130,6 +132,8 @@
 			availability = await api.get<AvailabilityResponse>(
 				`/api/carrier/availability?start=${formatDate(monday)}&end=${formatDate(sunday)}`
 			);
+			const clocks = availability?.dutyClocks ?? [];
+			if (clocks.length && !clocks.some(c => c.mode === availMode)) availMode = clocks[0].mode;
 			initWeekDays();
 		} catch {
 			initWeekDays();
@@ -143,7 +147,7 @@
 		try {
 			const entries = weekDays
 				.filter(d => d.hours > 0)
-				.map(d => ({ date: d.date, availableHours: d.hours }));
+				.map(d => ({ date: d.date, mode: availMode, availableHours: d.hours }));
 			availability = await api.put<AvailabilityResponse>('/api/carrier/availability', { entries });
 			availSuccess = 'Availability saved successfully';
 			initWeekDays();
@@ -499,7 +503,8 @@
 						<div class="tab-content">
 							<h3><Time size={20} /> Set Your Available Hours</h3>
 							<p class="info-text">
-								EU tachograph rules: max 9h/day (10h twice/week), 56h/week, 90h/fortnight
+								Each transport mode has its own duty/rest clock — declare hours per mode below.
+								Hours committed to assigned loads are netted off automatically.
 							</p>
 
 							{#if availError}
@@ -548,15 +553,49 @@
 							</div>
 
 							{#if availability}
-								<div class="totals">
-									<Tile class="total-tile">
-										<strong>Weekly:</strong> {availability.weeklyTotal}h / 56h
-										<span class="remaining">({availability.weeklyRemaining}h remaining)</span>
-									</Tile>
-									<Tile class="total-tile">
-										<strong>Fortnightly:</strong> {availability.fortnightlyTotal}h / 90h
-										<span class="remaining">({availability.fortnightlyRemaining}h remaining)</span>
-									</Tile>
+								<div class="avail-editor">
+									<div class="avail-editor-head">
+										<Select size="sm" labelText="Declare hours for mode"
+											bind:selected={availMode} on:change={() => initWeekDays()}>
+											{#each availability.dutyClocks as clock}
+												<SelectItem value={clock.mode} text={transportModeLabel(clock.mode)} />
+											{/each}
+										</Select>
+										<Button size="small" on:click={saveAvailability} disabled={availLoading}>
+											{availLoading ? 'Saving…' : `Save ${transportModeLabel(availMode)} hours`}
+										</Button>
+									</div>
+									<div class="weekday-row">
+										{#each weekDays as day, i}
+											<div class="weekday-cell">
+												<NumberInput size="sm" label={day.dayName}
+													bind:value={weekDays[i].hours} min={0} step={1} allowEmpty />
+											</div>
+										{/each}
+									</div>
+								</div>
+
+								<div class="duty-clocks">
+									<h4>Duty clocks by mode</h4>
+									<div class="clock-grid">
+										{#each availability.dutyClocks as clock}
+											<Tile class="clock-tile">
+												<div class="clock-head">
+													<Tag type={modeTagColor(clock.mode)}>{transportModeLabel(clock.mode)}</Tag>
+													<span class="clock-reg">{clock.regulation}</span>
+												</div>
+												<div class="clock-bar"
+													title="{clock.committedThisWeek}h committed + {clock.remainingThisWeek}h free of {clock.maxWeeklyHours}h/wk cap">
+													<div class="seg committed" style="width:{barPct(clock.committedThisWeek, clock.maxWeeklyHours)}%"></div>
+													<div class="seg free" style="width:{barPct(clock.remainingThisWeek, clock.maxWeeklyHours)}%"></div>
+												</div>
+												<div class="clock-nums">
+													<strong>{clock.remainingThisWeek}h free</strong> this week
+													<span class="muted">· {clock.committedThisWeek}h committed · {clock.declaredThisWeek}h declared · {clock.maxWeeklyHours}h/wk cap</span>
+												</div>
+											</Tile>
+										{/each}
+									</div>
 								</div>
 							{/if}
 						</div>
@@ -1092,15 +1131,68 @@
 		outline: 2px solid var(--cds-focus, #0f62fe);
 		outline-offset: -2px;
 	}
-	.totals {
-		display: flex;
-		gap: 1rem;
-		margin-bottom: 1rem;
+	.avail-editor {
+		margin: 1rem 0;
+		padding: 1rem;
+		background: var(--cds-layer, #f4f4f4);
+		border-left: 3px solid var(--cds-interactive, #0f62fe);
 	}
-	.remaining {
-		color: var(--cds-text-secondary);
+	.avail-editor-head {
+		display: flex;
+		align-items: flex-end;
+		gap: 1rem;
+		margin-bottom: 0.75rem;
+		flex-wrap: wrap;
+	}
+	.weekday-row {
+		display: grid;
+		grid-template-columns: repeat(7, 1fr);
+		gap: 0.5rem;
+	}
+	.duty-clocks {
+		margin-top: 1rem;
+	}
+	.duty-clocks h4 {
+		margin: 0 0 0.5rem;
 		font-size: 0.875rem;
-		margin-left: 0.5rem;
+		text-transform: uppercase;
+		letter-spacing: 0.02em;
+		color: var(--cds-text-secondary);
+	}
+	.clock-grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+		gap: 0.75rem;
+	}
+	.clock-head {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		margin-bottom: 0.5rem;
+	}
+	.clock-reg {
+		font-size: 0.75rem;
+		color: var(--cds-text-secondary);
+	}
+	.clock-bar {
+		display: flex;
+		height: 0.5rem;
+		border-radius: 0.25rem;
+		overflow: hidden;
+		background: var(--cds-border-subtle, #e0e0e0);
+		margin-bottom: 0.5rem;
+	}
+	.clock-bar .seg.committed {
+		background: var(--cds-support-warning, #f1c21b);
+	}
+	.clock-bar .seg.free {
+		background: var(--cds-support-success, #24a148);
+	}
+	.clock-nums {
+		font-size: 0.8125rem;
+	}
+	.clock-nums .muted {
+		color: var(--cds-text-secondary);
 	}
 	:global(.compliance-summary) {
 		margin-bottom: 1rem;
@@ -1323,8 +1415,9 @@
 		font-weight: 600;
 	}
 	@media (max-width: 672px) {
-		.totals {
-			flex-direction: column;
+		.weekday-row,
+		.clock-grid {
+			grid-template-columns: 1fr;
 		}
 	}
 </style>

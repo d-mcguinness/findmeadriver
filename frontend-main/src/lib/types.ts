@@ -1,15 +1,33 @@
 export interface DayAvailability {
 	id: number | null;
 	date: string;
+	mode: string;
 	availableHours: number;
+}
+
+/** One transport mode's duty clock: declared vs committed vs remaining over the
+ *  current week + fortnight, against that mode's own regulatory ceiling. */
+export interface DutyClock {
+	mode: string;
+	regulation: string;
+	maxDailyHours: number;
+	maxWeeklyHours: number;
+	maxFortnightlyHours: number;
+	declaredThisWeek: number;
+	committedThisWeek: number;
+	remainingThisWeek: number;
+	declaredFortnight: number;
+	committedFortnight: number;
+	remainingFortnight: number;
 }
 
 export interface AvailabilityResponse {
 	days: DayAvailability[];
+	dutyClocks: DutyClock[];
 	weeklyTotal: number;
 	fortnightlyTotal: number;
-	weeklyRemaining: number;
-	fortnightlyRemaining: number;
+	weeklyRemaining: number | null;
+	fortnightlyRemaining: number | null;
 }
 
 export interface CarrierLane {

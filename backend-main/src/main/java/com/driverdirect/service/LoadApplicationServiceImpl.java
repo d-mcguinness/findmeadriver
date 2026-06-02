@@ -30,7 +30,8 @@ public class LoadApplicationServiceImpl implements LoadApplicationService {
     @Override
     public Eligibility checkEligibility(Carrier carrier, Load load) {
         LoadApplication existing = applicationRepository.findByLoadAndCarrier(load, carrier).orElse(null);
-        double hours = availabilityService.getAvailableHoursOnDate(carrier, load.getDateNeeded());
+        // Per-mode duty clock: remaining = declared(mode) − already-committed(mode).
+        double hours = availabilityService.getRemainingHoursOnDate(carrier, load.getDateNeeded(), load.getMode());
         boolean cabotageBlocking = cabotageService.check(carrier, load).isBlocking();
         boolean modeOk = carrier.supportsMode(load.getMode());
         return evaluate(load, existing, carrier.getLicenceCategory(), carrier.getCredentials(),
@@ -44,9 +45,10 @@ public class LoadApplicationServiceImpl implements LoadApplicationService {
         //  - applications for the load (1 query; carrierId via the lazy FK, no load)
         Map<Long, LoadApplication> appByCarrier = applicationRepository.findByLoad(load).stream()
                 .collect(Collectors.toMap(a -> a.getCarrier().getId(), a -> a, (a, b) -> a));
-        //  - availability on the load's date across all carriers (1 query)
+        //  - remaining hours for the load's MODE on its date, across all carriers (1 query)
+        //    (declared minus committed on that mode's duty clock)
         Map<Long, Double> hoursByCarrier =
-                availabilityService.getAvailableHoursForCarriers(carriers, load.getDateNeeded());
+                availabilityService.getRemainingHoursForCarriers(carriers, load.getDateNeeded(), load.getMode());
         //  - cabotage op counts per carrier for the destination country (0–1 query)
         Map<Long, Integer> cabotageByCarrier = cabotageService.countInWindowByCarrier(carriers, load);
         //  - supported modes per carrier (1 query; carriers absent = road-only)
@@ -111,7 +113,7 @@ public class LoadApplicationServiceImpl implements LoadApplicationService {
                 .orElseThrow(() -> new IllegalArgumentException("Load not found"));
 
         LoadApplication existing = applicationRepository.findByLoadAndCarrier(load, carrier).orElse(null);
-        Double available = availabilityService.getAvailableHoursOnDate(carrier, load.getDateNeeded());
+        double available = availabilityService.getRemainingHoursOnDate(carrier, load.getDateNeeded(), load.getMode());
         CabotageService.CabotageCheck cab = cabotageService.check(carrier, load);
 
         // Enforce the same rule the admin UI previews (via evaluate); craft the
@@ -133,8 +135,9 @@ public class LoadApplicationServiceImpl implements LoadApplicationService {
                         : "You need a " + load.getMode() + " credential on file to carry this load");
             case AVAILABILITY ->
                 throw new IllegalArgumentException(
-                        "You need " + load.getEstimatedDurationHours() + " available hours on " +
-                        load.getDateNeeded() + " but only have " + available + "h set");
+                        "You need " + load.getEstimatedDurationHours() + " free " + load.getMode() +
+                        " hours on " + load.getDateNeeded() + " but only have " + available +
+                        "h left on that duty clock");
             case CABOTAGE ->
                 throw new IllegalArgumentException(
                         "Cabotage limit reached for " + cab.country() + ": "
