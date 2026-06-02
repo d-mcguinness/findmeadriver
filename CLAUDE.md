@@ -15,7 +15,8 @@ FindMeADriver — a **multi-modal freight marketplace / lightweight TMS**. **Shi
 cd backend-main
 mvn spring-boot:run          # Run on http://localhost:8080
 mvn clean install            # Build
-mvn test                     # No tests exist yet
+mvn test                     # Unit tests (pricing / credential / compliance / licence core).
+                             # First run must be online to fetch the surefire JUnit-platform provider.
 ```
 Override the port with `-Dspring-boot.run.arguments=--server.port=8090`.
 
