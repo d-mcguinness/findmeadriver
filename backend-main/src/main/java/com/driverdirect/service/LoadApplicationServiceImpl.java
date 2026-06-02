@@ -79,7 +79,9 @@ public class LoadApplicationServiceImpl implements LoadApplicationService {
     // The single rule set, shared by the apply path, the single-carrier check,
     // and the batch preview so they can never drift. Order matters: the first
     // failing gate wins. Takes resolved facts so it issues no queries itself.
-    private Eligibility evaluate(Load load, LoadApplication existing, String licenceCategory,
+    // Package-private (not private) so EligibilityEvaluateTest can drive the
+    // gate ladder directly with resolved facts.
+    Eligibility evaluate(Load load, LoadApplication existing, String licenceCategory,
                                  java.util.Set<String> credentials, boolean carrierSupportsMode,
                                  double availableHours, boolean cabotageBlocking) {
         if (load.getStatus() != LoadStatus.OPEN) return Eligibility.LOAD_NOT_OPEN;
