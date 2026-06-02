@@ -34,7 +34,7 @@
 					<p class="lead">
 						One simple model across every mode: you pay the <strong>carrier's cost</strong> plus a
 						single <strong>platform fee</strong> that depends only on the transport mode. The fee is
-						shown before you post a job, and it's the only thing we add — no agency markup, no
+						shown before you post a load, and it's the only thing we add — no agency markup, no
 						per-day minimums, no hidden line items.
 					</p>
 				</div>
@@ -95,7 +95,7 @@
 		<Row>
 			<Column>
 				<div class="why-pricing">
-					<div class="why-item"><ChartLineData size={20} /><div><strong>Transparent</strong><p>See the exact fee before you commit — the post-a-job form previews it live.</p></div></div>
+					<div class="why-item"><ChartLineData size={20} /><div><strong>Transparent</strong><p>See the exact fee before you commit — the post-a-load form previews it live.</p></div></div>
 					<div class="why-item"><Money size={20} /><div><strong>Mode-fair</strong><p>Air and sea cost more to broker than road, so the fee reflects the mode — nothing else.</p></div></div>
 					<div class="why-item"><Checkmark size={20} /><div><strong>No markup</strong><p>We never inflate the carrier's rate. The platform fee is all we charge.</p></div></div>
 				</div>
@@ -106,13 +106,13 @@
 			<Column>
 				<Tile class="cta-tile">
 					<h2>Ready to move freight?</h2>
-					<p>Post a job in any mode and see your total before you commit.</p>
+					<p>Post a load in any mode and see your total before you commit.</p>
 					<div class="cta-actions">
 						{#if auth.isAuthenticated}
 							<Button href="/dashboard" icon={ArrowRight}>Go to Dashboard</Button>
 						{:else}
-							<Button href="/register" icon={DeliveryTruck}>Register as Driver</Button>
-							<Button href="/register" kind="secondary" icon={Enterprise}>Register as Employer</Button>
+							<Button href="/register" icon={DeliveryTruck}>Register as Carrier</Button>
+							<Button href="/register" kind="secondary" icon={Enterprise}>Register as Shipper</Button>
 						{/if}
 					</div>
 				</Tile>

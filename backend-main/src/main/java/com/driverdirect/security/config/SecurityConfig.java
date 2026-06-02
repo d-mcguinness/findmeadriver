@@ -57,11 +57,12 @@ public class SecurityConfig {
                     .requestMatchers("/api/user/forgot-password").permitAll()
                     .requestMatchers("/api/user/reset-password").permitAll()
                     .requestMatchers("/api/pricing/**").permitAll()
+                    .requestMatchers("/api/compliance/rules").permitAll()
                     .requestMatchers("/error").permitAll()
                     .requestMatchers("/api/user/all").authenticated()
                     .requestMatchers("/api/admin/**").hasRole("ADMIN")
-                    .requestMatchers("/api/employer/**").hasRole("EMPLOYER")
-                    .requestMatchers("/api/driver/**").hasRole("DRIVER")
+                    .requestMatchers("/api/shipper/**").hasRole("SHIPPER")
+                    .requestMatchers("/api/carrier/**").hasRole("CARRIER")
                     .anyRequest().authenticated()
             );
 

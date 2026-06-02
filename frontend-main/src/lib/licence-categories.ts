@@ -1,7 +1,7 @@
 // Country-keyed licence category lookup. Keys are ISO-3166-1 alpha-2 country
-// codes; values are the categories valid for posting jobs / registering drivers
+// codes; values are the categories valid for posting loads / registering carriers
 // in that country. The backend just stores the string verbatim and equality-
-// matches it during job application — no validation server-side.
+// matches it during load application — no validation server-side.
 //
 // Add a country: append an entry with the categories you want to surface.
 export const LICENCE_CATEGORIES: Record<string, { code: string; label: string }[]> = {

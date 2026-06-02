@@ -16,8 +16,8 @@
 
 	const testUsers = [
 		{ label: 'Admin', email: 'admin@driverdirect.com', password: 'admin123' },
-		{ label: 'Employer', email: 'employer@company.com', password: 'employer123' },
-		{ label: 'Driver', email: 'driver@example.com', password: 'driver123' }
+		{ label: 'Shipper', email: 'employer@company.com', password: 'employer123' },
+		{ label: 'Carrier', email: 'driver@example.com', password: 'driver123' }
 	];
 
 	let email = $state('');
@@ -45,7 +45,7 @@
 			<div class="form-container">
 				<Tile>
 					<h2>Sign In</h2>
-					<p class="form-subtitle">Welcome back to Driver Direct</p>
+					<p class="form-subtitle">Welcome back to Carrier Direct</p>
 
 					{#if error}
 						<InlineNotification

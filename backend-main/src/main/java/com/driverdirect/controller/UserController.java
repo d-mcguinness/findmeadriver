@@ -1,13 +1,13 @@
 package com.driverdirect.controller;
 
-import com.driverdirect.dto.DriverRegistrationRequest;
-import com.driverdirect.dto.EmployerRegistrationRequest;
-import com.driverdirect.model.Driver;
-import com.driverdirect.model.Employer;
+import com.driverdirect.dto.CarrierRegistrationRequest;
+import com.driverdirect.dto.ShipperRegistrationRequest;
+import com.driverdirect.model.Carrier;
+import com.driverdirect.model.Shipper;
 import com.driverdirect.model.User;
 import com.driverdirect.security.util.JwtUtil;
-import com.driverdirect.service.DriverService;
-import com.driverdirect.service.EmployerService;
+import com.driverdirect.service.CarrierService;
+import com.driverdirect.service.ShipperService;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import org.springframework.http.HttpStatus;
@@ -32,8 +32,8 @@ import java.util.Map;
 public class UserController {
 
     private final AuthenticationManager authenticationManager;
-    private final DriverService driverService;
-    private final EmployerService employerService;
+    private final CarrierService carrierService;
+    private final ShipperService shipperService;
     private final JwtUtil jwtUtil;
 
     @PostMapping("/login")
@@ -71,15 +71,15 @@ public class UserController {
         private String password;
     }
 
-    @PostMapping("/register/driver")
-    public ResponseEntity<?> registerDriver(@Valid @RequestBody DriverRegistrationRequest request) {
-        Driver registeredDriver = driverService.createDriver(request);
-        return ResponseEntity.status(HttpStatus.CREATED).body(registeredDriver);
+    @PostMapping("/register/carrier")
+    public ResponseEntity<?> registerCarrier(@Valid @RequestBody CarrierRegistrationRequest request) {
+        Carrier registeredCarrier = carrierService.createCarrier(request);
+        return ResponseEntity.status(HttpStatus.CREATED).body(registeredCarrier);
     }
 
-    @PostMapping("/register/employer")
-    public ResponseEntity<?> registerEmployer(@Valid @RequestBody EmployerRegistrationRequest request) {
-        Employer registeredEmployer = employerService.createEmployer(request);
-        return ResponseEntity.status(HttpStatus.CREATED).body(registeredEmployer);
+    @PostMapping("/register/shipper")
+    public ResponseEntity<?> registerShipper(@Valid @RequestBody ShipperRegistrationRequest request) {
+        Shipper registeredShipper = shipperService.createShipper(request);
+        return ResponseEntity.status(HttpStatus.CREATED).body(registeredShipper);
     }
 }

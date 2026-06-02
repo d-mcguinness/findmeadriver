@@ -1,6 +1,6 @@
 package com.driverdirect.repository;
 
-import com.driverdirect.model.Employer;
+import com.driverdirect.model.Shipper;
 import com.driverdirect.model.Location;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
@@ -10,6 +10,6 @@ import java.util.Optional;
 
 @Repository
 public interface LocationRepository extends JpaRepository<Location, Long> {
-    List<Location> findByOwnerEmployer(Employer employer);
+    List<Location> findByOwnerShipper(Shipper shipper);
     Optional<Location> findFirstByNameIgnoreCaseAndCountry(String name, String country);
 }

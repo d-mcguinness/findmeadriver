@@ -9,7 +9,7 @@ import java.time.LocalDateTime;
 /**
  * An ordered physical event on a Shipment. Sequence is 1-indexed within the
  * parent Shipment. earliestAt/latestAt define the appointment window;
- * actualAt is set when the driver checks in/out.
+ * actualAt is set when the carrier checks in/out.
  *
  * <p>{@link StopType} covers commercial stops (PICKUP / DELIVERY / WAYPOINT)
  * plus international-route bookkeeping stops (REST, BORDER, FERRY_TERMINAL,

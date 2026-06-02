@@ -11,8 +11,8 @@ import java.util.List;
 @Data
 public class ShipmentResponse {
     private Long id;
-    private Long employerId;
-    private String employerName;
+    private Long shipperId;
+    private String shipperName;
     // Intermodal leg membership (M2): null for standalone single-leg shipments.
     private Long itineraryId;
     private Integer legSequence;
@@ -22,7 +22,7 @@ public class ShipmentResponse {
     private BigDecimal totalRate;
     private BigDecimal commissionPercent;
     private BigDecimal commissionAmount;
-    private BigDecimal employerTotal;
+    private BigDecimal shipperTotal;
     private String chargeUnit;
     private BigDecimal chargeableQuantity;
     private BigDecimal distanceKm;
@@ -78,8 +78,8 @@ public class ShipmentResponse {
     public static ShipmentResponse from(Shipment s) {
         ShipmentResponse r = new ShipmentResponse();
         r.setId(s.getId());
-        r.setEmployerId(s.getEmployer().getId());
-        r.setEmployerName(s.getEmployer().getCompanyName());
+        r.setShipperId(s.getShipper().getId());
+        r.setShipperName(s.getShipper().getCompanyName());
         if (s.getItinerary() != null) {
             r.setItineraryId(s.getItinerary().getId());
         }
@@ -90,7 +90,7 @@ public class ShipmentResponse {
         r.setTotalRate(s.getTotalRate());
         r.setCommissionPercent(s.getCommissionPercent());
         r.setCommissionAmount(s.getCommissionAmount());
-        r.setEmployerTotal(s.getEmployerTotal());
+        r.setShipperTotal(s.getShipperTotal());
         r.setChargeUnit(s.getChargeUnit() != null ? s.getChargeUnit().name() : null);
         r.setChargeableQuantity(s.getChargeableQuantity());
         r.setDistanceKm(s.getDistanceKm());

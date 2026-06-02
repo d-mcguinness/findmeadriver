@@ -3,7 +3,7 @@
 
 export type TransportMode = 'ROAD' | 'RAIL' | 'OCEAN' | 'AIR' | 'INTERMODAL' | 'PARCEL';
 
-// Selectable modes in the Post-a-Job form. INTERMODAL is reserved for the
+// Selectable modes in the Post-a-Load form. INTERMODAL is reserved for the
 // multi-leg flow (M2); PARCEL is not offered yet.
 export const TRANSPORT_MODE_OPTIONS: { value: TransportMode; label: string }[] = [
 	{ value: 'ROAD', label: 'Road' },
@@ -43,7 +43,7 @@ export function modeTagColor(mode: string | undefined | null): CarbonTagColor {
 	return MODE_TAG_COLOR[mode ?? 'ROAD'] ?? 'gray';
 }
 
-// Estimated platform commission % for the Post-a-Job live preview. Delegates to
+// Estimated platform commission % for the Post-a-Load live preview. Delegates to
 // the single client-side fallback table in pricing.ts (which the public
 // /api/pricing/modes endpoint mirrors); the backend recomputes the authoritative
 // figure on save.

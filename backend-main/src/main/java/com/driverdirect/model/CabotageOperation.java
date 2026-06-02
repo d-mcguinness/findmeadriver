@@ -9,7 +9,7 @@ import java.time.LocalDateTime;
 
 /**
  * A historical record of a completed cabotage operation — a domestic
- * carriage performed by a foreign-based driver inside a host country.
+ * carriage performed by a foreign-based carrier inside a host country.
  *
  * <p>Cabotage rules (EU Regulation 1072/2009, Mobility Package 2020):
  * after an international delivery into Member State X, a non-resident
@@ -26,9 +26,9 @@ import java.time.LocalDateTime;
 @Entity
 @Table(name = "cabotage_operations",
         indexes = {
-                @Index(name = "idx_cabotage_driver_country_date",
-                        columnList = "driver_id, country, performed_at"),
-                @Index(name = "idx_cabotage_job", columnList = "job_id")
+                @Index(name = "idx_cabotage_carrier_country_date",
+                        columnList = "carrier_id, country, performed_at"),
+                @Index(name = "idx_cabotage_load", columnList = "load_id")
         })
 @Data
 @NoArgsConstructor
@@ -39,13 +39,13 @@ public class CabotageOperation {
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "driver_id", nullable = false)
-    private Driver driver;
+    @JoinColumn(name = "carrier_id", nullable = false)
+    private Carrier carrier;
 
-    /** Source Job. Nullable so back-fill / imported history can omit it. */
+    /** Source Load. Nullable so back-fill / imported history can omit it. */
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "job_id")
-    private Job job;
+    @JoinColumn(name = "load_id")
+    private Load load;
 
     /**
      * The delivery (unload) Location this op was carried to. Provenance only —

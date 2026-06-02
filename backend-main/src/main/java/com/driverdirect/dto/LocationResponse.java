@@ -6,7 +6,7 @@ import lombok.Data;
 @Data
 public class LocationResponse {
     private Long id;
-    private Long ownerEmployerId;
+    private Long ownerShipperId;
     private String name;
     private String addressLine;
     private String city;
@@ -22,7 +22,7 @@ public class LocationResponse {
     public static LocationResponse from(Location l) {
         LocationResponse r = new LocationResponse();
         r.setId(l.getId());
-        r.setOwnerEmployerId(l.getOwnerEmployer() != null ? l.getOwnerEmployer().getId() : null);
+        r.setOwnerShipperId(l.getOwnerShipper() != null ? l.getOwnerShipper().getId() : null);
         r.setName(l.getName());
         r.setAddressLine(l.getAddressLine());
         r.setCity(l.getCity());

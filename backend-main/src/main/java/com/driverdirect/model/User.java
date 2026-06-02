@@ -52,7 +52,7 @@ public class User implements UserDetails {
               joinColumns = @JoinColumn(name = "user_id"),
               inverseJoinColumns = @JoinColumn(name = "role_id"))
     // Batch the eager role loads so a findAll() of N users costs ~1 roles query
-    // instead of N (matters for the admin drivers/users/eligibility lists).
+    // instead of N (matters for the admin carriers/users/eligibility lists).
     @org.hibernate.annotations.BatchSize(size = 100)
     private Set<Role> roles = new HashSet<>();
 

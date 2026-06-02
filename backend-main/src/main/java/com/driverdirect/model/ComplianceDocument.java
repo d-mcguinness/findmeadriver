@@ -18,8 +18,8 @@ public class ComplianceDocument {
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "driver_id", nullable = false)
-    private Driver driver;
+    @JoinColumn(name = "carrier_id", nullable = false)
+    private Carrier carrier;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "document_type", nullable = false)

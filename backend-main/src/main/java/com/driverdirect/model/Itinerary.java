@@ -16,7 +16,7 @@ import java.util.List;
  * {@link TransportOrder} and carries the rolled-up totals. The mode INTERMODAL
  * lives only here (derived) — a leg always resolves to one concrete mode.
  *
- * <p>Single-leg jobs (the pre-M2 norm) simply have no Itinerary — a Shipment's
+ * <p>Single-leg loads (the pre-M2 norm) simply have no Itinerary — a Shipment's
  * {@code itinerary} is nullable, so existing rows are unaffected.
  */
 @Entity
@@ -30,8 +30,8 @@ public class Itinerary {
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "employer_id", nullable = false)
-    private Employer employer;
+    @JoinColumn(name = "shipper_id", nullable = false)
+    private Shipper shipper;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "order_id")
@@ -46,7 +46,7 @@ public class Itinerary {
 
     // Rolled up from the legs by PricingService.recalcItinerary:
     //   carrierCostTotal = Σ leg carrier cost, commissionTotal = Σ leg fee,
-    //   grandTotal = Σ leg employer total (what the customer pays end-to-end).
+    //   grandTotal = Σ leg shipper total (what the customer pays end-to-end).
     @Column(name = "carrier_cost_total")
     private BigDecimal carrierCostTotal;
 

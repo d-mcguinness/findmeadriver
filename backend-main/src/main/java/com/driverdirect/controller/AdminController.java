@@ -2,33 +2,33 @@ package com.driverdirect.controller;
 
 import com.driverdirect.dto.AdminUserResponse;
 import com.driverdirect.dto.ComplianceDocumentResponse;
-import com.driverdirect.dto.CreateIntermodalJobRequest;
-import com.driverdirect.dto.CreateJobRequest;
-import com.driverdirect.dto.JobApplicationRequest;
-import com.driverdirect.dto.JobApplicationResponse;
+import com.driverdirect.dto.CreateIntermodalLoadRequest;
+import com.driverdirect.dto.CreateLoadRequest;
+import com.driverdirect.dto.LoadApplicationRequest;
+import com.driverdirect.dto.LoadApplicationResponse;
 import com.driverdirect.dto.ItineraryResponse;
-import com.driverdirect.dto.JobResponse;
+import com.driverdirect.dto.LoadResponse;
 import com.driverdirect.dto.LocationResponse;
 import com.driverdirect.dto.OrderResponse;
 import com.driverdirect.dto.PlatformStatsResponse;
 import com.driverdirect.dto.ShipmentResponse;
-import com.driverdirect.model.Driver;
-import com.driverdirect.model.Employer;
-import com.driverdirect.model.Job;
-import com.driverdirect.model.JobStatus;
+import com.driverdirect.model.Carrier;
+import com.driverdirect.model.Shipper;
+import com.driverdirect.model.Load;
+import com.driverdirect.model.LoadStatus;
 import com.driverdirect.model.User;
-import com.driverdirect.repository.DriverRepository;
-import com.driverdirect.repository.EmployerRepository;
-import com.driverdirect.repository.JobApplicationRepository;
+import com.driverdirect.repository.CarrierRepository;
+import com.driverdirect.repository.ShipperRepository;
+import com.driverdirect.repository.LoadApplicationRepository;
 import com.driverdirect.repository.ItineraryRepository;
-import com.driverdirect.repository.JobRepository;
+import com.driverdirect.repository.LoadRepository;
 import com.driverdirect.repository.LocationRepository;
 import com.driverdirect.repository.ShipmentRepository;
 import com.driverdirect.repository.TransportOrderRepository;
 import com.driverdirect.service.AdminService;
 import com.driverdirect.service.ComplianceService;
-import com.driverdirect.service.JobApplicationService;
-import com.driverdirect.service.JobService;
+import com.driverdirect.service.LoadApplicationService;
+import com.driverdirect.service.LoadService;
 import lombok.AllArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -45,12 +45,12 @@ public class AdminController {
 
     private final AdminService adminService;
     private final ComplianceService complianceService;
-    private final JobService jobService;
-    private final JobApplicationService jobApplicationService;
-    private final JobRepository jobRepository;
-    private final JobApplicationRepository jobApplicationRepository;
-    private final DriverRepository driverRepository;
-    private final EmployerRepository employerRepository;
+    private final LoadService loadService;
+    private final LoadApplicationService loadApplicationService;
+    private final LoadRepository loadRepository;
+    private final LoadApplicationRepository loadApplicationRepository;
+    private final CarrierRepository carrierRepository;
+    private final ShipperRepository shipperRepository;
     private final TransportOrderRepository transportOrderRepository;
     private final ShipmentRepository shipmentRepository;
     private final ItineraryRepository itineraryRepository;
@@ -79,26 +79,26 @@ public class AdminController {
     public ResponseEntity<PlatformStatsResponse> getPlatformStats() {
         PlatformStatsResponse stats = new PlatformStatsResponse();
         stats.setTotalUsers(adminService.getAllUsers().size());
-        stats.setTotalDrivers(driverRepository.count());
-        stats.setTotalEmployers(employerRepository.count());
+        stats.setTotalCarriers(carrierRepository.count());
+        stats.setTotalShippers(shipperRepository.count());
 
-        List<Job> allJobs = jobRepository.findAll();
-        stats.setTotalJobs(allJobs.size());
-        stats.setOpenJobs(allJobs.stream().filter(j -> j.getStatus() == JobStatus.OPEN).count());
-        stats.setAssignedJobs(allJobs.stream().filter(j -> j.getStatus() == JobStatus.ASSIGNED).count());
-        stats.setInProgressJobs(allJobs.stream().filter(j -> j.getStatus() == JobStatus.IN_PROGRESS).count());
-        stats.setCompletedJobs(allJobs.stream().filter(j -> j.getStatus() == JobStatus.COMPLETED).count());
-        stats.setCancelledJobs(allJobs.stream().filter(j -> j.getStatus() == JobStatus.CANCELLED).count());
+        List<Load> allLoads = loadRepository.findAll();
+        stats.setTotalLoads(allLoads.size());
+        stats.setOpenLoads(allLoads.stream().filter(j -> j.getStatus() == LoadStatus.OPEN).count());
+        stats.setAssignedLoads(allLoads.stream().filter(j -> j.getStatus() == LoadStatus.ASSIGNED).count());
+        stats.setInProgressLoads(allLoads.stream().filter(j -> j.getStatus() == LoadStatus.IN_PROGRESS).count());
+        stats.setCompletedLoads(allLoads.stream().filter(j -> j.getStatus() == LoadStatus.COMPLETED).count());
+        stats.setCancelledLoads(allLoads.stream().filter(j -> j.getStatus() == LoadStatus.CANCELLED).count());
         stats.setPendingDocuments(complianceService.getPendingDocuments().size());
 
         return ResponseEntity.ok(stats);
     }
 
-    // ---- Jobs ----
+    // ---- Loads ----
 
-    @GetMapping("/employers")
-    public ResponseEntity<List<Map<String, Object>>> getAllEmployers() {
-        List<Map<String, Object>> response = employerRepository.findAll().stream()
+    @GetMapping("/shippers")
+    public ResponseEntity<List<Map<String, Object>>> getAllShippers() {
+        List<Map<String, Object>> response = shipperRepository.findAll().stream()
                 .map(e -> {
                     Map<String, Object> m = new java.util.LinkedHashMap<>();
                     m.put("id", e.getId());
@@ -110,9 +110,9 @@ public class AdminController {
         return ResponseEntity.ok(response);
     }
 
-    @GetMapping("/drivers")
-    public ResponseEntity<List<Map<String, Object>>> getAllDrivers() {
-        List<Map<String, Object>> response = driverRepository.findAll().stream()
+    @GetMapping("/carriers")
+    public ResponseEntity<List<Map<String, Object>>> getAllCarriers() {
+        List<Map<String, Object>> response = carrierRepository.findAll().stream()
                 .map(d -> {
                     Map<String, Object> m = new java.util.LinkedHashMap<>();
                     m.put("id", d.getId());
@@ -126,51 +126,51 @@ public class AdminController {
         return ResponseEntity.ok(response);
     }
 
-    @PostMapping("/jobs")
-    public ResponseEntity<JobResponse> createJobAsAdmin(
-            @RequestParam Long employerId,
-            @RequestBody CreateJobRequest request) {
-        Employer employer = employerRepository.findById(employerId)
-                .orElseThrow(() -> new IllegalArgumentException("Employer not found: " + employerId));
-        return ResponseEntity.status(HttpStatus.CREATED).body(jobService.createJob(employer, request));
+    @PostMapping("/loads")
+    public ResponseEntity<LoadResponse> createLoadAsAdmin(
+            @RequestParam Long shipperId,
+            @RequestBody CreateLoadRequest request) {
+        Shipper shipper = shipperRepository.findById(shipperId)
+                .orElseThrow(() -> new IllegalArgumentException("Shipper not found: " + shipperId));
+        return ResponseEntity.status(HttpStatus.CREATED).body(loadService.createLoad(shipper, request));
     }
 
-    @GetMapping("/jobs")
-    public ResponseEntity<List<JobResponse>> getAllJobs() {
-        List<Job> jobs = jobRepository.findAll();
-        List<JobResponse> response = jobs.stream()
-                .map(job -> JobResponse.from(job, jobApplicationRepository.findByJob(job).size()))
+    @GetMapping("/loads")
+    public ResponseEntity<List<LoadResponse>> getAllLoads() {
+        List<Load> loads = loadRepository.findAll();
+        List<LoadResponse> response = loads.stream()
+                .map(load -> LoadResponse.from(load, loadApplicationRepository.findByLoad(load).size()))
                 .toList();
         return ResponseEntity.ok(response);
     }
 
-    @GetMapping("/jobs/{jobId}/applications")
-    public ResponseEntity<List<JobApplicationResponse>> getApplicationsForJob(@PathVariable Long jobId) {
-        Job job = jobRepository.findById(jobId)
-                .orElseThrow(() -> new IllegalArgumentException("Job not found: " + jobId));
-        List<JobApplicationResponse> apps = jobApplicationRepository.findByJob(job).stream()
-                .map(JobApplicationResponse::from)
+    @GetMapping("/loads/{loadId}/applications")
+    public ResponseEntity<List<LoadApplicationResponse>> getApplicationsForLoad(@PathVariable Long loadId) {
+        Load load = loadRepository.findById(loadId)
+                .orElseThrow(() -> new IllegalArgumentException("Load not found: " + loadId));
+        List<LoadApplicationResponse> apps = loadApplicationRepository.findByLoad(load).stream()
+                .map(LoadApplicationResponse::from)
                 .toList();
         return ResponseEntity.ok(apps);
     }
 
-    /** Per-driver eligibility to apply for this job — runs the real applyForJob
+    /** Per-carrier eligibility to apply for this load — runs the real applyForLoad
      *  rules (status/duplicate/licence/availability/cabotage) so the admin UI
      *  only offers Apply where it would actually succeed. */
-    @GetMapping("/jobs/{jobId}/driver-eligibility")
-    public ResponseEntity<List<Map<String, Object>>> getDriverEligibility(@PathVariable Long jobId) {
-        Job job = jobRepository.findById(jobId)
-                .orElseThrow(() -> new IllegalArgumentException("Job not found: " + jobId));
-        List<Driver> drivers = driverRepository.findAll();
-        Map<Long, JobApplicationService.Eligibility> eligibility =
-                jobApplicationService.checkEligibilityForDrivers(job, drivers);
-        List<Map<String, Object>> response = drivers.stream()
+    @GetMapping("/loads/{loadId}/carrier-eligibility")
+    public ResponseEntity<List<Map<String, Object>>> getCarrierEligibility(@PathVariable Long loadId) {
+        Load load = loadRepository.findById(loadId)
+                .orElseThrow(() -> new IllegalArgumentException("Load not found: " + loadId));
+        List<Carrier> carriers = carrierRepository.findAll();
+        Map<Long, LoadApplicationService.Eligibility> eligibility =
+                loadApplicationService.checkEligibilityForCarriers(load, carriers);
+        List<Map<String, Object>> response = carriers.stream()
                 .map(d -> {
-                    JobApplicationService.Eligibility reason = eligibility.getOrDefault(
-                            d.getId(), JobApplicationService.Eligibility.OK);
+                    LoadApplicationService.Eligibility reason = eligibility.getOrDefault(
+                            d.getId(), LoadApplicationService.Eligibility.OK);
                     Map<String, Object> m = new java.util.LinkedHashMap<>();
-                    m.put("driverId", d.getId());
-                    m.put("eligible", reason == JobApplicationService.Eligibility.OK);
+                    m.put("carrierId", d.getId());
+                    m.put("eligible", reason == LoadApplicationService.Eligibility.OK);
                     m.put("reason", reason.name());
                     return m;
                 })
@@ -178,39 +178,39 @@ public class AdminController {
         return ResponseEntity.ok(response);
     }
 
-    @GetMapping("/drivers/{driverId}/applications")
-    public ResponseEntity<List<JobApplicationResponse>> getApplicationsForDriver(@PathVariable Long driverId) {
-        Driver driver = driverRepository.findById(driverId)
-                .orElseThrow(() -> new IllegalArgumentException("Driver not found: " + driverId));
-        List<JobApplicationResponse> apps = jobApplicationRepository
-                .findByDriverOrderByAppliedAtDesc(driver).stream()
-                .map(JobApplicationResponse::from)
+    @GetMapping("/carriers/{carrierId}/applications")
+    public ResponseEntity<List<LoadApplicationResponse>> getApplicationsForCarrier(@PathVariable Long carrierId) {
+        Carrier carrier = carrierRepository.findById(carrierId)
+                .orElseThrow(() -> new IllegalArgumentException("Carrier not found: " + carrierId));
+        List<LoadApplicationResponse> apps = loadApplicationRepository
+                .findByCarrierOrderByAppliedAtDesc(carrier).stream()
+                .map(LoadApplicationResponse::from)
                 .toList();
         return ResponseEntity.ok(apps);
     }
 
     @PostMapping("/applications")
-    public ResponseEntity<JobApplicationResponse> applyOnBehalfOfDriver(
-            @RequestParam Long driverId,
-            @RequestParam Long jobId,
-            @RequestBody(required = false) JobApplicationRequest request) {
-        Driver driver = driverRepository.findById(driverId)
-                .orElseThrow(() -> new IllegalArgumentException("Driver not found: " + driverId));
-        if (request == null) request = new JobApplicationRequest();
+    public ResponseEntity<LoadApplicationResponse> applyOnBehalfOfCarrier(
+            @RequestParam Long carrierId,
+            @RequestParam Long loadId,
+            @RequestBody(required = false) LoadApplicationRequest request) {
+        Carrier carrier = carrierRepository.findById(carrierId)
+                .orElseThrow(() -> new IllegalArgumentException("Carrier not found: " + carrierId));
+        if (request == null) request = new LoadApplicationRequest();
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(jobApplicationService.applyForJob(driver, jobId, request));
+                .body(loadApplicationService.applyForLoad(carrier, loadId, request));
     }
 
-    @PutMapping("/jobs/{id}/cancel")
-    public ResponseEntity<JobResponse> cancelJob(@PathVariable Long id) {
-        Job job = jobRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Job not found"));
-        if (job.getStatus() == JobStatus.COMPLETED || job.getStatus() == JobStatus.CANCELLED) {
-            throw new IllegalArgumentException("Cannot cancel a " + job.getStatus() + " job");
+    @PutMapping("/loads/{id}/cancel")
+    public ResponseEntity<LoadResponse> cancelLoad(@PathVariable Long id) {
+        Load load = loadRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Load not found"));
+        if (load.getStatus() == LoadStatus.COMPLETED || load.getStatus() == LoadStatus.CANCELLED) {
+            throw new IllegalArgumentException("Cannot cancel a " + load.getStatus() + " load");
         }
-        job.setStatus(JobStatus.CANCELLED);
-        job = jobRepository.save(job);
-        return ResponseEntity.ok(JobResponse.from(job, jobApplicationRepository.findByJob(job).size()));
+        load.setStatus(LoadStatus.CANCELLED);
+        load = loadRepository.save(load);
+        return ResponseEntity.ok(LoadResponse.from(load, loadApplicationRepository.findByLoad(load).size()));
     }
 
     // ---- Compliance ----
@@ -258,12 +258,12 @@ public class AdminController {
 
     @PostMapping("/itineraries")
     public ResponseEntity<ItineraryResponse> createItineraryAsAdmin(
-            @RequestParam Long employerId,
-            @RequestBody CreateIntermodalJobRequest request) {
-        Employer employer = employerRepository.findById(employerId)
-                .orElseThrow(() -> new IllegalArgumentException("Employer not found: " + employerId));
+            @RequestParam Long shipperId,
+            @RequestBody CreateIntermodalLoadRequest request) {
+        Shipper shipper = shipperRepository.findById(shipperId)
+                .orElseThrow(() -> new IllegalArgumentException("Shipper not found: " + shipperId));
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(jobService.createIntermodalJob(employer, request));
+                .body(loadService.createIntermodalLoad(shipper, request));
     }
 
     @GetMapping("/itineraries")

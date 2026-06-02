@@ -33,14 +33,14 @@
 						FindMeADriver is the spare-hours freight marketplace &mdash; now multimodal. Connect with
 						self-employed carriers across <strong>road, rail, sea and air</strong>, and pay one
 						transparent platform fee per mode. No agencies, no long-term commitments &mdash; just
-						capacity matched to jobs.
+						capacity matched to loads.
 					</p>
 					<div class="hero-actions">
 						{#if auth.isAuthenticated}
 							<Button href="/dashboard" icon={ArrowRight}>Go to Dashboard</Button>
 						{:else}
-							<Button href="/register" icon={DeliveryTruck}>I'm a Driver</Button>
-							<Button href="/register" kind="secondary" icon={Enterprise}>I'm an Employer</Button>
+							<Button href="/register" icon={DeliveryTruck}>I'm a Carrier</Button>
+							<Button href="/register" kind="secondary" icon={Enterprise}>I'm a Shipper</Button>
 						{/if}
 					</div>
 				</div>
@@ -52,7 +52,7 @@
 			<Column>
 				<h2 class="section-heading">One platform. Every mode.</h2>
 				<p class="section-sub">
-					Post a job by road, rail, sea or air and we match it to the right carrier. You pay the
+					Post a load by road, rail, sea or air and we match it to the right carrier. You pay the
 					carrier's cost plus a single, transparent platform fee that depends only on the mode &mdash;
 					shown before you post, with no agency markup.
 				</p>
@@ -87,10 +87,10 @@
 			</Column>
 		</Row>
 
-		<!-- How It Works: Drivers -->
+		<!-- How It Works: Carriers -->
 		<Row>
 			<Column>
-				<h2 class="section-heading">How It Works for Drivers</h2>
+				<h2 class="section-heading">How It Works for Carriers</h2>
 			</Column>
 		</Row>
 		<Row class="steps-row">
@@ -110,7 +110,7 @@
 						<div class="step-number">2</div>
 						<DeliveryTruck size={32} />
 						<h3>Get Matched</h3>
-						<p>See jobs that fit your CDL type and available time slots. Apply with one click.</p>
+						<p>See loads that fit your CDL type and available time slots. Apply with one click.</p>
 					</div>
 				</Tile>
 			</Column>
@@ -126,10 +126,10 @@
 			</Column>
 		</Row>
 
-		<!-- How It Works: Employers -->
+		<!-- How It Works: Shippers -->
 		<Row>
 			<Column>
-				<h2 class="section-heading">How It Works for Employers</h2>
+				<h2 class="section-heading">How It Works for Shippers</h2>
 			</Column>
 		</Row>
 		<Row class="steps-row">
@@ -138,7 +138,7 @@
 					<div class="step-tile">
 						<div class="step-number">1</div>
 						<Enterprise size={32} />
-						<h3>Post a Job</h3>
+						<h3>Post a Load</h3>
 						<p>Describe your delivery, set the date, duration, and rate. Takes 2 minutes.</p>
 					</div>
 				</Tile>
@@ -148,8 +148,8 @@
 					<div class="step-tile">
 						<div class="step-number">2</div>
 						<CertificateCheck size={32} />
-						<h3>Review Drivers</h3>
-						<p>See verified, rated drivers who match your requirements and are available on your date.</p>
+						<h3>Review Carriers</h3>
+						<p>See verified, rated carriers who match your requirements and are available on your date.</p>
 					</div>
 				</Tile>
 			</Column>
@@ -158,8 +158,8 @@
 					<div class="step-tile">
 						<div class="step-number">3</div>
 						<Checkmark size={32} />
-						<h3>Job Done</h3>
-						<p>Assign a driver, track progress, mark complete. Pay per delivery, not per day.</p>
+						<h3>Load Done</h3>
+						<p>Assign a carrier, track progress, mark complete. Pay per delivery, not per day.</p>
 					</div>
 				</Tile>
 			</Column>
@@ -185,8 +185,8 @@
 				<Tile>
 					<div class="highlight-tile">
 						<CertificateCheck size={24} />
-						<h4>Verified Drivers</h4>
-						<p>Licence, insurance, and CPC card verification for every driver on the platform.</p>
+						<h4>Verified Carriers</h4>
+						<p>Licence, insurance, and CPC card verification for every carrier on the platform.</p>
 					</div>
 				</Tile>
 			</Column>
@@ -195,7 +195,7 @@
 					<div class="highlight-tile">
 						<Star size={24} />
 						<h4>Ratings &amp; Reviews</h4>
-						<p>Both parties rate each other after every job. Trust is earned, not assumed.</p>
+						<p>Both parties rate each other after every load. Trust is earned, not assumed.</p>
 					</div>
 				</Tile>
 			</Column>
@@ -204,7 +204,7 @@
 					<div class="highlight-tile">
 						<Enterprise size={24} />
 						<h4>No Middlemen</h4>
-						<p>Direct connection between driver and employer. Transparent rates, no agency markup.</p>
+						<p>Direct connection between carrier and shipper. Transparent rates, no agency markup.</p>
 					</div>
 				</Tile>
 			</Column>
@@ -220,8 +220,8 @@
 						{#if auth.isAuthenticated}
 							<Button href="/dashboard" icon={ArrowRight}>Go to Dashboard</Button>
 						{:else}
-							<Button href="/register" icon={DeliveryTruck}>Register as Driver</Button>
-							<Button href="/register" kind="secondary" icon={Enterprise}>Register as Employer</Button>
+							<Button href="/register" icon={DeliveryTruck}>Register as Carrier</Button>
+							<Button href="/register" kind="secondary" icon={Enterprise}>Register as Shipper</Button>
 						{/if}
 					</div>
 				</Tile>

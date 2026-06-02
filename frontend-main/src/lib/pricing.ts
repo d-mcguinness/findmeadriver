@@ -53,7 +53,7 @@ export async function loadModePricing(): Promise<ModePricing[]> {
 	}
 }
 
-/** Fallback commission % for a mode — used by the post-a-job live estimate.
+/** Fallback commission % for a mode — used by the post-a-load live estimate.
  *  The backend recomputes the authoritative figure on save. */
 export function fallbackCommissionPct(mode: string | null | undefined): number {
 	const m = FALLBACK_MODE_PRICING.find((x) => x.mode === (mode ?? 'ROAD'));

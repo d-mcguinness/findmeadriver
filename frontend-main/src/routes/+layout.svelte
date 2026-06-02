@@ -48,15 +48,15 @@
 		<SideNavItems>
 			<SideNavLink icon={LogoGithub} text="Home" href="/" />
 			<SideNavLink icon={Dashboard} text="Dashboard" href="/dashboard" />
-			{#if auth.isDriver}
+			{#if auth.isCarrier}
 				<SideNavLink icon={Time} text="Availability" href="/dashboard?tab=availability" />
 				<SideNavLink icon={CertificateCheck} text="Compliance" href="/dashboard?tab=compliance" />
-				<SideNavLink icon={Search} text="Browse Jobs" href="/dashboard?tab=jobs" />
+				<SideNavLink icon={Search} text="Browse Loads" href="/dashboard?tab=loads" />
 				<SideNavLink icon={Document} text="My Applications" href="/dashboard?tab=applications" />
 			{/if}
-			{#if auth.isEmployer}
-				<SideNavLink icon={Add} text="Create a Job" href="/dashboard/jobs/post" />
-				<SideNavLink icon={Enterprise} text="My Jobs" href="/dashboard" />
+			{#if auth.isShipper}
+				<SideNavLink icon={Add} text="Create a Load" href="/dashboard/loads/post" />
+				<SideNavLink icon={Enterprise} text="My Loads" href="/dashboard" />
 			{/if}
 			<SideNavLink icon={Logout} text="Logout" on:click={handleLogout} />
 		</SideNavItems>

@@ -7,11 +7,11 @@ import com.driverdirect.model.User;
 
 public interface RatingService {
 
-    RatingResponse createRating(User reviewer, Long jobId, CreateRatingRequest request);
+    RatingResponse createRating(User reviewer, Long loadId, CreateRatingRequest request);
 
     UserRatingSummary getRatingSummary(Long userId);
 
-    boolean hasRated(User reviewer, Long jobId);
+    boolean hasRated(User reviewer, Long loadId);
 
     Double getAverageRating(Long userId);
 
