@@ -295,7 +295,7 @@
 	<p class="rating-prompt">How was the carrier's performance?</p>
 	<div class="star-rating">
 		{#each [1, 2, 3, 4, 5] as s}
-			<button class="star-btn" on:click={() => ratingScore = s} aria-label="Rate {s} stars">
+			<button class="star-btn" onclick={() => ratingScore = s} aria-label="Rate {s} stars">
 				{#if s <= ratingScore}
 					<StarFilled size={32} class="star-filled" />
 				{:else}
