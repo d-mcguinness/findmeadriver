@@ -271,7 +271,7 @@
 		max-width: 760px;
 		margin: -0.5rem 0 1.25rem;
 	}
-	.modes-row {
+	:global(.modes-row) {
 		margin-bottom: 1rem;
 	}
 	.mode-tile {
@@ -324,7 +324,7 @@
 		flex: 1 1 auto;
 		min-width: 12rem;
 	}
-	.steps-row {
+	:global(.steps-row) {
 		margin-bottom: 1rem;
 	}
 	.step-tile {
@@ -352,7 +352,7 @@
 		font-size: 0.875rem;
 		margin-bottom: 0.75rem;
 	}
-	.highlights-row {
+	:global(.highlights-row) {
 		margin-bottom: 2rem;
 	}
 	.highlight-tile {

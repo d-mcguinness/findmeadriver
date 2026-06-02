@@ -178,7 +178,7 @@
 		font-weight: 600;
 		margin: 2rem 0 1rem;
 	}
-	.modes-row {
+	:global(.modes-row) {
 		margin-bottom: 1.5rem;
 	}
 	.mode-card {

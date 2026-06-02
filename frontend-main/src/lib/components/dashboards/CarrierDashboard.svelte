@@ -537,7 +537,7 @@
 										<div class="calendar-cell"
 											class:other-month={!cell.inMonth}
 											class:has-hours={cell.slots.length > 0}
-											on:click={() => openDayModal(cell)}>
+											onclick={() => openDayModal(cell)}>
 											<div class="calendar-day">{cell.day}</div>
 											{#each cell.slots as slot}
 												<div class="calendar-slot">{formatSlotShort(slot)}</div>
@@ -897,7 +897,7 @@
 	<p class="rating-prompt">How was your experience?</p>
 	<div class="star-rating">
 		{#each [1, 2, 3, 4, 5] as s}
-			<button class="star-btn" on:click={() => ratingScore = s} aria-label="Rate {s} stars">
+			<button class="star-btn" onclick={() => ratingScore = s} aria-label="Rate {s} stars">
 				{#if s <= ratingScore}
 					<StarFilled size={32} class="star-filled" />
 				{:else}
@@ -1102,7 +1102,7 @@
 		font-size: 0.875rem;
 		margin-left: 0.5rem;
 	}
-	.compliance-summary {
+	:global(.compliance-summary) {
 		margin-bottom: 1rem;
 		display: flex;
 		align-items: center;
