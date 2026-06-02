@@ -14,6 +14,7 @@
 	import { calculateRoute, type RouteInfo } from '$lib/google-maps';
 	import { licenceCategoriesFor } from '$lib/licence-categories';
 	import { TRANSPORT_MODE_OPTIONS, transportModeLabel, estimatedCommissionPct } from '$lib/transport-modes';
+	import { estimateLegCarrierCost, chargeableQuantity, chargeUnitForMode, type LegQuantities } from '$lib/pricing';
 	import { formatMoney } from '$lib/money';
 	import { HAULAGE_COUNTRIES } from '$lib/countries';
 	import type { LoadStopType } from '$lib/types';
@@ -61,16 +62,54 @@
 		requiredLicenceCategory: 'C'
 	});
 
-	// Live estimate of what the shipper will be charged. Carrier cost is
-	// rate × hours; the platform fee varies by transport mode. The backend
-	// recomputes the authoritative figure on save.
+	// Per-mode quantity inputs that drive the rate card (per-km / per-container /
+	// per-chargeable-kg). Left blank → the server prices on rate × hours instead.
+	let quantities = $state<{
+		distanceKm: number | null;
+		weightKg: number | null;
+		volumeM3: number | null;
+		containerCount: number | null;
+		pieceCount: number | null;
+	}>({ distanceKm: null, weightKg: null, volumeM3: null, containerCount: null, pieceCount: null });
+
+	const UNIT_LABELS: Record<string, string> = {
+		PER_KM: 'per km', PER_CONTAINER: 'per container',
+		PER_CHARGEABLE_KG: 'per chargeable-kg', PER_PIECE: 'per piece',
+		PER_HOUR: 'per hour', FLAT: 'flat'
+	};
+	const UNIT_QTY: Record<string, string> = {
+		PER_KM: 'km', PER_CONTAINER: 'containers',
+		PER_CHARGEABLE_KG: 'chargeable-kg', PER_PIECE: 'pieces'
+	};
+	const unitLabel = (u: string) => UNIT_LABELS[u] ?? u;
+	const unitQty = (u: string) => UNIT_QTY[u] ?? '';
+
+	// LegQuantities for the rate-card mirror (null → undefined = "not provided").
+	let legQuantities: LegQuantities = $derived({
+		distanceKm: quantities.distanceKm ?? undefined,
+		weightKg: quantities.weightKg ?? undefined,
+		volumeM3: quantities.volumeM3 ?? undefined,
+		containerCount: quantities.containerCount ?? undefined,
+		pieceCount: quantities.pieceCount ?? undefined
+	});
+
+	// Live estimate of what the shipper will be charged. Carrier cost comes from
+	// the mode's rate card when the relevant quantity is present (mirrors the
+	// server's PricingPolicy); otherwise it falls back to rate × hours. The
+	// platform fee varies by mode; the backend recomputes the authoritative figure.
 	let pricingPreview = $derived.by(() => {
+		const mode = loadForm.transportMode;
 		const hours = Number(loadForm.estimatedDurationHours) || 0;
 		const rate = Number(loadForm.ratePerHour) || 0;
-		const carrierCost = hours * rate;
-		const pct = estimatedCommissionPct(loadForm.transportMode);
+		const rateCardCost = estimateLegCarrierCost(mode, legQuantities);
+		const usingRateCard = rateCardCost != null;
+		const carrierCost = rateCardCost ?? hours * rate;
+		const pct = estimatedCommissionPct(mode);
 		const fee = carrierCost * (pct / 100);
-		return { carrierCost, pct, fee, total: carrierCost + fee };
+		return {
+			carrierCost, pct, fee, total: carrierCost + fee,
+			usingRateCard, unit: chargeUnitForMode(mode), qty: chargeableQuantity(mode, legQuantities)
+		};
 	});
 
 	function newStop(type: LoadStopType): StopDraft {
@@ -132,6 +171,8 @@
 			if (routeInfo) {
 				const hours = Math.round((routeInfo.durationSeconds / 3600) * 100) / 100;
 				loadForm = { ...loadForm, estimatedDurationHours: hours };
+				// Feed the road rate card — distance is its chargeable quantity.
+				quantities = { ...quantities, distanceKm: Math.round(routeInfo.distanceKm * 10) / 10 };
 			}
 		} catch {
 			routeInfo = null;
@@ -194,6 +235,13 @@
 				pickupLocation: firstPickup!.address,
 				deliveryLocation: lastDelivery!.address,
 				ratePerHour: loadForm.ratePerHour,
+				// Per-mode quantities so the server prices on the rate card.
+				// Only the populated ones are sent (undefined is dropped by JSON).
+				distanceKm: quantities.distanceKm ?? undefined,
+				weightKg: quantities.weightKg ?? undefined,
+				volumeM3: quantities.volumeM3 ?? undefined,
+				containerCount: quantities.containerCount ?? undefined,
+				pieceCount: quantities.pieceCount ?? undefined,
 				stops: stops.map(s => ({
 					type: s.type,
 					locationName: s.address,
@@ -349,6 +397,30 @@
 					</div>
 				{/if}
 
+				<div class="quantity-section">
+					<h3>Shipment quantity</h3>
+					<p class="quantity-hint">
+						Priced on the {transportModeLabel(loadForm.transportMode)} rate card
+						({unitLabel(pricingPreview.unit)}). Leave blank to fall back to rate &times; hours.
+					</p>
+					{#if loadForm.transportMode === 'ROAD'}
+						<NumberInput bind:value={quantities.distanceKm}
+							label="Distance (km)" min={0} step={1} allowEmpty
+							helperText="Auto-filled from the route above — override if needed." />
+					{:else if loadForm.transportMode === 'RAIL' || loadForm.transportMode === 'OCEAN'}
+						<NumberInput bind:value={quantities.containerCount}
+							label="Containers" min={0} step={1} allowEmpty />
+					{:else if loadForm.transportMode === 'AIR'}
+						<div class="form-row">
+							<NumberInput bind:value={quantities.weightKg}
+								label="Weight (kg)" min={0} step={1} allowEmpty />
+							<NumberInput bind:value={quantities.volumeM3}
+								label="Volume (m³)" min={0} step={0.1} allowEmpty
+								helperText="Chargeable kg = max(actual, volume × 167)." />
+						</div>
+					{/if}
+				</div>
+
 				<div class="form-row">
 					<TextInput bind:value={loadForm.dateNeeded}
 						labelText="Date Needed (YYYY-MM-DD)" placeholder="2026-04-10"
@@ -372,7 +444,11 @@
 					<h4>Pricing preview</h4>
 					<div class="pricing-rows">
 						<div class="pricing-line">
-							<span>Carrier cost ({loadForm.estimatedDurationHours}h × {formatMoney(loadForm.ratePerHour)})</span>
+							{#if pricingPreview.usingRateCard}
+								<span>Carrier cost · {unitLabel(pricingPreview.unit)} ({Math.round(pricingPreview.qty ?? 0)} {unitQty(pricingPreview.unit)})</span>
+							{:else}
+								<span>Carrier cost · hourly ({loadForm.estimatedDurationHours}h × {formatMoney(loadForm.ratePerHour)})</span>
+							{/if}
 							<strong>{formatMoney(pricingPreview.carrierCost)}</strong>
 						</div>
 						<div class="pricing-line">
@@ -385,7 +461,9 @@
 						</div>
 					</div>
 					<p class="pricing-hint">
-						Estimate — the exact platform fee is confirmed on the server when you post.
+						{pricingPreview.usingRateCard
+							? 'Priced on the mode rate card — the server confirms the exact figure when you post.'
+							: 'Falling back to rate × hours — enter the shipment quantity above to price on the rate card.'}
 					</p>
 				</div>
 
@@ -484,6 +562,23 @@
 		font-size: 0.875rem;
 		color: var(--cds-text-secondary);
 		font-style: italic;
+		margin: 0;
+	}
+	.quantity-section {
+		display: flex;
+		flex-direction: column;
+		gap: 0.5rem;
+		padding: 1rem;
+		background: var(--cds-layer, #f4f4f4);
+		border-left: 3px solid var(--cds-interactive, #0f62fe);
+	}
+	.quantity-section h3 {
+		margin: 0;
+		font-size: 1rem;
+	}
+	.quantity-hint {
+		font-size: 0.8125rem;
+		color: var(--cds-text-secondary);
 		margin: 0;
 	}
 	.pricing-preview {
