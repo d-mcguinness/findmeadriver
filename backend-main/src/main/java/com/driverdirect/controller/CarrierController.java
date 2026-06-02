@@ -266,18 +266,21 @@ public class CarrierController {
     }
 
     private void recomputeDayHours(Carrier carrier, LocalDate date) {
+        // Time slots are a road-driver convenience; they roll up into the ROAD duty clock.
+        com.driverdirect.model.Shipment.Mode mode = com.driverdirect.model.Shipment.Mode.ROAD;
         List<CarrierTimeSlot> slots = timeSlotRepository
                 .findByCarrierAndDateOrderByStartTimeAsc(carrier, date);
         double hours = slots.stream()
+                .filter(s -> s.getMode() == mode)
                 .mapToDouble(s -> Duration.between(s.getStartTime(), s.getEndTime()).toMinutes() / 60.0)
                 .sum();
-        CarrierAvailability existing = availabilityRepository.findByCarrierAndDate(carrier, date)
+        CarrierAvailability existing = availabilityRepository.findByCarrierAndDateAndMode(carrier, date, mode)
                 .orElse(null);
         if (existing != null) {
             existing.setAvailableHours(hours);
             availabilityRepository.save(existing);
         } else if (hours > 0) {
-            availabilityRepository.save(new CarrierAvailability(carrier, date, hours));
+            availabilityRepository.save(new CarrierAvailability(carrier, date, mode, hours));
         }
     }
 
