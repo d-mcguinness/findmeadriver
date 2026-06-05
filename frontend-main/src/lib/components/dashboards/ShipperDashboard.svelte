@@ -154,8 +154,10 @@
 
 {#snippet shipperActions(load: Load)}
 	<div class="row-actions">
-		<Button size="small" kind="ghost" icon={Edit} iconDescription="Edit load"
-			href={`/dashboard/loads/${load.id}/edit`} />
+		{#if load.status === 'OPEN'}
+			<Button size="small" kind="ghost" icon={Edit} iconDescription="Edit load"
+				href={`/dashboard/loads/${load.id}/edit`} />
+		{/if}
 		{#if load.applicationCount > 0}
 			<Button size="small" kind="secondary"
 				on:click={() => viewApplications(load)}>
