@@ -25,9 +25,11 @@ public interface AvailabilityService {
      *  queries (batch admin preview). Carriers absent from the map default to 0. */
     Map<Long, Double> getRemainingHoursForCarriers(Collection<Carrier> carriers, LocalDate date, Shipment.Mode mode);
 
-    /** Coarse cross-mode declared hours per date (the browse pre-filter). Dates
-     *  with no entry are absent (callers default to 0). */
-    Map<LocalDate, Double> getAvailableHoursForDates(Carrier carrier, Collection<LocalDate> dates);
+    /** Remaining hours (declared − committed) per mode per date — the browse
+     *  pre-filter, so it agrees with the per-mode apply-time gate. Keyed
+     *  mode → date → remaining; absent entries default to 0. */
+    Map<Shipment.Mode, Map<LocalDate, Double>> getRemainingHoursByModeAndDate(
+            Carrier carrier, Collection<LocalDate> dates);
 
     /** Per-mode duty clocks for the carrier's supported modes, anchored on the
      *  week containing {@code weekStart} (Monday). */
