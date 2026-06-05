@@ -1,3 +1,5 @@
+import type { TransportMode } from './transport-modes';
+
 export interface DayAvailability {
 	id: number | null;
 	date: string;
@@ -103,8 +105,9 @@ export interface Load {
 	requiredLicenceCategory?: string;
 	/** @deprecated kept for legacy callers; mirror of requiredLicenceCategory. */
 	requiredCdlType?: string;
-	/** Transport mode of the underlying shipment leg: ROAD | RAIL | OCEAN | AIR | … */
-	transportMode?: string;
+	/** Transport mode of the underlying shipment leg. The per-mode browse pre-filter
+	 *  keys on this — a load only surfaces when this mode's duty clock has room. */
+	transportMode?: TransportMode;
 	status: string;
 	shipperCompanyName: string;
 	assignedCarrierId?: number;
