@@ -254,6 +254,47 @@ public class TmsTreeService {
         return shipment;
     }
 
+    /**
+     * Re-shape the TMS tree of an existing single-leg Load in place: refresh the
+     * order metadata, the shipment's mode/currency/origin-destination countries,
+     * and replace the route. Mirrors {@link #createTreeFor} but mutates existing
+     * entities. Per-mode quantities + (re)pricing stay with the caller, exactly
+     * as on create.
+     */
+    @Transactional
+    public void updateTreeFor(Load load, TmsOrderInput input) {
+        Shipment shipment = load.getShipment();
+        if (shipment == null) {
+            throw new IllegalStateException("Load has no shipment leg to update");
+        }
+        if (!shipment.getShipmentLines().isEmpty()) {
+            TransportOrder order = shipment.getShipmentLines().get(0).getOrder();
+            order.setTitle(input.title());
+            order.setDescription(input.description());
+            order.setDateNeeded(input.dateNeeded());
+            order.setCurrency(input.currency());
+            transportOrderRepository.save(order);
+        }
+
+        shipment.setMode(input.mode() != null ? input.mode() : Shipment.Mode.ROAD);
+        shipment.setCurrency(input.currency());
+        shipment.setOriginCountry(CountryCodes.normalize(input.pickupCountry()));
+        shipment.setDestinationCountry(CountryCodes.normalize(input.deliveryCountry()));
+
+        // Stops have no cascade / orphanRemoval and a unique (shipment, sequence)
+        // constraint, so delete the old rows in a single batch (flushed at once)
+        // before re-inserting — otherwise reusing sequences 1..n would collide.
+        List<Stop> existing = stopRepository.findByShipmentOrderBySequenceAsc(shipment);
+        if (!existing.isEmpty()) stopRepository.deleteAllInBatch(existing);
+        shipment.getStops().clear();
+        if (input.stops() != null && !input.stops().isEmpty()) {
+            persistStopList(shipment, input.stops(), input.dateNeeded());
+        } else {
+            persistLegacyPickupDelivery(shipment, input);
+        }
+        shipmentRepository.save(shipment);
+    }
+
     /** Order-level metadata + the ordered legs of an intermodal movement (M2). */
     public record IntermodalOrderInput(
             String title, String description, LocalDate dateNeeded, String currency,
@@ -399,6 +440,9 @@ public class TmsTreeService {
                 }
             }
             stopRepository.save(stop);
+            // Sync the inverse side so the just-built/updated tree reports its
+            // stops in this session (the @OneToMany is mappedBy/inverse).
+            shipment.getStops().add(stop);
         }
     }
 

@@ -100,6 +100,12 @@ export interface Load {
 	commissionPercent?: number;
 	commissionAmount?: number;
 	shipperTotal?: number;
+	/** Per-mode pricing quantities (M3b) — present so the edit form can prefill. */
+	distanceKm?: number;
+	weightKg?: number;
+	volumeM3?: number;
+	containerCount?: number;
+	pieceCount?: number;
 	pickupCountry?: string;
 	deliveryCountry?: string;
 	requiredLicenceCategory?: string;

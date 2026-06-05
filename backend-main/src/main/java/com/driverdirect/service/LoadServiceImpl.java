@@ -165,6 +165,65 @@ public class LoadServiceImpl implements LoadService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public LoadResponse getLoadById(Long id, Shipper shipper) {
+        Load load = loadRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Load not found"));
+        // Ownership: a shipper may read only their own loads; admin passes null.
+        if (shipper != null && !load.getShipper().getId().equals(shipper.getId())) {
+            throw new IllegalArgumentException("You can only view your own loads");
+        }
+        return LoadResponse.from(load, applicationRepository.findByLoad(load).size());
+    }
+
+    @Override
+    @Transactional
+    public LoadResponse updateLoad(Long loadId, Shipper shipper, CreateLoadRequest request) {
+        Load load = loadRepository.findById(loadId)
+                .orElseThrow(() -> new IllegalArgumentException("Load not found"));
+
+        // Ownership: a shipper may edit only their own loads; admin passes null.
+        if (shipper != null && !load.getShipper().getId().equals(shipper.getId())) {
+            throw new IllegalArgumentException("You can only update your own loads");
+        }
+        // Only OPEN loads are editable — once a carrier is assigned the price and
+        // route are committed, and COMPLETED/CANCELLED are terminal.
+        if (load.getStatus() != LoadStatus.OPEN) {
+            throw new IllegalArgumentException("Only open loads can be edited");
+        }
+        Shipment shipment = load.getShipment();
+        if (shipment == null) {
+            throw new IllegalStateException("Load has no shipment leg to update");
+        }
+        if (shipment.getItinerary() != null) {
+            throw new IllegalArgumentException("Intermodal legs cannot be edited here");
+        }
+
+        Shipper owner = load.getShipper();
+
+        // Load-level carrier fields.
+        load.setEstimatedDurationHours(request.getEstimatedDurationHours());
+        load.setRatePerHour(request.getRatePerHour());
+        load.setRequiredLicenceCategory(request.getRequiredLicenceCategory());
+        if (request.getCurrency() != null) load.setCurrency(request.getCurrency());
+
+        // Re-shape the tree in place (order metadata, shipment mode/countries, route).
+        tmsTreeService.updateTreeFor(load, TmsTreeService.TmsOrderInput.fromRequest(request, owner));
+
+        // Re-attach the per-mode pricing quantities (null clears) then re-price —
+        // identical order to createLoad.
+        shipment.setDistanceKm(request.getDistanceKm());
+        shipment.setWeightKg(request.getWeightKg());
+        shipment.setVolumeM3(request.getVolumeM3());
+        shipment.setContainerCount(request.getContainerCount());
+        shipment.setPieceCount(request.getPieceCount());
+        pricingService.priceLoad(load);
+
+        load = loadRepository.save(load);
+        return LoadResponse.from(load, applicationRepository.findByLoad(load).size());
+    }
+
+    @Override
     public List<LoadResponse> getMatchingLoads(Carrier carrier) {
         // Browse must agree with apply-time validation, which matches licences
         // through the LicenceCategory.covers() lattice (e.g. a C+E holder may

@@ -42,8 +42,18 @@ public class ShipperController {
     }
 
     @GetMapping("/loads/{id}")
-    public ResponseEntity<LoadResponse> getLoad(@PathVariable Long id) {
-        return ResponseEntity.ok(loadService.getLoadById(id));
+    public ResponseEntity<LoadResponse> getLoad(Authentication auth, @PathVariable Long id) {
+        Shipper shipper = getShipper(auth);
+        return ResponseEntity.ok(loadService.getLoadById(id, shipper));
+    }
+
+    @PutMapping("/loads/{id}")
+    public ResponseEntity<LoadResponse> updateLoad(
+            Authentication auth,
+            @PathVariable Long id,
+            @RequestBody CreateLoadRequest request) {
+        Shipper shipper = getShipper(auth);
+        return ResponseEntity.ok(loadService.updateLoad(id, shipper, request));
     }
 
     // ---- Intermodal (M2b): post a multi-leg movement ----

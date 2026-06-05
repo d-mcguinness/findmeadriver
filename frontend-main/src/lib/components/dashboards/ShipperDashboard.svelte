@@ -4,7 +4,7 @@
 		Button, TextArea,
 		InlineNotification, Tag, Modal
 	} from 'carbon-components-svelte';
-	import { Enterprise, Add, Checkmark, Close, StarFilled, Star } from 'carbon-icons-svelte';
+	import { Enterprise, Add, Checkmark, Close, StarFilled, Star, Edit } from 'carbon-icons-svelte';
 	import { auth } from '$lib/stores/auth.svelte';
 	import { api } from '$lib/api';
 	import { shipperState } from '$lib/stores/shipperState.svelte';
@@ -154,6 +154,8 @@
 
 {#snippet shipperActions(load: Load)}
 	<div class="row-actions">
+		<Button size="small" kind="ghost" icon={Edit} iconDescription="Edit load"
+			href={`/dashboard/loads/${load.id}/edit`} />
 		{#if load.applicationCount > 0}
 			<Button size="small" kind="secondary"
 				on:click={() => viewApplications(load)}>
