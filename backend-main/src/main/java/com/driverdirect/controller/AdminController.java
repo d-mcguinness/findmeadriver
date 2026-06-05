@@ -144,6 +144,18 @@ public class AdminController {
         return ResponseEntity.ok(response);
     }
 
+    @GetMapping("/loads/{id}")
+    public ResponseEntity<LoadResponse> getLoad(@PathVariable Long id) {
+        return ResponseEntity.ok(loadService.getLoadById(id));
+    }
+
+    @PutMapping("/loads/{id}")
+    public ResponseEntity<LoadResponse> updateLoadAsAdmin(
+            @PathVariable Long id,
+            @RequestBody CreateLoadRequest request) {
+        return ResponseEntity.ok(loadService.updateLoad(id, null, request));
+    }
+
     @GetMapping("/loads/{loadId}/applications")
     public ResponseEntity<List<LoadApplicationResponse>> getApplicationsForLoad(@PathVariable Long loadId) {
         Load load = loadRepository.findById(loadId)

@@ -2,7 +2,7 @@
 	import {
 		Grid, Row, Column, Button, InlineNotification, Modal, Tag
 	} from 'carbon-components-svelte';
-	import { ArrowLeft, Van, Add } from 'carbon-icons-svelte';
+	import { ArrowLeft, Van, Add, Edit } from 'carbon-icons-svelte';
 	import { api } from '$lib/api';
 	import type { Load } from '$lib/types';
 	import { onMount } from 'svelte';
@@ -169,6 +169,8 @@
 
 {#snippet adminActions(load: Load)}
 	<div class="row-actions">
+		<Button size="small" kind="ghost" icon={Edit} iconDescription="Edit load"
+			href={`/dashboard/loads/${load.id}/edit`} />
 		<Button size="small" kind="tertiary" on:click={() => openApplicationsModal(load)}>
 			Applications ({load.applicationCount})
 		</Button>

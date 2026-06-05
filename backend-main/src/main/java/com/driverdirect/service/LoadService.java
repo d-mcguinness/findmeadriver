@@ -18,9 +18,13 @@ public interface LoadService {
 
     LoadResponse getLoadById(Long id);
 
+    LoadResponse getLoadById(Long id, Shipper shipper);
+
     List<LoadResponse> getMatchingLoads(Carrier carrier);
 
     LoadResponse updateLoadStatus(Long loadId, Shipper shipper, LoadStatus status);
+
+    LoadResponse updateLoad(Long loadId, Shipper shipper, CreateLoadRequest request);
 
     // ---- Intermodal (M2b) ----
 

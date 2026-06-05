@@ -38,6 +38,12 @@ public class LoadResponse {
     // M3b: the basis the carrier cost was priced on (e.g. PER_CONTAINER × 2).
     private String chargeUnit;
     private BigDecimal chargeableQuantity;
+    // Per-mode pricing quantities (M3b) — surfaced so the edit form can prefill.
+    private BigDecimal distanceKm;
+    private BigDecimal weightKg;
+    private BigDecimal volumeM3;
+    private Integer containerCount;
+    private Integer pieceCount;
     private String pickupCountry;
     private String deliveryCountry;
     private String requiredLicenceCategory;
@@ -74,6 +80,11 @@ public class LoadResponse {
             r.setChargeUnit(load.getShipment().getChargeUnit() != null
                     ? load.getShipment().getChargeUnit().name() : null);
             r.setChargeableQuantity(load.getShipment().getChargeableQuantity());
+            r.setDistanceKm(load.getShipment().getDistanceKm());
+            r.setWeightKg(load.getShipment().getWeightKg());
+            r.setVolumeM3(load.getShipment().getVolumeM3());
+            r.setContainerCount(load.getShipment().getContainerCount());
+            r.setPieceCount(load.getShipment().getPieceCount());
         }
         r.setPickupCountry(load.getPickupCountry());
         r.setDeliveryCountry(load.getDeliveryCountry());

@@ -4,7 +4,7 @@
 		Button, TextInput, TextArea, NumberInput, Select, SelectItem,
 		InlineNotification, Tag
 	} from 'carbon-components-svelte';
-	import { ArrowLeft, Add, TrashCan, ArrowUp, ArrowDown } from 'carbon-icons-svelte';
+	import { ArrowLeft, Add, TrashCan, ArrowUp, ArrowDown, MagicWand } from 'carbon-icons-svelte';
 	import { api } from '$lib/api';
 	import { auth } from '$lib/stores/auth.svelte';
 	import { goto } from '$app/navigation';
@@ -145,6 +145,61 @@
 		return null;
 	}
 
+	// --- Demo convenience: fill the order + a multi-leg intermodal route with
+	// sample data. Shown to shippers/admins only. ---
+	type SampleLeg = {
+		mode: string; from: string; fromCountry: string; to: string; toCountry: string;
+		distanceKm?: number; weightKg?: number; volumeM3?: number; containerCount?: number;
+	};
+	type ItinerarySample = { title: string; description: string; dueInDays: number; legs: SampleLeg[] };
+
+	const ITINERARY_SAMPLES: ItinerarySample[] = [
+		{ title: 'Dublin → Amsterdam door-to-door', dueInDays: 10,
+		  description: 'Road feeder, short-sea, then final-mile road — one 40ft container.',
+		  legs: [
+			{ mode: 'ROAD', from: 'Dublin, Ireland', fromCountry: 'IE', to: 'Dublin Port, Ireland', toCountry: 'IE', distanceKm: 12 },
+			{ mode: 'OCEAN', from: 'Dublin Port, Ireland', fromCountry: 'IE', to: 'Port of Rotterdam, Netherlands', toCountry: 'NL', containerCount: 1 },
+			{ mode: 'ROAD', from: 'Port of Rotterdam, Netherlands', fromCountry: 'NL', to: 'Amsterdam, Netherlands', toCountry: 'NL', distanceKm: 80 }
+		  ] },
+		{ title: 'Madrid → Dublin express (air)', dueInDays: 5,
+		  description: 'Road to the airport, air freight, then road to the consignee — 600 kg.',
+		  legs: [
+			{ mode: 'ROAD', from: 'Madrid, Spain', fromCountry: 'ES', to: 'Madrid-Barajas Airport, Spain', toCountry: 'ES', distanceKm: 18 },
+			{ mode: 'AIR', from: 'Madrid-Barajas Airport, Spain', fromCountry: 'ES', to: 'Dublin Airport, Ireland', toCountry: 'IE', weightKg: 600, volumeM3: 2.4 },
+			{ mode: 'ROAD', from: 'Dublin Airport, Ireland', fromCountry: 'IE', to: 'Dublin, Ireland', toCountry: 'IE', distanceKm: 12 }
+		  ] },
+		{ title: 'Hamburg → Dublin (rail + short-sea)', dueInDays: 14,
+		  description: 'Rail to the port, short-sea crossing, then road final mile — two containers.',
+		  legs: [
+			{ mode: 'RAIL', from: 'Hamburg, Germany', fromCountry: 'DE', to: 'Bremerhaven, Germany', toCountry: 'DE', containerCount: 2 },
+			{ mode: 'OCEAN', from: 'Bremerhaven, Germany', fromCountry: 'DE', to: 'Dublin Port, Ireland', toCountry: 'IE', containerCount: 2 },
+			{ mode: 'ROAD', from: 'Dublin Port, Ireland', fromCountry: 'IE', to: 'Naas, Ireland', toCountry: 'IE', distanceKm: 35 }
+		  ] }
+	];
+
+	function autofillForm() {
+		const s = ITINERARY_SAMPLES[Math.floor(Math.random() * ITINERARY_SAMPLES.length)];
+		const due = new Date();
+		due.setDate(due.getDate() + s.dueInDays);
+		order = { title: s.title, description: s.description, dateNeeded: due.toISOString().split('T')[0] };
+		legs = s.legs.map((l) => {
+			const base = newLeg(l.mode);
+			return {
+				...base,
+				pickupLocation: l.from,
+				deliveryLocation: l.to,
+				pickupCountry: l.fromCountry,
+				deliveryCountry: l.toCountry,
+				distanceKm: l.distanceKm ?? base.distanceKm,
+				weightKg: l.weightKg ?? base.weightKg,
+				volumeM3: l.volumeM3 ?? base.volumeM3,
+				containerCount: l.containerCount ?? base.containerCount
+			};
+		});
+		postError = '';
+		postSuccess = '';
+	}
+
 	async function postIntermodal() {
 		postError = '';
 		postSuccess = '';
@@ -225,6 +280,15 @@
 			{/if}
 
 			<div class="form-grid">
+				{#if auth.isShipper || auth.isAdmin}
+					<div class="autofill-bar">
+						<Button kind="tertiary" size="small" icon={MagicWand} on:click={autofillForm}>
+							Autofill with a sample intermodal route
+						</Button>
+						<span class="autofill-hint">Fills the order + a multi-leg route — handy for quick testing.</span>
+					</div>
+				{/if}
+				
 				{#if auth.isAdmin}
 					<Select bind:selected={selectedShipperId} labelText="Create Load On Behalf Of (Shipper)">
 						{#each shippers as emp}
@@ -332,6 +396,8 @@
 	.page-header h1 { display: flex; align-items: center; gap: 0.5rem; margin-top: 0.5rem; }
 	.sub { color: var(--cds-text-secondary); max-width: 720px; line-height: 1.5; }
 	.form-grid { display: flex; flex-direction: column; gap: 1rem; max-width: 820px; }
+	.autofill-bar { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
+	.autofill-hint { font-size: 0.8125rem; color: var(--cds-text-secondary); }
 	.legs-section {
 		display: flex; flex-direction: column; gap: 0.75rem; padding: 1rem;
 		background: var(--cds-layer, #f4f4f4);
