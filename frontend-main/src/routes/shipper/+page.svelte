@@ -15,9 +15,9 @@
 		<Column lg={10} md={6} sm={4}>
 			<div class="hero">
 				<Enterprise size={48} />
-				<h1>Hire Qualified Carriers, Directly</h1>
+				<h1>Book Qualified Carriers, Directly</h1>
 				<p class="hero-subtitle">
-					Skip the recruiting agencies. FindMeADriver gives you direct access to a pool of
+					Skip the freight brokers. FindMeADriver gives you direct access to a pool of
 					verified multi-modal carriers actively looking for freight to move.
 				</p>
 				<div class="hero-actions">
@@ -63,9 +63,9 @@
 			<Tile>
 				<div class="feature-tile">
 					<ConnectionSignal size={32} />
-					<h3>3. Hire Directly</h3>
+					<h3>3. Review &amp; Assign</h3>
 					<p>
-						Reach out to candidates, schedule interviews, and make offers — all on the
+						Compare applications, message carriers, and assign the load — all on the
 						platform with no middleman fees.
 					</p>
 				</div>
@@ -86,8 +86,8 @@
 					<div class="benefit-item">
 						<Time size={24} />
 						<div>
-							<h4>Faster Hiring</h4>
-							<p>Cut weeks off your hiring timeline by connecting directly with available carriers across every transport mode.</p>
+							<h4>Faster Booking</h4>
+							<p>Cut weeks off your booking timeline by connecting directly with available carriers across every transport mode.</p>
 						</div>
 					</div>
 					<div class="benefit-item">

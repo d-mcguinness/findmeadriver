@@ -18,7 +18,7 @@
 				<h1>Move Freight on Your Terms</h1>
 				<p class="hero-subtitle">
 					FindMeADriver connects you directly with shippers looking for qualified carriers across
-					road, rail, sea and air. No recruiters, no fees — just real loads matched to your modes.
+					road, rail, sea and air. No brokers, no fees — just real loads matched to your modes.
 				</p>
 				<div class="hero-actions">
 					<Button href="/register" icon={ArrowRight}>Register as a Carrier</Button>
@@ -42,7 +42,7 @@
 					<h3>1. Create Your Profile</h3>
 					<p>
 						Sign up with your supported modes, credentials, endorsements, years of experience, and
-						preferred work area. Your profile is your resume.
+						preferred work area. Your profile is your track record.
 					</p>
 				</div>
 			</Tile>
@@ -65,7 +65,7 @@
 					<ConnectionSignal size={32} />
 					<h3>3. Connect Directly</h3>
 					<p>
-						Message shippers, schedule interviews, and negotiate terms — all without
+						Message shippers, apply with a cover note, and agree terms — all without
 						a middleman taking a cut.
 					</p>
 				</div>
