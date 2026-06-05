@@ -190,19 +190,23 @@ public class LoadServiceImpl implements LoadService {
                 .filter(load -> matchesAnyLane(load, lanes))
                 .collect(Collectors.toList());
 
-        // Batch the per-load lookups: availability for all candidate dates in one
-        // query, application counts for all candidates in one query — instead of
-        // two queries per load (N+1).
+        // Batch the per-load lookups: per-mode remaining hours (declared − committed)
+        // for all candidate dates in a constant number of queries, application counts
+        // for all candidates in one query — instead of N+1. Browse now agrees with the
+        // per-mode apply-time gate: a load only shows if THAT mode's clock has room.
         Set<LocalDate> dates = candidates.stream()
                 .map(Load::getDateNeeded).filter(Objects::nonNull).collect(Collectors.toSet());
-        Map<LocalDate, Double> hoursByDate = availabilityService.getAvailableHoursForDates(carrier, dates);
+        Map<Shipment.Mode, Map<LocalDate, Double>> remainingByModeDate =
+                availabilityService.getRemainingHoursByModeAndDate(carrier, dates);
         Map<Long, Integer> applicationCounts = applicationCountsByLoadId(candidates);
 
         return candidates.stream()
                 .filter(load -> {
-                    double available = load.getDateNeeded() == null ? 0.0
-                            : hoursByDate.getOrDefault(load.getDateNeeded(), 0.0);
-                    return available >= load.getEstimatedDurationHours();
+                    if (load.getDateNeeded() == null) return false;
+                    double remaining = remainingByModeDate
+                            .getOrDefault(load.getMode(), Map.of())
+                            .getOrDefault(load.getDateNeeded(), 0.0);
+                    return remaining >= load.getEstimatedDurationHours();
                 })
                 .map(load -> LoadResponse.from(load, applicationCounts.getOrDefault(load.getId(), 0)))
                 .collect(Collectors.toList());

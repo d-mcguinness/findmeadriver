@@ -123,13 +123,27 @@ public class AvailabilityServiceImpl implements AvailabilityService {
     }
 
     @Override
-    public Map<LocalDate, Double> getAvailableHoursForDates(Carrier carrier, Collection<LocalDate> dates) {
+    public Map<Shipment.Mode, Map<LocalDate, Double>> getRemainingHoursByModeAndDate(
+            Carrier carrier, Collection<LocalDate> dates) {
         if (dates.isEmpty()) return Map.of();
-        Map<LocalDate, Double> byDate = new HashMap<>();
+        // declared per (mode, date)
+        Map<Shipment.Mode, Map<LocalDate, Double>> out = new HashMap<>();
         for (CarrierAvailability a : availabilityRepository.findByCarrierAndDateIn(carrier, dates)) {
-            byDate.merge(a.getDate(), a.getAvailableHours(), Double::sum);   // coarse: sum across modes
+            out.computeIfAbsent(a.getMode(), k -> new HashMap<>())
+               .merge(a.getDate(), a.getAvailableHours(), Double::sum);
         }
-        return byDate;
+        // net off committed hours per (date, mode)
+        for (Object[] row : loadRepository.sumCommittedHoursByDateAndMode(carrier, COMMITTED_STATUSES, dates)) {
+            if (row[0] == null || row[1] == null) continue;
+            LocalDate date = (LocalDate) row[0];
+            Shipment.Mode mode = (Shipment.Mode) row[1];
+            double committed = ((Number) row[2]).doubleValue();
+            Map<LocalDate, Double> byDate = out.get(mode);
+            if (byDate != null && byDate.containsKey(date)) {
+                byDate.put(date, Math.max(0, byDate.get(date) - committed));
+            }
+        }
+        return out;
     }
 
     @Override

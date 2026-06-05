@@ -78,4 +78,14 @@ public interface LoadRepository extends JpaRepository<Load, Long> {
                                            @Param("statuses") Collection<LoadStatus> statuses,
                                            @Param("start") LocalDate start,
                                            @Param("end") LocalDate end);
+
+    /** Committed hours per (date, mode) for one carrier over a set of dates, one
+     *  query (the browse pre-filter). Rows are [date, mode, sumHours]. */
+    @Query("select o.dateNeeded, s.mode, coalesce(sum(j.estimatedDurationHours), 0) from Load j " +
+           "left join j.shipment s left join s.shipmentLines sl left join sl.order o " +
+           "where j.assignedCarrier = :carrier and j.status in :statuses and o.dateNeeded in :dates " +
+           "group by o.dateNeeded, s.mode")
+    List<Object[]> sumCommittedHoursByDateAndMode(@Param("carrier") Carrier carrier,
+                                                  @Param("statuses") Collection<LoadStatus> statuses,
+                                                  @Param("dates") Collection<LocalDate> dates);
 }

@@ -161,4 +161,21 @@ class DutyClockServiceTest {
         assertThat(service.getDutyClocks(c, weekStart))
                 .extracting(DutyClock::getMode).containsExactly("ROAD");
     }
+
+    // ---- browse pre-filter (getMatchingLoads) is per-mode + nets committed ----
+
+    @Test
+    void remainingByModeAndDateIsPerModeAndNetsCommitted() {
+        Carrier c = carrier(Shipment.Mode.ROAD, Shipment.Mode.OCEAN);
+        LocalDate d = LocalDate.now();
+        when(availRepo.findByCarrierAndDateIn(eq(c), any())).thenReturn(List.of(
+                new CarrierAvailability(c, d, Shipment.Mode.ROAD, 9.0),
+                new CarrierAvailability(c, d, Shipment.Mode.OCEAN, 12.0)));
+        when(loadRepo.sumCommittedHoursByDateAndMode(eq(c), any(), any()))
+                .thenReturn(List.<Object[]>of(new Object[]{d, Shipment.Mode.OCEAN, 5.0}));
+
+        var byMode = service.getRemainingHoursByModeAndDate(c, Set.of(d));
+        assertThat(byMode.get(Shipment.Mode.ROAD).get(d)).isEqualTo(9.0);    // road clock untouched
+        assertThat(byMode.get(Shipment.Mode.OCEAN).get(d)).isEqualTo(7.0);   // 12 declared − 5 committed
+    }
 }
