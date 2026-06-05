@@ -674,7 +674,9 @@
 						<div class="tab-content">
 							<h3><Search size={20} /> Loads Matching Your Profile</h3>
 							<p class="info-text">
-								Showing loads that match your CDL type and available hours
+								Showing loads whose transport mode you support and that you're credentialed for,
+								where that mode's duty clock still has hours free on the date needed (committed
+								hours are netted off)
 								{#if lanes.length > 0}
 									, restricted to your {lanes.length} configured lane{lanes.length === 1 ? '' : 's'}.
 								{:else}
@@ -786,7 +788,7 @@
 								<p>Loading loads...</p>
 							{:else if loads.length === 0}
 								<InlineNotification kind="info" title="No loads found"
-									subtitle="Set your availability first, then matching loads will appear here."
+									subtitle="Declare available hours for the modes you support, then loads whose mode still has free hours will appear here."
 									hideCloseButton />
 							{:else}
 								<div class="load-list">
