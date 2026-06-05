@@ -169,8 +169,10 @@
 
 {#snippet adminActions(load: Load)}
 	<div class="row-actions">
-		<Button size="small" kind="ghost" icon={Edit} iconDescription="Edit load"
-			href={`/dashboard/loads/${load.id}/edit`} />
+		{#if load.status === 'OPEN'}
+			<Button size="small" kind="ghost" icon={Edit} iconDescription="Edit load"
+				href={`/dashboard/loads/${load.id}/edit`} />
+		{/if}
 		<Button size="small" kind="tertiary" on:click={() => openApplicationsModal(load)}>
 			Applications ({load.applicationCount})
 		</Button>
