@@ -99,8 +99,8 @@
 					<div class="step-tile">
 						<div class="step-number">1</div>
 						<Time size={32} />
-						<h3>Set Your Hours</h3>
-						<p>Log your available spare hours each week. EU tachograph limits (9h/day, 56h/week, 90h/fortnight) are enforced automatically.</p>
+						<h3>Set Your Capacity</h3>
+						<p>Declare the modes you cover and your weekly capacity. For road, EU tachograph limits (9h/day, 56h/week, 90h/fortnight) are enforced automatically.</p>
 					</div>
 				</Tile>
 			</Column>
@@ -110,7 +110,7 @@
 						<div class="step-number">2</div>
 						<DeliveryTruck size={32} />
 						<h3>Get Matched</h3>
-						<p>See loads that fit your CDL type and available time slots. Apply with one click.</p>
+						<p>See loads that fit your modes, credentials and available time slots. Apply with one click.</p>
 					</div>
 				</Tile>
 			</Column>
@@ -119,7 +119,7 @@
 					<div class="step-tile">
 						<div class="step-number">3</div>
 						<Star size={32} />
-						<h3>Drive &amp; Get Paid</h3>
+						<h3>Carry &amp; Get Paid</h3>
 						<p>Complete deliveries, earn on your terms, and build your reputation with ratings.</p>
 					</div>
 				</Tile>
@@ -176,8 +176,8 @@
 				<Tile>
 					<div class="highlight-tile">
 						<Time size={24} />
-						<h4>Tachograph Compliant</h4>
-						<p>All availability is validated against EU driving time regulations. No risk of overbooking.</p>
+						<h4>Compliance Built In</h4>
+						<p>Road availability is validated against EU driving time regulations, and credentials are checked per mode. No risk of overbooking.</p>
 					</div>
 				</Tile>
 			</Column>
@@ -186,7 +186,7 @@
 					<div class="highlight-tile">
 						<CertificateCheck size={24} />
 						<h4>Verified Carriers</h4>
-						<p>Licence, insurance, and CPC card verification for every carrier on the platform.</p>
+						<p>Licence, insurance, and mode credential verification for every carrier on the platform.</p>
 					</div>
 				</Tile>
 			</Column>

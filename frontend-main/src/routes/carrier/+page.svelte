@@ -15,10 +15,10 @@
 		<Column lg={10} md={6} sm={4}>
 			<div class="hero">
 				<DeliveryTruck size={48} />
-				<h1>Drive Your Career Forward</h1>
+				<h1>Move Freight on Your Terms</h1>
 				<p class="hero-subtitle">
-					Carrier Direct connects you directly with shippers looking for qualified commercial
-					carriers. No recruiters, no fees — just real opportunities matched to your skills.
+					FindMeADriver connects you directly with shippers looking for qualified carriers across
+					road, rail, sea and air. No recruiters, no fees — just real loads matched to your modes.
 				</p>
 				<div class="hero-actions">
 					<Button href="/register" icon={ArrowRight}>Register as a Carrier</Button>
@@ -41,8 +41,8 @@
 					<CheckmarkOutline size={32} />
 					<h3>1. Create Your Profile</h3>
 					<p>
-						Sign up with your CDL type, endorsements, years of experience, and preferred
-						work radius. Your profile is your resume.
+						Sign up with your supported modes, credentials, endorsements, years of experience, and
+						preferred work area. Your profile is your resume.
 					</p>
 				</div>
 			</Tile>
@@ -87,21 +87,21 @@
 						<Currency size={24} />
 						<div>
 							<h4>No Fees, Ever</h4>
-							<p>Carrier Direct is completely free for carriers. We make money from shipper subscriptions, not from you.</p>
+							<p>FindMeADriver is completely free for carriers. We make money from shipper subscriptions, not from you.</p>
 						</div>
 					</div>
 					<div class="benefit-item">
 						<DeliveryTruck size={24} />
 						<div>
-							<h4>CDL-Focused</h4>
-							<p>Built specifically for commercial carriers — Class A, B, C and non-CDL. We understand your industry.</p>
+							<h4>Multi-Modal</h4>
+							<p>Built for carriers across every mode — road, rail, sea and air. We understand your industry.</p>
 						</div>
 					</div>
 					<div class="benefit-item">
 						<Search size={24} />
 						<div>
-							<h4>Loads in Your Area</h4>
-							<p>Set your preferred radius and only see opportunities that work for your commute.</p>
+							<h4>Loads on Your Lanes</h4>
+							<p>Set your preferred lanes and only see loads that fit your routes.</p>
 						</div>
 					</div>
 					<div class="benefit-item">

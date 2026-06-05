@@ -149,7 +149,7 @@
 			<div class="form-container">
 				<Tile>
 					<h2>Create an Account</h2>
-					<p class="form-subtitle">Join Carrier Direct as a carrier or shipper</p>
+					<p class="form-subtitle">Join FindMeADriver as a carrier or shipper</p>
 
 					{#if error}
 						<InlineNotification
@@ -197,7 +197,7 @@
 										<TextInput labelText="Phone" type="tel" bind:value={carrierPhone} />
 									</div>
 
-									<h4>License Information</h4>
+									<h4>Road Licence (optional)</h4>
 									<div class="form-row">
 										<div class="form-field">
 											<TextInput labelText="License Number" bind:value={licenseNumber} required />
@@ -216,12 +216,12 @@
 											</DatePicker>
 										</div>
 										<div class="form-field">
-											<Select labelText="CDL Type" bind:selected={cdlType}>
-												<SelectItem value="" text="Select CDL type" />
+											<Select labelText="Road driving-licence category (optional)" bind:selected={cdlType}>
+												<SelectItem value="" text="Select road licence category" />
 												<SelectItem value="CLASS_A" text="Class A" />
 												<SelectItem value="CLASS_B" text="Class B" />
 												<SelectItem value="CLASS_C" text="Class C" />
-												<SelectItem value="NON_CDL" text="Non-CDL" />
+												<SelectItem value="NON_CDL" text="No road licence" />
 											</Select>
 										</div>
 									</div>
