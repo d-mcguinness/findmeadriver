@@ -68,6 +68,7 @@ Itinerary ──< Shipment   (intermodal: sequences N single-mode leg-Shipments 
 - **Credentials:** dispatched by `CredentialMatcherRegistry` — ROAD uses the `LicenceCategory` HGV/CDL covers-lattice; AIR/OCEAN/RAIL require the carrier to hold ≥1 credential tagged for that mode; INTERMODAL/PARCEL open. `LICENCE` otherwise.
 - **Cabotage** (EU 1072/2009) and the **EU-561 tachograph** ceilings are **ROAD-only** — `CabotageService` short-circuits non-road; tachograph validation lives in `AvailabilityServiceImpl`.
 - The batch admin preview (`/loads/{id}/carrier-eligibility`) resolves applications/availability/cabotage/modes/credentials in a **constant number of queries** (no N+1) — preserve that when editing.
+- **Carrier load browse** (`LoadServiceImpl.getMatchingLoads`, behind `GET /api/carrier/loads`) pre-filters OPEN loads by lane match **+ per-mode remaining duty-clock hours**: `remaining(mode, date) = max(0, declared − committed)`, where committed is derived from the carrier's assigned/in-progress/completed loads (`AvailabilityService.getRemainingHoursByModeAndDate` → `LoadRepository.sumCommittedHoursByDateAndMode`, **constant queries / no N+1**). A load only surfaces when **that mode's** clock has room for its `estimatedDurationHours`, so browse agrees with the apply-time `AVAILABILITY` gate — which stays authoritative (browse is only a coarse pre-filter).
 
 ### Tree building (`TmsTreeService`)
 - `createTreeFor(load, input)` — single-leg path (used by live single-load create + seed).
