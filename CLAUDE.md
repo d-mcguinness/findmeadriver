@@ -79,7 +79,7 @@ Itinerary ──< Shipment   (intermodal: sequences N single-mode leg-Shipments 
 - **API client** `src/lib/api.ts` (auto-attaches Bearer token). **Types** `src/lib/types.ts`.
 - Libs: `transport-modes.ts` (mode labels/colours + commission mirror), `pricing.ts` (rate-card mirror + `loadModePricing`), `money.ts`, `countries.ts`, `google-maps.ts`, `licence-categories.ts`.
 - **Route groups** under `dashboard/`: `(carrier)`, `(shipper)`, `(admin)` (each guarded by its `+layout.ts`; the `(shipper)` group also admits admins). Dashboards: `CarrierDashboard`, `ShipperDashboard`, `AdminDashboard`; `LoadsTable` for the load grids.
-- Notable pages: `/` (multimodal landing), `/pricing`, `/dashboard/(shipper)/loads/post` (single-leg + mode dropdown + live pricing preview), `/dashboard/(shipper)/loads/post-intermodal` (multi-leg builder), `/dashboard/(shipper)/itineraries`, `/dashboard/(carrier)/capabilities` (modes + credentials editor).
+- Notable pages: `/` (multimodal landing), `/pricing`, `/dashboard/(shipper)/loads/post` (single-leg + mode dropdown + live pricing preview + a shipper/admin "autofill sample data" demo button), `/dashboard/(shipper)/loads/post-intermodal` (multi-leg builder), `/dashboard/(shipper)/itineraries`, `/dashboard/(carrier)/capabilities` (modes + credentials editor).
 
 ### API Endpoints
 **Public:** `POST /api/user/login`, `POST /api/user/register/carrier`, `POST /api/user/register/shipper`, `POST /api/user/forgot-password`, `POST /api/user/reset-password`, `GET /api/pricing/modes`.
