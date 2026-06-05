@@ -79,16 +79,16 @@ Itinerary ──< Shipment   (intermodal: sequences N single-mode leg-Shipments 
 - **API client** `src/lib/api.ts` (auto-attaches Bearer token). **Types** `src/lib/types.ts`.
 - Libs: `transport-modes.ts` (mode labels/colours + commission mirror), `pricing.ts` (rate-card mirror + `loadModePricing`), `money.ts`, `countries.ts`, `google-maps.ts`, `licence-categories.ts`.
 - **Route groups** under `dashboard/`: `(carrier)`, `(shipper)`, `(admin)` (each guarded by its `+layout.ts`; the `(shipper)` group also admits admins). Dashboards: `CarrierDashboard`, `ShipperDashboard`, `AdminDashboard`; `LoadsTable` for the load grids.
-- Notable pages: `/` (multimodal landing), `/pricing`, `/dashboard/(shipper)/loads/post` (single-leg + mode dropdown + live pricing preview + a shipper/admin "autofill sample data" demo button), `/dashboard/(shipper)/loads/post-intermodal` (multi-leg builder), `/dashboard/(shipper)/itineraries`, `/dashboard/(carrier)/capabilities` (modes + credentials editor).
+- Notable pages: `/` (multimodal landing), `/pricing`, `/dashboard/(shipper)/loads/post` (single-leg + mode dropdown + live pricing preview + a shipper/admin "autofill sample data" demo button), `/dashboard/(shipper)/loads/post-intermodal` (multi-leg builder), `/dashboard/(shipper)/loads/[id]/edit` (edit an OPEN load — shipper/admin, prefills + PUTs), `/dashboard/(shipper)/itineraries`, `/dashboard/(carrier)/capabilities` (modes + credentials editor).
 
 ### API Endpoints
 **Public:** `POST /api/user/login`, `POST /api/user/register/carrier`, `POST /api/user/register/shipper`, `POST /api/user/forgot-password`, `POST /api/user/reset-password`, `GET /api/pricing/modes`.
 
 **Carrier (`/api/carrier/**`):** `capabilities` (GET/PUT — supportedModes + credentials), `availability` (GET/PUT), `loads` + `loads/all` (browse), `loads/{id}/apply`, `applications`, `applications/{id}/withdraw`, `loads/{id}/rate`, `ratings`, `lanes` (GET/POST/DELETE), `cabotage-exposure`, `home-country`, `compliance` (GET/POST/DELETE), `timeslots` (GET/POST/DELETE).
 
-**Shipper (`/api/shipper/**`):** `loads` CRUD + `loads/{id}/status` + `loads/{id}/cancel`, `loads/{id}/applications` + accept/reject, `loads/{id}/rate`, `ratings`; **intermodal** `itineraries` (POST create / GET list / GET {id}).
+**Shipper (`/api/shipper/**`):** `loads` CRUD (`POST` / `GET` / `GET {id}` ownership-guarded / `PUT {id}` edit — OPEN-only) + `loads/{id}/status` + `loads/{id}/cancel`, `loads/{id}/applications` + accept/reject, `loads/{id}/rate`, `ratings`; **intermodal** `itineraries` (POST create / GET list / GET {id}).
 
-**Admin (`/api/admin/**`):** `users`, `stats`, `shippers`, `carriers`, `loads` (POST on-behalf / GET / cancel), `loads/{id}/carrier-eligibility`, `applications`, compliance review (`compliance/pending`, `compliance/{id}/verify`), and read-only TMS views `orders`, `shipments`, `itineraries` (+ POST on-behalf), `locations`.
+**Admin (`/api/admin/**`):** `users`, `stats`, `shippers`, `carriers`, `loads` (POST on-behalf / GET / GET {id} / PUT {id} edit / cancel), `loads/{id}/carrier-eligibility`, `applications`, compliance review (`compliance/pending`, `compliance/{id}/verify`), and read-only TMS views `orders`, `shipments`, `itineraries` (+ POST on-behalf), `locations`.
 
 ### Key Enums
 - **Shipment.Mode**: ROAD, RAIL, OCEAN, AIR, INTERMODAL, PARCEL

@@ -80,7 +80,7 @@ findmeadriver/
             └── dashboard/
                 ├── +layout.* · +page.svelte                 # role chooser/redirect
                 ├── (carrier)/  capabilities/
-                ├── (shipper)/  loads/post/  loads/post-intermodal/  itineraries/
+                ├── (shipper)/  loads/post/  loads/post-intermodal/  loads/[id]/edit/  itineraries/
                 └── (admin)/    loads/  users/  documents/  analytics/  settings/
 ```
 
@@ -252,7 +252,7 @@ All controllers allow CORS from `*`. Everything under `/api/carrier`, `/api/ship
 - **Cabotage:** `GET /cabotage-exposure`, `PUT /home-country`
 
 ### Shipper (`/api/shipper/**`)
-- **Loads:** `POST /loads`, `GET /loads`, `GET /loads/{id}`, `PUT /loads/{id}/status`, `PUT /loads/{id}/cancel`
+- **Loads:** `POST /loads`, `GET /loads`, `GET /loads/{id}`, `PUT /loads/{id}` (edit — OPEN-only, ownership-guarded), `PUT /loads/{id}/status`, `PUT /loads/{id}/cancel`
 - **Intermodal:** `POST /itineraries`, `GET /itineraries`, `GET /itineraries/{id}`
 - **Applications:** `GET /loads/{id}/applications`, `PUT /applications/{id}/accept`, `PUT /applications/{id}/reject`
 - **Ratings:** `POST /loads/{id}/rate`, `GET /loads/{id}/rated`, `GET /ratings`
@@ -260,7 +260,7 @@ All controllers allow CORS from `*`. Everything under `/api/carrier`, `/api/ship
 ### Admin (`/api/admin/**`)
 - **Users & entities:** `GET /users`, `GET /users/{id}`, `GET /carriers`, `GET /shippers`
 - **Stats:** `GET /stats`
-- **Loads (operator view):** `POST /loads` (on behalf of a shipper via `shipperId`), `GET /loads`, `GET /loads/{id}/applications`, `PUT /loads/{id}/cancel`
+- **Loads (operator view):** `POST /loads` (on behalf of a shipper via `shipperId`), `GET /loads`, `GET /loads/{id}`, `PUT /loads/{id}` (edit any load), `GET /loads/{id}/applications`, `PUT /loads/{id}/cancel`
 - **Eligibility & applications:** `GET /loads/{id}/carrier-eligibility` (runs the full gate ladder per carrier, no N+1), `GET /carriers/{id}/applications`, `POST /applications` (apply on behalf of a carrier)
 - **Compliance review:** `GET /compliance/pending`, `PUT /compliance/{id}/verify`
 - **Read-only TMS views:** `GET /orders`, `GET /orders/{id}`, `GET /shipments`, `GET /shipments/{id}`, `POST`/`GET /itineraries`, `GET /itineraries/{id}`, `GET /locations`, `GET /locations/{id}`
