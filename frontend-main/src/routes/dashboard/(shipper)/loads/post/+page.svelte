@@ -4,7 +4,7 @@
 		Button, TextInput, TextArea, NumberInput, Select, SelectItem,
 		InlineNotification, Tag
 	} from 'carbon-components-svelte';
-	import { ArrowLeft, Add, TrashCan, ArrowUp, ArrowDown } from 'carbon-icons-svelte';
+	import { ArrowLeft, Add, TrashCan, ArrowUp, ArrowDown, MagicWand } from 'carbon-icons-svelte';
 	import { api } from '$lib/api';
 	import { auth } from '$lib/stores/auth.svelte';
 	import { goto } from '$app/navigation';
@@ -219,6 +219,63 @@
 		return null;
 	}
 
+	// --- Demo convenience: fill the form with a realistic sample load. Shown to
+	// shippers/admins only — handy for exercising the pricing preview per mode. ---
+	type LoadSample = {
+		mode: string; title: string; description: string;
+		pickup: string; pickupCountry: string; delivery: string; deliveryCountry: string;
+		hours: number; rate: number; licence: string;
+		q: Partial<{ distanceKm: number; weightKg: number; volumeM3: number; containerCount: number; pieceCount: number }>;
+	};
+
+	const LOAD_SAMPLES: LoadSample[] = [
+		{ mode: 'ROAD', title: 'Dublin → Cork pallet run',
+		  description: '12 ambient pallets, tail-lift required. Same-day delivery.',
+		  pickup: 'Dublin, Ireland', pickupCountry: 'IE', delivery: 'Cork, Ireland', deliveryCountry: 'IE',
+		  hours: 3.5, rate: 30, licence: 'C', q: { distanceKm: 255 } },
+		{ mode: 'OCEAN', title: 'Rotterdam → Dublin FCL',
+		  description: '2 × 40ft containers of machinery parts, full-container load.',
+		  pickup: 'Port of Rotterdam, Netherlands', pickupCountry: 'NL', delivery: 'Dublin Port, Ireland', deliveryCountry: 'IE',
+		  hours: 8, rate: 40, licence: 'C', q: { containerCount: 2 } },
+		{ mode: 'AIR', title: 'Cologne → Dublin air freight',
+		  description: 'Time-critical pharma, temperature-controlled, 450 kg.',
+		  pickup: 'Cologne Bonn Airport, Germany', pickupCountry: 'DE', delivery: 'Dublin Airport, Ireland', deliveryCountry: 'IE',
+		  hours: 5, rate: 50, licence: 'C', q: { weightKg: 450, volumeM3: 1.8 } },
+		{ mode: 'RAIL', title: 'Duisburg → Lyon intermodal rail',
+		  description: '3 containers, freight-all-kinds, scheduled service.',
+		  pickup: 'Duisburg Terminal, Germany', pickupCountry: 'DE', delivery: 'Lyon Terminal, France', deliveryCountry: 'FR',
+		  hours: 14, rate: 35, licence: 'C', q: { containerCount: 3 } }
+	];
+
+	function autofillForm() {
+		const s = LOAD_SAMPLES[Math.floor(Math.random() * LOAD_SAMPLES.length)];
+		const due = new Date();
+		due.setDate(due.getDate() + 7);
+		loadForm = {
+			title: s.title,
+			description: s.description,
+			transportMode: s.mode,
+			estimatedDurationHours: s.hours,
+			dateNeeded: due.toISOString().split('T')[0],
+			ratePerHour: s.rate,
+			requiredLicenceCategory: s.licence
+		};
+		quantities = {
+			distanceKm: s.q.distanceKm ?? null,
+			weightKg: s.q.weightKg ?? null,
+			volumeM3: s.q.volumeM3 ?? null,
+			containerCount: s.q.containerCount ?? null,
+			pieceCount: s.q.pieceCount ?? null
+		};
+		stops = [
+			{ ...newStop('PICKUP'), country: s.pickupCountry, address: s.pickup },
+			{ ...newStop('DELIVERY'), country: s.deliveryCountry, address: s.delivery }
+		];
+		routeInfo = null;
+		postError = '';
+		postSuccess = '';
+	}
+
 	async function postLoad() {
 		postError = '';
 		postSuccess = '';
@@ -302,6 +359,15 @@
 			{/if}
 
 			<div class="form-grid">
+				{#if auth.isShipper || auth.isAdmin}
+					<div class="autofill-bar">
+						<Button kind="tertiary" size="small" icon={MagicWand} on:click={autofillForm}>
+							Autofill with sample data
+						</Button>
+						<span class="autofill-hint">Fills a random demo load — handy for quick testing.</span>
+					</div>
+				{/if}
+
 				{#if auth.isAdmin}
 					<Select bind:selected={selectedShipperId}
 						labelText="Create Load On Behalf Of (Shipper)">
@@ -495,6 +561,16 @@
 		display: grid;
 		grid-template-columns: 1fr 1fr;
 		gap: 1rem;
+	}
+	.autofill-bar {
+		display: flex;
+		align-items: center;
+		gap: 0.75rem;
+		flex-wrap: wrap;
+	}
+	.autofill-hint {
+		font-size: 0.8125rem;
+		color: var(--cds-text-secondary);
 	}
 	.stops-section {
 		display: flex;
