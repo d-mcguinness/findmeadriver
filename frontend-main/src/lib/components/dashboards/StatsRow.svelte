@@ -90,6 +90,7 @@
 {#if auth.isAdmin && platformStats}
 	<Row>
 		<Column lg={4} md={4} sm={4}>
+			<div class="fmad-card">
 			<Tile class="stat-tile">
 				<div class="stat-card">
 					<UserMultiple size={24} />
@@ -101,8 +102,10 @@
 					</div>
 				</div>
 			</Tile>
+			</div>
 		</Column>
 		<Column lg={4} md={4} sm={4}>
+			<div class="fmad-card">
 			<Tile class="stat-tile">
 				<div class="stat-card">
 					<Van size={24} />
@@ -115,8 +118,10 @@
 					</div>
 				</div>
 			</Tile>
+			</div>
 		</Column>
 		<Column lg={4} md={4} sm={4}>
+			<div class="fmad-card">
 			<Tile class="stat-tile">
 				<div class="stat-card">
 					<CheckmarkOutline size={24} />
@@ -127,8 +132,10 @@
 					</div>
 				</div>
 			</Tile>
+			</div>
 		</Column>
 		<Column lg={4} md={4} sm={4}>
+			<div class="fmad-card">
 			<Tile class="stat-tile">
 				<div class="stat-card">
 					<DocumentIcon size={24} />
@@ -141,11 +148,13 @@
 					</div>
 				</div>
 			</Tile>
+			</div>
 		</Column>
 	</Row>
 {:else if auth.isShipper}
 	<Row>
 		<Column>
+			<div class="fmad-card">
 			<Tile class="stat-tile">
 				<div class="stat-card">
 					<Van size={24} />
@@ -181,11 +190,13 @@
 					</div>
 				</div>
 			</Tile>
+			</div>
 		</Column>
 	</Row>
 {:else if auth.isCarrier}
 	<Row>
 		<Column lg={4} md={4} sm={4}>
+			<div class="fmad-card">
 			<Tile class="stat-tile">
 				<div class="stat-card">
 					<Search size={24} />
@@ -193,8 +204,10 @@
 					<div class="stat-label">Available Loads</div>
 				</div>
 			</Tile>
+			</div>
 		</Column>
 		<Column lg={4} md={4} sm={4}>
+			<div class="fmad-card">
 			<Tile class="stat-tile">
 				<div class="stat-card">
 					<DocumentIcon size={24} />
@@ -211,8 +224,10 @@
 					</div>
 				</div>
 			</Tile>
+			</div>
 		</Column>
 		<Column lg={4} md={4} sm={4}>
+			<div class="fmad-card">
 			<Tile class="stat-tile">
 				<div class="stat-card">
 					<CertificateCheck size={24} />
@@ -227,8 +242,10 @@
 					</div>
 				</div>
 			</Tile>
+			</div>
 		</Column>
 		<Column lg={4} md={4} sm={4}>
+			<div class="fmad-card">
 			<Tile class="stat-tile">
 				<div class="stat-card">
 					<CheckmarkOutline size={24} />
@@ -236,6 +253,7 @@
 					<div class="stat-label">Accepted Loads</div>
 				</div>
 			</Tile>
+			</div>
 		</Column>
 	</Row>
 {/if}

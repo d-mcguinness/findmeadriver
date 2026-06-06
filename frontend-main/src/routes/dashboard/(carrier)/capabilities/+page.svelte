@@ -75,7 +75,7 @@
 		<Column>
 			<div class="page-header">
 				<Button kind="ghost" size="small" href="/dashboard" icon={ArrowLeft}>Back to Dashboard</Button>
-				<h1>Modes &amp; Credentials</h1>
+				<h1 class="section-heading">Modes &amp; Credentials</h1>
 				<p class="sub">
 					Choose which transport modes you operate and the credentials you hold. You can only be
 					matched to a load whose mode you support &mdash; and air, sea and rail loads also require a

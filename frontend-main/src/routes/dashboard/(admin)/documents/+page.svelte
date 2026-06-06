@@ -34,7 +34,7 @@
 				<Button kind="ghost" size="small" href="/dashboard" icon={ArrowLeft}>
 					Back
 				</Button>
-				<h1><Document size={24} /> Pending Documents</h1>
+				<h1 class="section-heading"><span class="icon-badge sm"><Document size={20} /></span> Pending Documents</h1>
 				<p class="page-subtitle">
 					{documents.length} document{documents.length !== 1 ? 's' : ''} awaiting review
 				</p>

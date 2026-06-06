@@ -292,7 +292,7 @@
 				<Button kind="ghost" size="small" href={backHref} icon={ArrowLeft}>
 					Back to loads
 				</Button>
-				<h1><Save size={24} /> Edit Load</h1>
+				<h1 class="section-heading"><span class="icon-badge sm"><Save size={24} /></span> Edit Load</h1>
 			</div>
 		</Column>
 	</Row>

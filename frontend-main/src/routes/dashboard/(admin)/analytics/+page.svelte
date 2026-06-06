@@ -40,7 +40,7 @@
 				<Button kind="ghost" size="small" href="/dashboard" icon={ArrowLeft}>
 					Back
 				</Button>
-				<h1><Analytics size={24} /> Platform Analytics</h1>
+				<h1 class="section-heading"><span class="icon-badge sm"><Analytics size={20} /></span> Platform Analytics</h1>
 				<p class="page-subtitle">Overview of platform activity and usage</p>
 			</div>
 		</Column>
@@ -60,57 +60,65 @@
 	{:else if stats}
 		<Row>
 			<Column lg={4} md={4} sm={4}>
-				<Tile class="stat-tile">
-					<div class="stat-card">
-						<UserMultiple size={24} />
-						<div class="stat-value">{stats.totalUsers}</div>
-						<div class="stat-label">Total Users</div>
-						<div class="stat-breakdown">
-							<Tag type="blue" size="sm">{stats.totalCarriers} carriers</Tag>
-							<Tag type="green" size="sm">{stats.totalShippers} shippers</Tag>
+				<div class="fmad-card">
+					<Tile class="stat-tile">
+						<div class="stat-card">
+							<UserMultiple size={24} />
+							<div class="stat-value">{stats.totalUsers}</div>
+							<div class="stat-label">Total Users</div>
+							<div class="stat-breakdown">
+								<Tag type="blue" size="sm">{stats.totalCarriers} carriers</Tag>
+								<Tag type="green" size="sm">{stats.totalShippers} shippers</Tag>
+							</div>
 						</div>
-					</div>
-				</Tile>
+					</Tile>
+				</div>
 			</Column>
 			<Column lg={4} md={4} sm={4}>
-				<Tile class="stat-tile">
-					<div class="stat-card">
-						<Van size={24} />
-						<div class="stat-value">{stats.totalLoads}</div>
-						<div class="stat-label">Total Loads</div>
-						<div class="stat-breakdown">
-							<Tag type="green" size="sm">{stats.openLoads} open</Tag>
-							<Tag type="blue" size="sm">{stats.assignedLoads} assigned</Tag>
-							<Tag type="cyan" size="sm">{stats.inProgressLoads} in progress</Tag>
+				<div class="fmad-card">
+					<Tile class="stat-tile">
+						<div class="stat-card">
+							<Van size={24} />
+							<div class="stat-value">{stats.totalLoads}</div>
+							<div class="stat-label">Total Loads</div>
+							<div class="stat-breakdown">
+								<Tag type="green" size="sm">{stats.openLoads} open</Tag>
+								<Tag type="blue" size="sm">{stats.assignedLoads} assigned</Tag>
+								<Tag type="cyan" size="sm">{stats.inProgressLoads} in progress</Tag>
+							</div>
 						</div>
-					</div>
-				</Tile>
+					</Tile>
+				</div>
 			</Column>
 			<Column lg={4} md={4} sm={4}>
-				<Tile class="stat-tile">
-					<div class="stat-card">
-						<Van size={24} />
-						<div class="stat-value">{stats.completedLoads}</div>
-						<div class="stat-label">Completed Loads</div>
-						<div class="stat-breakdown">
-							<Tag type="red" size="sm">{stats.cancelledLoads} cancelled</Tag>
+				<div class="fmad-card">
+					<Tile class="stat-tile">
+						<div class="stat-card">
+							<Van size={24} />
+							<div class="stat-value">{stats.completedLoads}</div>
+							<div class="stat-label">Completed Loads</div>
+							<div class="stat-breakdown">
+								<Tag type="red" size="sm">{stats.cancelledLoads} cancelled</Tag>
+							</div>
 						</div>
-					</div>
-				</Tile>
+					</Tile>
+				</div>
 			</Column>
 			<Column lg={4} md={4} sm={4}>
-				<Tile class="stat-tile">
-					<div class="stat-card">
-						<Document size={24} />
-						<div class="stat-value">{stats.pendingDocuments}</div>
-						<div class="stat-label">Pending Documents</div>
-						<div class="stat-breakdown">
-							<Tag type={stats.pendingDocuments > 0 ? 'red' : 'green'} size="sm">
-								{stats.pendingDocuments > 0 ? 'Needs review' : 'All clear'}
-							</Tag>
+				<div class="fmad-card">
+					<Tile class="stat-tile">
+						<div class="stat-card">
+							<Document size={24} />
+							<div class="stat-value">{stats.pendingDocuments}</div>
+							<div class="stat-label">Pending Documents</div>
+							<div class="stat-breakdown">
+								<Tag type={stats.pendingDocuments > 0 ? 'red' : 'green'} size="sm">
+									{stats.pendingDocuments > 0 ? 'Needs review' : 'All clear'}
+								</Tag>
+							</div>
 						</div>
-					</div>
-				</Tile>
+					</Tile>
+				</div>
 			</Column>
 		</Row>
 
@@ -161,9 +169,5 @@
 		justify-content: center;
 		gap: 0.25rem;
 		flex-wrap: wrap;
-	}
-	.section-heading {
-		margin: 2rem 0 1rem;
-		font-size: 1.25rem;
 	}
 </style>

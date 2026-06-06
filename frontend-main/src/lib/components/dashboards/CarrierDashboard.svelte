@@ -482,7 +482,7 @@
 <Grid>
 	<Row>
 		<Column>
-			<h1>Welcome, {auth.user?.firstName}!</h1>
+			<h1 class="section-heading">Welcome, {auth.user?.firstName}!</h1>
 			<p class="dashboard-subtitle">Your carrier dashboard</p>
 			<Button size="small" kind="tertiary" href="/dashboard/capabilities">
 				Modes &amp; credentials
@@ -501,7 +501,7 @@
 					<!-- Availability Tab -->
 					<TabContent>
 						<div class="tab-content">
-							<h3><Time size={20} /> Set Your Available Hours</h3>
+							<h3 class="section-heading"><span class="icon-badge sm"><Time size={20} /></span> Set Your Available Hours</h3>
 							<p class="info-text">
 								Each transport mode has its own duty/rest clock — declare hours per mode below.
 								Hours committed to assigned loads are netted off automatically.
@@ -604,18 +604,20 @@
 					<!-- Compliance Tab -->
 					<TabContent>
 						<div class="tab-content">
-							<h3><CertificateCheck size={20} /> Compliance Documents</h3>
+							<h3 class="section-heading"><span class="icon-badge sm"><CertificateCheck size={20} /></span> Compliance Documents</h3>
 							<p class="info-text">
 								Upload your documents to get verified. Verified carriers get a trust badge visible to shippers.
 							</p>
 
 							{#if compliance}
-								<Tile class="compliance-summary">
-									<strong>{compliance.verifiedCount}</strong> of <strong>{compliance.totalCount}</strong> documents verified
-									{#if compliance.allVerified && compliance.totalCount > 0}
-										<Tag type="green">Fully Verified</Tag>
-									{/if}
-								</Tile>
+								<div class="fmad-card">
+									<Tile class="compliance-summary">
+										<strong>{compliance.verifiedCount}</strong> of <strong>{compliance.totalCount}</strong> documents verified
+										{#if compliance.allVerified && compliance.totalCount > 0}
+											<Tag type="green">Fully Verified</Tag>
+										{/if}
+									</Tile>
+								</div>
 
 								{#if compliance.documents.length > 0}
 									<div class="doc-list">
@@ -672,7 +674,7 @@
 					<!-- Browse Loads Tab -->
 					<TabContent>
 						<div class="tab-content">
-							<h3><Search size={20} /> Loads Matching Your Profile</h3>
+							<h3 class="section-heading"><span class="icon-badge sm"><Search size={20} /></span> Loads Matching Your Profile</h3>
 							<p class="info-text">
 								Showing loads whose transport mode you support and that you're credentialed for,
 								where that mode's duty clock still has hours free on the date needed (committed
@@ -844,7 +846,7 @@
 					<!-- My Applications Tab -->
 					<TabContent>
 						<div class="tab-content">
-							<h3><Document size={20} /> My Applications</h3>
+							<h3 class="section-heading"><span class="icon-badge sm"><Document size={20} /></span> My Applications</h3>
 
 							{#if applicationsLoading}
 								<p>Loading applications...</p>

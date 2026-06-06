@@ -259,7 +259,7 @@
 				<Button kind="ghost" size="small" href="/dashboard/loads/post" icon={ArrowLeft}>
 					Single-leg load instead
 				</Button>
-				<h1><Add size={24} /> Post an Intermodal Load</h1>
+				<h1 class="section-heading"><span class="icon-badge sm"><Add size={24} /></span> Post an Intermodal Load</h1>
 				<p class="sub">
 					Build a door-to-door movement from multiple legs — each with its own mode, route, and
 					rate. We price every leg with its mode's platform fee and roll them up to one total.
@@ -306,7 +306,7 @@
 
 				<div class="legs-section">
 					<div class="legs-header">
-						<h3>Legs</h3>
+						<h3 class="section-heading">Legs</h3>
 						<Button kind="tertiary" size="small" icon={Add} on:click={addLeg}>Add leg</Button>
 					</div>
 					<p class="legs-hint">Legs run in order, top to bottom. Each leg is priced on its own mode.</p>

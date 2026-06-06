@@ -191,7 +191,7 @@
 				<Button kind="ghost" size="small" href="/dashboard" icon={ArrowLeft}>
 					Back
 				</Button>
-				<h1><Van size={24} /> All Loads</h1>
+				<h1 class="section-heading"><span class="icon-badge sm"><Van size={24} /></span> All Loads</h1>
 				<p class="page-subtitle">{loads.length} posted load{loads.length !== 1 ? 's' : ''}</p>
 			</div>
 		</Column>
