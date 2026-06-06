@@ -1,81 +1,204 @@
-.hero {
-	padding: 4rem 0 3rem;
+/* ============================================================================
+   FindMeADriver design layer — loaded globally after carbon g10.css.
+   Holds the shared visual language (tokens + utilities) and upgrades the common
+   page classes so every route shares the landing page's look:
+   soft-shadowed rounded cards, gradient hero/CTA panels, accent-underlined
+   section headings, eyebrow pills, and tinted gradient icon badges.
+   ============================================================================ */
+
+:root {
+	--fmad-accent: #0f62fe;
+	--fmad-accent-2: #8a3ffc;
+	--fmad-grad: linear-gradient(135deg, #0f62fe 0%, #8a3ffc 100%);
+	--fmad-hero-bg:
+		radial-gradient(60rem 30rem at 50% -10%, #d0e2ff 0%, rgba(208, 226, 255, 0) 60%),
+		linear-gradient(160deg, #edf5ff 0%, #ffffff 55%);
 }
 
-.hero h1 {
+/* ---- App-wide card polish: every Carbon tile gets a soft radius + shadow ---- */
+.bx--tile {
+	border-radius: 10px;
+	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.07), 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+/* Opt-in hover lift for tiles used as feature/clickable cards. Wrap the <Tile>
+   in <div class="fmad-card">. */
+.fmad-card {
+	height: 100%;
+	transition: transform 160ms ease, box-shadow 160ms ease;
+}
+.fmad-card:hover {
+	transform: translateY(-4px);
+	box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+}
+.fmad-card > .bx--tile {
+	height: 100%;
+}
+
+/* ---- Eyebrow pill ---- */
+.eyebrow {
+	display: inline-block;
+	background: #d0e2ff;
+	color: #0043ce;
+	padding: 0.3rem 0.85rem;
+	border-radius: 999px;
+	font-size: 0.75rem;
+	font-weight: 600;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
 	margin-bottom: 1rem;
 }
 
-.hero-subtitle {
-	font-size: 1.25rem;
-	color: var(--cds-text-secondary, #525252);
-	margin-bottom: 2rem;
-	max-width: 600px;
+/* ---- Section heading with gradient accent underline ---- */
+.section-heading {
+	font-size: 1.625rem;
+	font-weight: 600;
+	letter-spacing: -0.01em;
+	margin: 3rem 0 1.25rem;
+	position: relative;
+}
+/* Absolutely positioned so the accent stays an underline even when the heading
+   is a flex row with an inline icon badge — otherwise the ::after turns into a
+   stray flex item (a gradient bar floating beside the text). */
+.section-heading::after {
+	content: '';
+	position: absolute;
+	left: 0;
+	bottom: -0.5rem;
+	width: 2.5rem;
+	height: 3px;
+	border-radius: 2px;
+	background: var(--fmad-grad);
 }
 
+/* ---- Tinted gradient icon badge ---- */
+.icon-badge {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 3rem;
+	height: 3rem;
+	border-radius: 50%;
+	background: linear-gradient(135deg, #edf5ff 0%, #e8defc 100%);
+	color: var(--fmad-accent);
+}
+.icon-badge.sm {
+	width: 2.75rem;
+	height: 2.75rem;
+}
+.icon-badge svg {
+	fill: currentColor;
+}
+
+/* ---- Gradient CTA panel ---- */
+.gradient-cta {
+	text-align: center;
+	padding: 3rem 1.5rem;
+	border-radius: 16px;
+	background: var(--fmad-grad);
+	color: #fff;
+}
+.gradient-cta h2,
+.gradient-cta h3 {
+	color: #fff;
+	font-weight: 600;
+}
+.gradient-cta p {
+	color: rgba(255, 255, 255, 0.9);
+	margin-bottom: 1.25rem;
+}
+
+/* ---- Marketing hero → gradient panel (carrier / shipper pages) ---- */
+.hero {
+	text-align: center;
+	padding: 3.5rem 1.5rem 3rem;
+	margin: 0.5rem 0 1.5rem;
+	border-radius: 16px;
+	background: var(--fmad-hero-bg);
+	border: 1px solid var(--cds-border-subtle, #e0e0e0);
+}
+.hero h1 {
+	font-size: 2.75rem;
+	font-weight: 600;
+	line-height: 1.15;
+	letter-spacing: -0.01em;
+	margin-bottom: 1rem;
+}
+.hero-subtitle {
+	font-size: 1.125rem;
+	color: var(--cds-text-secondary, #525252);
+	margin: 0 auto 2rem;
+	max-width: 620px;
+	line-height: 1.6;
+}
 .hero-actions {
 	display: flex;
 	gap: 1rem;
 	flex-wrap: wrap;
+	justify-content: center;
 }
 
+/* ---- Marketing feature tiles ---- */
 .feature-tile {
 	padding: 1rem 0;
+	text-align: center;
 }
-
 .feature-tile h3 {
-	margin: 1rem 0 0.5rem;
+	margin: 0.85rem 0 0.5rem;
 }
-
 .feature-tile p {
 	color: var(--cds-text-secondary, #525252);
+	line-height: 1.5;
 }
 
+/* ---- Auth form card (login / register) ---- */
+/* The auth pages wrap their form in a <Tile> (now globally rounded + shadowed),
+   so this stays a plain spacing wrapper — no nested card. */
 .form-container {
-	padding: 2rem 0;
+	padding: 1.5rem 0;
 }
-
 .form-container h2 {
 	margin-bottom: 0.25rem;
+	font-weight: 600;
 }
-
 .form-subtitle {
 	color: var(--cds-text-secondary, #525252);
 	margin-bottom: 1.5rem;
 }
-
 .form-field {
 	margin-bottom: 1rem;
 }
-
 .form-row {
 	display: flex;
 	gap: 1rem;
 }
-
 .form-row .form-field {
 	flex: 1;
 }
-
 .form-actions {
 	margin-top: 1.5rem;
 }
-
 .form-footer {
 	margin-top: 1.5rem;
 	color: var(--cds-text-secondary, #525252);
 }
 
+/* ---- Dashboard heading rhythm ---- */
 .dashboard-subtitle {
 	color: var(--cds-text-secondary, #525252);
 	margin-bottom: 2rem;
 }
-
 h4 {
 	margin: 1.5rem 0 1rem;
 }
 
 @media (max-width: 672px) {
+	.hero {
+		padding: 2.5rem 1rem;
+	}
+	.hero h1 {
+		font-size: 2rem;
+	}
 	.form-row {
 		flex-direction: column;
 		gap: 0;

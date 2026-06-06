@@ -148,6 +148,7 @@
 		<Column lg={{ span: 8, offset: 4 }} md={{ span: 6, offset: 1 }} sm={4}>
 			<div class="form-container">
 				<Tile>
+					<span class="eyebrow">FindMeADriver</span>
 					<h2>Create an Account</h2>
 					<p class="form-subtitle">Join FindMeADriver as a carrier or shipper</p>
 

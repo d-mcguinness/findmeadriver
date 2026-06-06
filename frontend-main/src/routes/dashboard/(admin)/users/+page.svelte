@@ -112,7 +112,7 @@
 				<Button kind="ghost" size="small" href="/dashboard" icon={ArrowLeft}>
 					Back
 				</Button>
-				<h1><UserAdmin size={24} /> Manage Users</h1>
+				<h1 class="section-heading"><span class="icon-badge sm"><UserAdmin size={24} /></span> Manage Users</h1>
 				<p class="page-subtitle">{users.length} registered user{users.length !== 1 ? 's' : ''}</p>
 			</div>
 		</Column>

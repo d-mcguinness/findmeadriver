@@ -73,7 +73,7 @@
 				<Button kind="ghost" size="small" href="/dashboard" icon={ArrowLeft}>
 					Back
 				</Button>
-				<h1><Settings size={24} /> Settings</h1>
+				<h1><span class="icon-badge sm"><Settings size={24} /></span> Settings</h1>
 				<p class="page-subtitle">Platform configuration and compliance review</p>
 			</div>
 		</Column>
@@ -112,25 +112,27 @@
 				<p class="pending-count">{pendingDocs.length} document{pendingDocs.length !== 1 ? 's' : ''} awaiting review</p>
 				<div class="doc-list">
 					{#each pendingDocs as doc}
-						<Tile class="doc-tile">
-							<div class="doc-header">
-								<div>
-									<h4>{formatDocType(doc.documentType)}</h4>
-									<p class="doc-number">#{doc.documentNumber}</p>
+						<div class="fmad-card">
+							<Tile class="doc-tile">
+								<div class="doc-header">
+									<div>
+										<h4>{formatDocType(doc.documentType)}</h4>
+										<p class="doc-number">#{doc.documentNumber}</p>
+									</div>
+									<Tag type="blue" size="sm">{doc.status}</Tag>
 								</div>
-								<Tag type="blue" size="sm">{doc.status}</Tag>
-							</div>
-							<div class="doc-details">
-								<span><strong>Expiry:</strong> {doc.expiryDate}</span>
-								<span><strong>Uploaded:</strong> {new Date(doc.uploadedAt).toLocaleDateString()}</span>
-							</div>
-							<div class="doc-actions">
-								<Button size="small" kind="primary" icon={Checkmark}
-									on:click={() => openVerify(doc)}>
-									Verify
-								</Button>
-							</div>
-						</Tile>
+								<div class="doc-details">
+									<span><strong>Expiry:</strong> {doc.expiryDate}</span>
+									<span><strong>Uploaded:</strong> {new Date(doc.uploadedAt).toLocaleDateString()}</span>
+								</div>
+								<div class="doc-actions">
+									<Button size="small" kind="primary" icon={Checkmark}
+										on:click={() => openVerify(doc)}>
+										Verify
+									</Button>
+								</div>
+							</Tile>
+						</div>
 					{/each}
 				</div>
 			{/if}

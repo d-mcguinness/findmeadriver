@@ -29,9 +29,10 @@
 	<Grid>
 		<Row>
 			<Column>
-				<div class="page-head">
+				<div class="hero">
+					<span class="eyebrow">Transparent pricing</span>
 					<h1>Pricing</h1>
-					<p class="lead">
+					<p class="hero-subtitle">
 						One simple model across every mode: you pay the <strong>carrier's cost</strong> plus a
 						single <strong>platform fee</strong> that depends only on the transport mode. The fee is
 						shown before you post a load, and it's the only thing we add — no agency markup, no
@@ -69,25 +70,27 @@
 				{@const Icon = MODE_ICON[m.mode] ?? DeliveryTruck}
 				{@const fee = (EXAMPLE_CARRIER_COST * m.commissionPercent) / 100}
 				<Column lg={4} md={4} sm={4}>
-					<Tile>
-						<div class="mode-card">
-							<div class="mode-head">
-								<Icon size={28} />
-								<h3>{m.label}</h3>
+					<div class="fmad-card">
+						<Tile>
+							<div class="mode-card">
+								<div class="mode-head">
+									<span class="icon-badge sm"><Icon size={28} /></span>
+									<h3>{m.label}</h3>
+								</div>
+								<div class="mode-fee">
+									<span class="fee-num">{m.commissionPercent}%</span>
+									<span class="fee-label">platform fee</span>
+								</div>
+								<p class="mode-basis"><Money size={16} /> {m.basis}</p>
+								<p class="mode-tagline">{m.tagline}</p>
+								<div class="mode-example">
+									<span>On a {formatMoney(EXAMPLE_CARRIER_COST)} carrier cost:</span>
+									<span class="ex-line"><Checkmark size={14} /> fee {formatMoney(fee)}</span>
+									<span class="ex-total">you pay {formatMoney(EXAMPLE_CARRIER_COST + fee)}</span>
+								</div>
 							</div>
-							<div class="mode-fee">
-								<span class="fee-num">{m.commissionPercent}%</span>
-								<span class="fee-label">platform fee</span>
-							</div>
-							<p class="mode-basis"><Money size={16} /> {m.basis}</p>
-							<p class="mode-tagline">{m.tagline}</p>
-							<div class="mode-example">
-								<span>On a {formatMoney(EXAMPLE_CARRIER_COST)} carrier cost:</span>
-								<span class="ex-line"><Checkmark size={14} /> fee {formatMoney(fee)}</span>
-								<span class="ex-total">you pay {formatMoney(EXAMPLE_CARRIER_COST + fee)}</span>
-							</div>
-						</div>
-					</Tile>
+						</Tile>
+					</div>
 				</Column>
 			{/each}
 		</Row>
@@ -95,16 +98,16 @@
 		<Row>
 			<Column>
 				<div class="why-pricing">
-					<div class="why-item"><ChartLineData size={20} /><div><strong>Transparent</strong><p>See the exact fee before you commit — the post-a-load form previews it live.</p></div></div>
-					<div class="why-item"><Money size={20} /><div><strong>Mode-fair</strong><p>Air and sea cost more to broker than road, so the fee reflects the mode — nothing else.</p></div></div>
-					<div class="why-item"><Checkmark size={20} /><div><strong>No markup</strong><p>We never inflate the carrier's rate. The platform fee is all we charge.</p></div></div>
+					<div class="why-item"><span class="icon-badge sm"><ChartLineData size={20} /></span><div><strong>Transparent</strong><p>See the exact fee before you commit — the post-a-load form previews it live.</p></div></div>
+					<div class="why-item"><span class="icon-badge sm"><Money size={20} /></span><div><strong>Mode-fair</strong><p>Air and sea cost more to broker than road, so the fee reflects the mode — nothing else.</p></div></div>
+					<div class="why-item"><span class="icon-badge sm"><Checkmark size={20} /></span><div><strong>No markup</strong><p>We never inflate the carrier's rate. The platform fee is all we charge.</p></div></div>
 				</div>
 			</Column>
 		</Row>
 
 		<Row>
 			<Column>
-				<Tile class="cta-tile">
+				<div class="gradient-cta">
 					<h2>Ready to move freight?</h2>
 					<p>Post a load in any mode and see your total before you commit.</p>
 					<div class="cta-actions">
@@ -115,7 +118,7 @@
 							<Button href="/register" kind="secondary" icon={Enterprise}>Register as Shipper</Button>
 						{/if}
 					</div>
-				</Tile>
+				</div>
 			</Column>
 		</Row>
 	</Grid>
@@ -124,20 +127,6 @@
 <style>
 	.pricing-page {
 		padding-bottom: 3rem;
-	}
-	.page-head {
-		padding: 2.5rem 0 1rem;
-	}
-	.page-head h1 {
-		font-size: 2.25rem;
-		font-weight: 600;
-		margin-bottom: 0.75rem;
-	}
-	.lead {
-		font-size: 1.0625rem;
-		color: var(--cds-text-secondary);
-		line-height: 1.6;
-		max-width: 760px;
 	}
 	:global(.formula-tile) {
 		margin-bottom: 1rem;
@@ -172,11 +161,6 @@
 		font-size: 0.875rem;
 		margin: 0.75rem auto 0;
 		max-width: 640px;
-	}
-	.section-heading {
-		font-size: 1.5rem;
-		font-weight: 600;
-		margin: 2rem 0 1rem;
 	}
 	:global(.modes-row) {
 		margin-bottom: 1.5rem;
@@ -266,6 +250,7 @@
 		gap: 1rem;
 		margin-top: 1.5rem;
 		flex-wrap: wrap;
+		justify-content: center;
 	}
 	@media (max-width: 672px) {
 		.why-pricing {

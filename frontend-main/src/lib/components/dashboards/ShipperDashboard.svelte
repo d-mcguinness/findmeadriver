@@ -188,7 +188,7 @@
 <Grid>
 	<Row>
 		<Column>
-			<h2>My Loads</h2>
+			<h2 class="section-heading">My Loads</h2>
 			<div class="dash-actions">
 				<Button size="small" kind="tertiary" href="/dashboard/loads/post-intermodal">
 					Post intermodal load

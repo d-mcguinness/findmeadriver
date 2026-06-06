@@ -20,16 +20,17 @@
 <Grid>
 	<Row>
 		<Column>
-			<h1>Admin Panel</h1>
+			<h1 class="section-heading">Admin Panel</h1>
 			<p class="dashboard-subtitle">Welcome, {auth.user?.firstName}</p>
 		</Column>
 	</Row>
 
 	<Row>
 		<Column lg={5} md={4} sm={4}>
+			<div class="fmad-card">
 			<ClickableTile class="dashboard-tile" href="/dashboard/users">
 				<div class="feature-tile">
-					<UserAdmin size={32} />
+					<span class="icon-badge"><UserAdmin size={32} /></span>
 					<h3>Manage Users</h3>
 					{#if stats}
 						<div class="tile-stat">{stats.totalUsers}</div>
@@ -41,11 +42,13 @@
 					<p>View, edit, and manage all registered carriers and shippers.</p>
 				</div>
 			</ClickableTile>
+			</div>
 		</Column>
 		<Column lg={5} md={4} sm={4}>
+			<div class="fmad-card">
 			<ClickableTile class="dashboard-tile" href="/dashboard/loads">
 				<div class="feature-tile">
-					<Van size={32} />
+					<span class="icon-badge"><Van size={32} /></span>
 					<h3>Load Analytics</h3>
 					{#if stats}
 						<div class="tile-stat">{stats.totalLoads}</div>
@@ -60,11 +63,13 @@
 					<p>All posted loads with status, applications, and route details.</p>
 				</div>
 			</ClickableTile>
+			</div>
 		</Column>
 		<Column lg={5} md={4} sm={4}>
+			<div class="fmad-card">
 			<ClickableTile class="dashboard-tile" href="/dashboard/documents">
 				<div class="feature-tile">
-					<Document size={32} />
+					<span class="icon-badge"><Document size={32} /></span>
 					<h3>Document Compliance</h3>
 					{#if stats}
 						<div class="tile-stat">{stats.pendingDocuments}</div>
@@ -77,15 +82,18 @@
 					<p>Review pending licences, insurance, CPC and tachograph cards.</p>
 				</div>
 			</ClickableTile>
+			</div>
 		</Column>
 		<Column lg={5} md={4} sm={4}>
+			<div class="fmad-card">
 			<ClickableTile class="dashboard-tile" href="/dashboard/settings">
 				<div class="feature-tile">
-					<Settings size={32} />
+					<span class="icon-badge"><Settings size={32} /></span>
 					<h3>Settings</h3>
 					<p>Configure platform settings and manage roles.</p>
 				</div>
 			</ClickableTile>
+			</div>
 		</Column>
 	</Row>
 </Grid>
