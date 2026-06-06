@@ -30,7 +30,7 @@
 			<div class="fmad-card">
 			<ClickableTile class="dashboard-tile" href="/dashboard/users">
 				<div class="feature-tile">
-					<span class="icon-badge"><UserAdmin size={32} /></span>
+					<span class="icon-badge"><UserAdmin size={24} /></span>
 					<h3>Manage Users</h3>
 					{#if stats}
 						<div class="tile-stat">{stats.totalUsers}</div>
@@ -48,7 +48,7 @@
 			<div class="fmad-card">
 			<ClickableTile class="dashboard-tile" href="/dashboard/loads">
 				<div class="feature-tile">
-					<span class="icon-badge"><Van size={32} /></span>
+					<span class="icon-badge"><Van size={24} /></span>
 					<h3>Load Analytics</h3>
 					{#if stats}
 						<div class="tile-stat">{stats.totalLoads}</div>
@@ -69,7 +69,7 @@
 			<div class="fmad-card">
 			<ClickableTile class="dashboard-tile" href="/dashboard/documents">
 				<div class="feature-tile">
-					<span class="icon-badge"><Document size={32} /></span>
+					<span class="icon-badge"><Document size={24} /></span>
 					<h3>Document Compliance</h3>
 					{#if stats}
 						<div class="tile-stat">{stats.pendingDocuments}</div>
@@ -88,7 +88,7 @@
 			<div class="fmad-card">
 			<ClickableTile class="dashboard-tile" href="/dashboard/settings">
 				<div class="feature-tile">
-					<span class="icon-badge"><Settings size={32} /></span>
+					<span class="icon-badge"><Settings size={24} /></span>
 					<h3>Settings</h3>
 					<p>Configure platform settings and manage roles.</p>
 				</div>

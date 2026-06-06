@@ -339,7 +339,7 @@
 				<Button kind="ghost" size="small" href="/dashboard" icon={ArrowLeft}>
 					Back to My Loads
 				</Button>
-				<h1 class="section-heading"><span class="icon-badge sm"><Add size={24} /></span> Create a Load</h1>
+				<h1 class="section-heading"><span class="icon-badge sm"><Add size={20} /></span> Create a Load</h1>
 				<Button kind="ghost" size="small" href="/dashboard/loads/post-intermodal">
 					Shipping across multiple modes? Post an intermodal load &rarr;
 				</Button>

@@ -73,7 +73,7 @@
 				<Button kind="ghost" size="small" href="/dashboard" icon={ArrowLeft}>
 					Back
 				</Button>
-				<h1><span class="icon-badge sm"><Settings size={24} /></span> Settings</h1>
+				<h1><span class="icon-badge sm"><Settings size={20} /></span> Settings</h1>
 				<p class="page-subtitle">Platform configuration and compliance review</p>
 			</div>
 		</Column>
