@@ -259,7 +259,7 @@
 				<Button kind="ghost" size="small" href="/dashboard/loads/post" icon={ArrowLeft}>
 					Single-leg load instead
 				</Button>
-				<h1 class="section-heading"><span class="icon-badge sm"><Add size={24} /></span> Post an Intermodal Load</h1>
+				<h1 class="section-heading"><span class="icon-badge sm"><Add size={20} /></span> Post an Intermodal Load</h1>
 				<p class="sub">
 					Build a door-to-door movement from multiple legs — each with its own mode, route, and
 					rate. We price every leg with its mode's platform fee and roll them up to one total.

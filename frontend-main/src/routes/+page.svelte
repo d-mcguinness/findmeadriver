@@ -127,7 +127,7 @@
 					<Tile>
 						<div class="step-tile">
 							<div class="step-number">1</div>
-							<span class="icon-badge"><Time size={28} /></span>
+							<span class="icon-badge"><Time size={24} /></span>
 							<h3>Set Your Capacity</h3>
 							<p>Declare the modes you cover and your weekly capacity. For road, EU tachograph limits (9h/day, 56h/week, 90h/fortnight) are enforced automatically.</p>
 						</div>
@@ -139,7 +139,7 @@
 					<Tile>
 						<div class="step-tile">
 							<div class="step-number">2</div>
-							<span class="icon-badge"><DeliveryTruck size={28} /></span>
+							<span class="icon-badge"><DeliveryTruck size={24} /></span>
 							<h3>Get Matched</h3>
 							<p>See loads that fit your modes, credentials and available time slots. Apply with one click.</p>
 						</div>
@@ -151,7 +151,7 @@
 					<Tile>
 						<div class="step-tile">
 							<div class="step-number">3</div>
-							<span class="icon-badge"><Star size={28} /></span>
+							<span class="icon-badge"><Star size={24} /></span>
 							<h3>Carry &amp; Get Paid</h3>
 							<p>Complete deliveries, earn on your terms, and build your reputation with ratings.</p>
 						</div>
@@ -172,7 +172,7 @@
 					<Tile>
 						<div class="step-tile">
 							<div class="step-number">1</div>
-							<span class="icon-badge"><Enterprise size={28} /></span>
+							<span class="icon-badge"><Enterprise size={24} /></span>
 							<h3>Post a Load</h3>
 							<p>Describe your delivery, set the date, duration, and rate. Takes 2 minutes.</p>
 						</div>
@@ -184,7 +184,7 @@
 					<Tile>
 						<div class="step-tile">
 							<div class="step-number">2</div>
-							<span class="icon-badge"><CertificateCheck size={28} /></span>
+							<span class="icon-badge"><CertificateCheck size={24} /></span>
 							<h3>Review Carriers</h3>
 							<p>See verified, rated carriers who match your requirements and are available on your date.</p>
 						</div>
@@ -196,7 +196,7 @@
 					<Tile>
 						<div class="step-tile">
 							<div class="step-number">3</div>
-							<span class="icon-badge"><Checkmark size={28} /></span>
+							<span class="icon-badge"><Checkmark size={24} /></span>
 							<h3>Load Done</h3>
 							<p>Assign a carrier, track progress, mark complete. Pay per delivery, not per day.</p>
 						</div>
@@ -216,7 +216,7 @@
 				<div class="card">
 					<Tile>
 						<div class="highlight-tile">
-							<span class="icon-badge sm"><Time size={24} /></span>
+							<span class="icon-badge sm"><Time size={20} /></span>
 							<h4>Compliance Built In</h4>
 							<p>Road availability is validated against EU driving time regulations, and credentials are checked per mode. No risk of overbooking.</p>
 						</div>
@@ -227,7 +227,7 @@
 				<div class="card">
 					<Tile>
 						<div class="highlight-tile">
-							<span class="icon-badge sm"><CertificateCheck size={24} /></span>
+							<span class="icon-badge sm"><CertificateCheck size={20} /></span>
 							<h4>Verified Carriers</h4>
 							<p>Licence, insurance, and mode credential verification for every carrier on the platform.</p>
 						</div>
@@ -238,7 +238,7 @@
 				<div class="card">
 					<Tile>
 						<div class="highlight-tile">
-							<span class="icon-badge sm"><Star size={24} /></span>
+							<span class="icon-badge sm"><Star size={20} /></span>
 							<h4>Ratings &amp; Reviews</h4>
 							<p>Both parties rate each other after every load. Trust is earned, not assumed.</p>
 						</div>
@@ -249,7 +249,7 @@
 				<div class="card">
 					<Tile>
 						<div class="highlight-tile">
-							<span class="icon-badge sm"><Enterprise size={24} /></span>
+							<span class="icon-badge sm"><Enterprise size={20} /></span>
 							<h4>No Middlemen</h4>
 							<p>Direct connection between carrier and shipper. Transparent rates, no agency markup.</p>
 						</div>

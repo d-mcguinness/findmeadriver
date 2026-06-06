@@ -74,7 +74,7 @@
 						<Tile>
 							<div class="mode-card">
 								<div class="mode-head">
-									<span class="icon-badge sm"><Icon size={28} /></span>
+									<span class="icon-badge sm"><Icon size={20} /></span>
 									<h3>{m.label}</h3>
 								</div>
 								<div class="mode-fee">

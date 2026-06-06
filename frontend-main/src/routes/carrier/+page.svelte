@@ -15,7 +15,7 @@
 		<Column lg={10} md={6} sm={4}>
 			<div class="hero">
 				<span class="eyebrow">For Carriers</span>
-				<span class="icon-badge"><DeliveryTruck size={28} /></span>
+				<span class="icon-badge"><DeliveryTruck size={24} /></span>
 				<h1>Move Freight on Your Terms</h1>
 				<p class="hero-subtitle">
 					FindMeADriver connects you directly with shippers looking for qualified carriers across
@@ -40,7 +40,7 @@
 			<div class="fmad-card">
 				<Tile>
 					<div class="feature-tile">
-						<span class="icon-badge"><CheckmarkOutline size={28} /></span>
+						<span class="icon-badge"><CheckmarkOutline size={24} /></span>
 						<h3>1. Create Your Profile</h3>
 						<p>
 							Sign up with your supported modes, credentials, endorsements, years of experience, and
@@ -54,7 +54,7 @@
 			<div class="fmad-card">
 				<Tile>
 					<div class="feature-tile">
-						<span class="icon-badge"><Search size={28} /></span>
+						<span class="icon-badge"><Search size={24} /></span>
 						<h3>2. Get Matched</h3>
 						<p>
 							Shippers search for carriers that fit their needs. When your profile matches,
@@ -68,7 +68,7 @@
 			<div class="fmad-card">
 				<Tile>
 					<div class="feature-tile">
-						<span class="icon-badge"><ConnectionSignal size={28} /></span>
+						<span class="icon-badge"><ConnectionSignal size={24} /></span>
 						<h3>3. Connect Directly</h3>
 						<p>
 							Message shippers, apply with a cover note, and agree terms — all without
@@ -92,28 +92,28 @@
 				<Tile>
 					<div class="benefit-list">
 						<div class="benefit-item">
-							<span class="icon-badge sm"><Currency size={24} /></span>
+							<span class="icon-badge sm"><Currency size={20} /></span>
 							<div>
 								<h4>No Fees, Ever</h4>
 								<p>FindMeADriver is completely free for carriers. We make money from shipper subscriptions, not from you.</p>
 							</div>
 						</div>
 						<div class="benefit-item">
-							<span class="icon-badge sm"><DeliveryTruck size={24} /></span>
+							<span class="icon-badge sm"><DeliveryTruck size={20} /></span>
 							<div>
 								<h4>Multi-Modal</h4>
 								<p>Built for carriers across every mode — road, rail, sea and air. We understand your industry.</p>
 							</div>
 						</div>
 						<div class="benefit-item">
-							<span class="icon-badge sm"><Search size={24} /></span>
+							<span class="icon-badge sm"><Search size={20} /></span>
 							<div>
 								<h4>Loads on Your Lanes</h4>
 								<p>Set your preferred lanes and only see loads that fit your routes.</p>
 							</div>
 						</div>
 						<div class="benefit-item">
-							<span class="icon-badge sm"><CheckmarkOutline size={24} /></span>
+							<span class="icon-badge sm"><CheckmarkOutline size={20} /></span>
 							<div>
 								<h4>Verified Shippers</h4>
 								<p>Every shipper on the platform is verified so you know you're talking to real companies.</p>
