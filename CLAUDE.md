@@ -75,7 +75,7 @@ Itinerary ──< Shipment   (intermodal: sequences N single-mode leg-Shipments 
 - `createIntermodalTreeFor(shipper, IntermodalOrderInput)` — builds an Itinerary + N leg-Shipments, prices each leg, rolls up.
 
 ### Frontend (SvelteKit 2, Svelte 5 runes, IBM Carbon g10)
-- **Auth store** `src/lib/stores/auth.svelte.ts` (`$state`/`$derived`, JWT parsing, localStorage): `isCarrier` / `isShipper` / `isAdmin`.
+- **Auth store** `src/lib/stores/auth.svelte.ts` (`$state`/`$derived`, JWT parsing, localStorage): `isCarrier` / `isShipper` / `isAdmin`. **Impersonation ("mimic"):** `impersonate()`/`stopImpersonating()`/`isImpersonating` stash the admin token under `fmad_impersonator`, swap the active `token`, and back a sticky "Return to admin" banner in the root `+layout.svelte` (admins mimic a user from the users table).
 - **API client** `src/lib/api.ts` (auto-attaches Bearer token). **Types** `src/lib/types.ts`.
 - Libs: `transport-modes.ts` (mode labels/colours + commission mirror), `pricing.ts` (rate-card mirror + `loadModePricing`), `money.ts`, `countries.ts`, `google-maps.ts`, `licence-categories.ts`.
 - **Design layer** `src/app.css` (global, loaded after Carbon g10): the app-wide visual language — tokens (`--fmad-accent`, `--fmad-grad`) + reusable utilities `.eyebrow`, `.section-heading` (gradient accent underline, absolutely-positioned so it survives flex headers), `.icon-badge`, `.gradient-cta`, `.fmad-card` (hover-lift), plus a soft radius+shadow on every Carbon `.bx--tile`. Used across all routes for a cohesive look — prefer these utilities over bespoke per-page CSS, and don't restyle dense functional UI (tables/forms/modals/duty-clock editors).
@@ -89,7 +89,7 @@ Itinerary ──< Shipment   (intermodal: sequences N single-mode leg-Shipments 
 
 **Shipper (`/api/shipper/**`):** `loads` CRUD (`POST` / `GET` / `GET {id}` ownership-guarded / `PUT {id}` edit — OPEN-only) + `loads/{id}/status` + `loads/{id}/cancel`, `loads/{id}/applications` + accept/reject, `loads/{id}/rate`, `ratings`; **intermodal** `itineraries` (POST create / GET list / GET {id}).
 
-**Admin (`/api/admin/**`):** `users`, `stats`, `shippers`, `carriers`, `loads` (POST on-behalf / GET / GET {id} / PUT {id} edit / cancel), `loads/{id}/carrier-eligibility`, `applications`, compliance review (`compliance/pending`, `compliance/{id}/verify`), and read-only TMS views `orders`, `shipments`, `itineraries` (+ POST on-behalf), `locations`.
+**Admin (`/api/admin/**`):** `users` (+ `users/{id}/impersonate` — POST mints a login-shape token for any user so an admin can "mimic" them; mirrors `/api/user/login`, forbids self), `stats`, `shippers`, `carriers`, `loads` (POST on-behalf / GET / GET {id} / PUT {id} edit / cancel), `loads/{id}/carrier-eligibility`, `applications`, compliance review (`compliance/pending`, `compliance/{id}/verify`), and read-only TMS views `orders`, `shipments`, `itineraries` (+ POST on-behalf), `locations`.
 
 ### Key Enums
 - **Shipment.Mode**: ROAD, RAIL, OCEAN, AIR, INTERMODAL, PARCEL
