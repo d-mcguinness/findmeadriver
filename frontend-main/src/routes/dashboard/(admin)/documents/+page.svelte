@@ -2,7 +2,7 @@
 	import {
 		Grid, Row, Column, Button, InlineNotification
 	} from 'carbon-components-svelte';
-	import { ArrowLeft, Document } from 'carbon-icons-svelte';
+	import { ArrowLeft, Document, View } from 'carbon-icons-svelte';
 	import { api } from '$lib/api';
 	import type { ComplianceDocument } from '$lib/types';
 	import { onMount } from 'svelte';
@@ -26,6 +26,13 @@
 
 	onMount(loadDocuments);
 </script>
+
+{#snippet docActions(doc: ComplianceDocument)}
+	<Button size="small" kind="ghost" icon={View}
+		href="/dashboard/documents/{doc.id}/edit">
+		Review
+	</Button>
+{/snippet}
 
 <Grid>
 	<Row>
@@ -55,7 +62,7 @@
 				<InlineNotification kind="info" title="No pending documents"
 					subtitle="All compliance documents have been reviewed." hideCloseButton />
 			{:else}
-				<DocumentsTable {documents} />
+				<DocumentsTable {documents} actions={docActions} />
 			{/if}
 		</Column>
 	</Row>
