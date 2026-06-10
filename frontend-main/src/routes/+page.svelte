@@ -1,9 +1,6 @@
 <script lang="ts">
 	import { Grid, Row, Column, Button, Tile } from 'carbon-components-svelte';
-	import {
-		DeliveryTruck, Enterprise, ArrowRight, Time, Checkmark, Star, CertificateCheck,
-		Train, Plane, Anchor, ChartLineData
-	} from 'carbon-icons-svelte';
+	import { DeliveryTruck, Enterprise, ArrowRight, Train, Plane, Anchor } from 'carbon-icons-svelte';
 	import { auth } from '$lib/stores/auth.svelte';
 	import { onMount } from 'svelte';
 	import { loadModePricing, FALLBACK_MODE_PRICING, type ModePricing } from '$lib/pricing';
@@ -15,21 +12,13 @@
 		AIR: Plane
 	};
 
-	// Per-mode accent colours (Carbon palette) — used for the pricing-card top rule
-	// and the hero mode chips so the four modes read as distinct at a glance.
+	// Per-mode accent colours (Carbon palette) so the four modes read as distinct.
 	const MODE_ACCENT: Record<string, string> = {
 		ROAD: '#24a148',
 		RAIL: '#007d79',
 		OCEAN: '#0072c3',
 		AIR: '#8a3ffc'
 	};
-
-	const HERO_MODES = [
-		{ key: 'ROAD', label: 'Road' },
-		{ key: 'RAIL', label: 'Rail' },
-		{ key: 'OCEAN', label: 'Sea' },
-		{ key: 'AIR', label: 'Air' }
-	];
 
 	// Renders instantly from the fallback, then swaps in live rates from the API.
 	let modes = $state<ModePricing[]>(FALLBACK_MODE_PRICING);
@@ -47,10 +36,9 @@
 					<span class="eyebrow">Multimodal freight marketplace</span>
 					<h1>Spare Capacity, Every Mode, <span class="accent">Put to Work</span></h1>
 					<p class="hero-subtitle">
-						FindMeADriver is the spare-hours freight marketplace &mdash; now multimodal. Connect with
-						self-employed carriers across <strong>road, rail, sea and air</strong>, and pay one
-						transparent platform fee per mode. No agencies, no long-term commitments &mdash; just
-						capacity matched to loads.
+						Connect directly with self-employed carriers across
+						<strong>road, rail, sea and air</strong> — and pay one transparent platform fee per
+						mode. No agencies, no markup.
 					</p>
 					<div class="hero-actions">
 						{#if auth.isAuthenticated}
@@ -60,27 +48,17 @@
 							<Button href="/register" kind="secondary" icon={Enterprise}>I'm a Shipper</Button>
 						{/if}
 					</div>
-					<div class="hero-modes">
-						{#each HERO_MODES as hm}
-							{@const Icon = MODE_ICON[hm.key] ?? DeliveryTruck}
-							<span class="hero-mode" style="--accent: {MODE_ACCENT[hm.key]}">
-								<span class="hero-mode-icon"><Icon size={20} /></span>
-								{hm.label}
-							</span>
-						{/each}
-					</div>
 				</div>
 			</Column>
 		</Row>
 
-		<!-- Multimodal + transparent pricing -->
+		<!-- The differentiator: transparent, per-mode pricing -->
 		<Row>
 			<Column>
 				<h2 class="section-heading">One platform. Every mode.</h2>
 				<p class="section-sub">
-					Post a load by road, rail, sea or air and we match it to the right carrier. You pay the
-					carrier's cost plus a single, transparent platform fee that depends only on the mode &mdash;
-					shown before you post, with no agency markup.
+					You pay the carrier's cost plus one transparent platform fee that depends only on the
+					mode — shown before you post, with no agency markup.
 				</p>
 			</Column>
 		</Row>
@@ -107,153 +85,8 @@
 		</Row>
 		<Row>
 			<Column>
-				<div class="pricing-cta">
-					<ChartLineData size={20} />
-					<span>Transparent, mode-based pricing &mdash; you always see the platform fee before you post.</span>
+				<div class="pricing-link">
 					<Button kind="ghost" size="small" href="/pricing" icon={ArrowRight}>See full pricing</Button>
-				</div>
-			</Column>
-		</Row>
-
-		<!-- How It Works: Carriers -->
-		<Row>
-			<Column>
-				<h2 class="section-heading">How It Works for Carriers</h2>
-			</Column>
-		</Row>
-		<Row class="steps-row">
-			<Column lg={5} md={4} sm={4}>
-				<div class="card">
-					<Tile>
-						<div class="step-tile">
-							<div class="step-number">1</div>
-							<span class="icon-badge"><Time size={24} /></span>
-							<h3>Set Your Capacity</h3>
-							<p>Declare the modes you cover and your weekly capacity. For road, EU tachograph limits (9h/day, 56h/week, 90h/fortnight) are enforced automatically.</p>
-						</div>
-					</Tile>
-				</div>
-			</Column>
-			<Column lg={5} md={4} sm={4}>
-				<div class="card">
-					<Tile>
-						<div class="step-tile">
-							<div class="step-number">2</div>
-							<span class="icon-badge"><DeliveryTruck size={24} /></span>
-							<h3>Get Matched</h3>
-							<p>See loads that fit your modes, credentials and available time slots. Apply with one click.</p>
-						</div>
-					</Tile>
-				</div>
-			</Column>
-			<Column lg={5} md={4} sm={4}>
-				<div class="card">
-					<Tile>
-						<div class="step-tile">
-							<div class="step-number">3</div>
-							<span class="icon-badge"><Star size={24} /></span>
-							<h3>Carry &amp; Get Paid</h3>
-							<p>Complete deliveries, earn on your terms, and build your reputation with ratings.</p>
-						</div>
-					</Tile>
-				</div>
-			</Column>
-		</Row>
-
-		<!-- How It Works: Shippers -->
-		<Row>
-			<Column>
-				<h2 class="section-heading">How It Works for Shippers</h2>
-			</Column>
-		</Row>
-		<Row class="steps-row">
-			<Column lg={5} md={4} sm={4}>
-				<div class="card">
-					<Tile>
-						<div class="step-tile">
-							<div class="step-number">1</div>
-							<span class="icon-badge"><Enterprise size={24} /></span>
-							<h3>Post a Load</h3>
-							<p>Describe your delivery, set the date, duration, and rate. Takes 2 minutes.</p>
-						</div>
-					</Tile>
-				</div>
-			</Column>
-			<Column lg={5} md={4} sm={4}>
-				<div class="card">
-					<Tile>
-						<div class="step-tile">
-							<div class="step-number">2</div>
-							<span class="icon-badge"><CertificateCheck size={24} /></span>
-							<h3>Review Carriers</h3>
-							<p>See verified, rated carriers who match your requirements and are available on your date.</p>
-						</div>
-					</Tile>
-				</div>
-			</Column>
-			<Column lg={5} md={4} sm={4}>
-				<div class="card">
-					<Tile>
-						<div class="step-tile">
-							<div class="step-number">3</div>
-							<span class="icon-badge"><Checkmark size={24} /></span>
-							<h3>Load Done</h3>
-							<p>Assign a carrier, track progress, mark complete. Pay per delivery, not per day.</p>
-						</div>
-					</Tile>
-				</div>
-			</Column>
-		</Row>
-
-		<!-- Platform Highlights -->
-		<Row>
-			<Column>
-				<h2 class="section-heading">Why FindMeADriver</h2>
-			</Column>
-		</Row>
-		<Row class="highlights-row">
-			<Column lg={4} md={4} sm={4}>
-				<div class="card">
-					<Tile>
-						<div class="highlight-tile">
-							<span class="icon-badge sm"><Time size={20} /></span>
-							<h4>Compliance Built In</h4>
-							<p>Road availability is validated against EU driving time regulations, and credentials are checked per mode. No risk of overbooking.</p>
-						</div>
-					</Tile>
-				</div>
-			</Column>
-			<Column lg={4} md={4} sm={4}>
-				<div class="card">
-					<Tile>
-						<div class="highlight-tile">
-							<span class="icon-badge sm"><CertificateCheck size={20} /></span>
-							<h4>Verified Carriers</h4>
-							<p>Licence, insurance, and mode credential verification for every carrier on the platform.</p>
-						</div>
-					</Tile>
-				</div>
-			</Column>
-			<Column lg={4} md={4} sm={4}>
-				<div class="card">
-					<Tile>
-						<div class="highlight-tile">
-							<span class="icon-badge sm"><Star size={20} /></span>
-							<h4>Ratings &amp; Reviews</h4>
-							<p>Both parties rate each other after every load. Trust is earned, not assumed.</p>
-						</div>
-					</Tile>
-				</div>
-			</Column>
-			<Column lg={4} md={4} sm={4}>
-				<div class="card">
-					<Tile>
-						<div class="highlight-tile">
-							<span class="icon-badge sm"><Enterprise size={20} /></span>
-							<h4>No Middlemen</h4>
-							<p>Direct connection between carrier and shipper. Transparent rates, no agency markup.</p>
-						</div>
-					</Tile>
 				</div>
 			</Column>
 		</Row>
@@ -263,7 +96,7 @@
 			<Column>
 				<Tile class="cta-tile">
 					<h2>Ready to get started?</h2>
-					<p>Whether you have spare hours to fill or deliveries that need doing, sign up in under a minute.</p>
+					<p>Whether you have spare capacity to fill or deliveries that need doing, sign up in under a minute.</p>
 					<div class="cta-actions">
 						{#if auth.isAuthenticated}
 							<Button href="/dashboard" icon={ArrowRight}>Go to Dashboard</Button>
@@ -332,34 +165,8 @@
 		gap: 1rem;
 		flex-wrap: wrap;
 	}
-	.hero-modes {
-		display: flex;
-		justify-content: center;
-		gap: 0.5rem;
-		flex-wrap: wrap;
-		margin-top: 2.25rem;
-	}
-	.hero-mode {
-		display: inline-flex;
-		align-items: center;
-		gap: 0.4rem;
-		background: #fff;
-		border: 1px solid var(--cds-border-subtle, #e0e0e0);
-		border-radius: 999px;
-		padding: 0.4rem 0.9rem;
-		font-size: 0.8125rem;
-		font-weight: 600;
-		box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
-	}
-	.hero-mode-icon {
-		display: inline-flex;
-		color: var(--accent);
-	}
-	.hero-mode-icon :global(svg) {
-		fill: currentColor;
-	}
 
-	/* ---- Section headings ---- */
+	/* ---- Section heading ---- */
 	.section-heading {
 		font-size: 1.625rem;
 		font-weight: 600;
@@ -379,11 +186,14 @@
 		color: var(--cds-text-secondary);
 		font-size: 1rem;
 		line-height: 1.6;
-		max-width: 760px;
+		max-width: 680px;
 		margin: 0 0 1.5rem;
 	}
 
-	/* ---- Card lift (shared by mode / step / highlight tiles) ---- */
+	/* ---- Mode pricing cards ---- */
+	:global(.modes-row) {
+		margin-bottom: 0.5rem;
+	}
 	.card {
 		height: 100%;
 		transition: transform 160ms ease, box-shadow 160ms ease;
@@ -394,11 +204,6 @@
 	.card:hover {
 		transform: translateY(-4px);
 		box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
-	}
-
-	/* ---- Mode pricing cards ---- */
-	:global(.modes-row) {
-		margin-bottom: 1rem;
 	}
 	.mode-card {
 		border-top: 3px solid var(--accent);
@@ -445,87 +250,9 @@
 		line-height: 1.5;
 		margin: 0;
 	}
-	.pricing-cta {
-		display: flex;
-		align-items: center;
-		gap: 0.75rem;
-		flex-wrap: wrap;
-		background: var(--cds-layer, #f4f4f4);
-		border-left: 3px solid var(--cds-support-success, #24a148);
-		border-radius: 0 8px 8px 0;
-		padding: 0.85rem 1.1rem;
-		font-size: 0.9375rem;
-		margin-bottom: 1rem;
-	}
-	.pricing-cta span {
-		flex: 1 1 auto;
-		min-width: 12rem;
-	}
-
-	/* ---- Icon badge (steps + highlights) ---- */
-	.icon-badge {
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		width: 3.25rem;
-		height: 3.25rem;
-		border-radius: 50%;
-		background: linear-gradient(135deg, #edf5ff 0%, #e8defc 100%);
-		color: #0f62fe;
-	}
-	.icon-badge.sm {
-		width: 2.75rem;
-		height: 2.75rem;
-	}
-	.icon-badge :global(svg) {
-		fill: currentColor;
-	}
-
-	/* ---- Step tiles ---- */
-	:global(.steps-row) {
-		margin-bottom: 1rem;
-	}
-	.step-tile {
-		padding: 1.25rem 0.5rem;
+	.pricing-link {
 		text-align: center;
-		position: relative;
-	}
-	.step-tile h3 {
-		margin: 0.85rem 0 0.5rem;
-	}
-	.step-tile p {
-		color: var(--cds-text-secondary);
-		font-size: 0.875rem;
-		line-height: 1.5;
-	}
-	.step-number {
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		width: 1.75rem;
-		height: 1.75rem;
-		border-radius: 50%;
-		background: linear-gradient(135deg, #0f62fe, #8a3ffc);
-		color: white;
-		font-weight: 700;
-		font-size: 0.8125rem;
-		margin-bottom: 0.85rem;
-	}
-
-	/* ---- Highlight tiles ---- */
-	:global(.highlights-row) {
-		margin-bottom: 2.5rem;
-	}
-	.highlight-tile {
-		padding: 0.75rem 0.25rem;
-	}
-	.highlight-tile h4 {
-		margin: 0.75rem 0 0.35rem;
-	}
-	.highlight-tile p {
-		color: var(--cds-text-secondary);
-		font-size: 0.875rem;
-		line-height: 1.5;
+		margin-bottom: 1rem;
 	}
 
 	/* ---- Final CTA ---- */
