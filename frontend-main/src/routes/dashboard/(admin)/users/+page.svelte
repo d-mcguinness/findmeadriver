@@ -3,8 +3,10 @@
 		Grid, Row, Column, Button, InlineNotification,
 		Modal, Select, SelectItem, TextArea
 	} from 'carbon-components-svelte';
-	import { ArrowLeft, UserAdmin, Add, Document } from 'carbon-icons-svelte';
+	import { ArrowLeft, UserAdmin, Add, Document, UserFollow } from 'carbon-icons-svelte';
 	import { api } from '$lib/api';
+	import { auth } from '$lib/stores/auth.svelte';
+	import { goto } from '$app/navigation';
 	import type { AdminUser, Load, LoadApplication } from '$lib/types';
 	import { onMount } from 'svelte';
 	import UsersTable from '$lib/components/admin/UsersTable.svelte';
@@ -22,6 +24,21 @@
 	let applyError = $state('');
 	let applySuccess = $state('');
 	let applyLoading = $state(false);
+
+	// Impersonation ("mimic")
+	let mimicError = $state('');
+
+	async function mimic(user: AdminUser) {
+		mimicError = '';
+		try {
+			const res = await api.post<{ token: string; user: unknown; message: string }>(
+				`/api/admin/users/${user.id}/impersonate`, {});
+			auth.impersonate(res);
+			goto('/dashboard');
+		} catch (e: any) {
+			mimicError = e?.error || e?.message || 'Failed to mimic user';
+		}
+	}
 
 	async function loadUsers() {
 		loading = true;
@@ -102,6 +119,11 @@
 				Apply for Load
 			</Button>
 		{/if}
+		<Button size="small" kind="ghost" icon={UserFollow}
+			disabled={user.email === auth.user?.email}
+			on:click={() => mimic(user)}>
+			Mimic
+		</Button>
 	</div>
 {/snippet}
 
@@ -123,6 +145,11 @@
 			{#if error}
 				<InlineNotification kind="error" title="Error" subtitle={error}
 					on:close={() => error = ''} />
+			{/if}
+
+			{#if mimicError}
+				<InlineNotification kind="error" title="Mimic failed" subtitle={mimicError}
+					on:close={() => mimicError = ''} />
 			{/if}
 
 			{#if loading}
