@@ -15,6 +15,10 @@ interface LoginResponse {
 	token: string;
 }
 
+// localStorage keys
+const TOKEN_KEY = 'token';
+const IMPERSONATOR_KEY = 'fmad_impersonator';
+
 function parseJwt(token: string): Record<string, unknown> {
 	const base64Url = token.split('.')[1];
 	const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
@@ -40,6 +44,7 @@ function isTokenExpired(token: string): boolean {
 function createAuth() {
 	let token = $state<string | null>(null);
 	let user = $state<User | null>(null);
+	let impersonating = $state(false);
 
 	function hydrateFromToken(jwt: string) {
 		const claims = parseJwt(jwt);
@@ -54,24 +59,57 @@ function createAuth() {
 	}
 
 	function initialize() {
-		const stored = localStorage.getItem('token');
+		const stored = localStorage.getItem(TOKEN_KEY);
 		if (stored && !isTokenExpired(stored)) {
 			hydrateFromToken(stored);
+			// Survive a refresh mid-impersonation so the banner stays.
+			impersonating = localStorage.getItem(IMPERSONATOR_KEY) !== null;
 		} else {
-			localStorage.removeItem('token');
+			localStorage.removeItem(TOKEN_KEY);
+			localStorage.removeItem(IMPERSONATOR_KEY);
+			impersonating = false;
 		}
 	}
 
 	async function login(email: string, password: string) {
 		const response = await api.post<LoginResponse>('/api/user/login', { email, password });
-		localStorage.setItem('token', response.token);
+		localStorage.setItem(TOKEN_KEY, response.token);
 		hydrateFromToken(response.token);
 	}
 
 	function logout() {
 		token = null;
 		user = null;
-		localStorage.removeItem('token');
+		impersonating = false;
+		localStorage.removeItem(TOKEN_KEY);
+		localStorage.removeItem(IMPERSONATOR_KEY);
+	}
+
+	// Admin starts mimicking a user: stash the admin's own token, swap in the
+	// target's token (from POST /api/admin/users/{id}/impersonate — same shape as
+	// login), and re-derive state. api.ts reads localStorage '${TOKEN_KEY}' live,
+	// so the next request goes out as the target.
+	function impersonate(response: LoginResponse) {
+		const current = localStorage.getItem(TOKEN_KEY);
+		if (current && !impersonating) {
+			localStorage.setItem(IMPERSONATOR_KEY, current);
+		}
+		impersonating = true;
+		localStorage.setItem(TOKEN_KEY, response.token);
+		hydrateFromToken(response.token);
+	}
+
+	// Restore the stashed admin token and drop the marker.
+	function stopImpersonating() {
+		const adminToken = localStorage.getItem(IMPERSONATOR_KEY);
+		localStorage.removeItem(IMPERSONATOR_KEY);
+		impersonating = false;
+		if (adminToken && !isTokenExpired(adminToken)) {
+			localStorage.setItem(TOKEN_KEY, adminToken);
+			hydrateFromToken(adminToken);
+		} else {
+			logout();
+		}
 	}
 
 	return {
@@ -81,9 +119,15 @@ function createAuth() {
 		get isCarrier() { return user?.roles?.includes('ROLE_CARRIER') ?? false; },
 		get isShipper() { return user?.roles?.includes('ROLE_SHIPPER') ?? false; },
 		get isAdmin() { return user?.roles?.includes('ROLE_ADMIN') ?? false; },
+		get isImpersonating() { return impersonating; },
+		get impersonatedLabel() {
+			return user ? (`${user.firstName ?? ''} ${user.lastName ?? ''}`.trim() || user.email) : '';
+		},
 		initialize,
 		login,
-		logout
+		logout,
+		impersonate,
+		stopImpersonating
 	};
 }
 

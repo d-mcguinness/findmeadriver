@@ -10,9 +10,10 @@
 		SideNavItems,
 		SideNavLink,
 		Content,
-		SkipToContent
+		SkipToContent,
+		Button
 	} from 'carbon-components-svelte';
-	import { LogoGithub, Login, Logout, UserAvatar, Dashboard, Time, Search, Document, Add, Enterprise, CertificateCheck } from 'carbon-icons-svelte';
+	import { LogoGithub, Login, Logout, UserAvatar, Dashboard, Time, Search, Document, Add, Enterprise, CertificateCheck, UserFollow } from 'carbon-icons-svelte';
 	import { goto } from '$app/navigation';
 	import { auth } from '$lib/stores/auth.svelte';
 
@@ -25,6 +26,11 @@
 	function handleLogout() {
 		auth.logout();
 		goto('/');
+	}
+
+	function returnToAdmin() {
+		auth.stopImpersonating();
+		goto('/dashboard/users');
 	}
 </script>
 
@@ -64,5 +70,29 @@
 {/if}
 
 <Content>
+	{#if auth.isImpersonating}
+		<div class="impersonation-banner">
+			<UserFollow size={16} />
+			<span>You are mimicking <strong>{auth.impersonatedLabel}</strong>.</span>
+			<Button size="small" kind="danger-tertiary" on:click={returnToAdmin}>Return to admin</Button>
+		</div>
+	{/if}
 	{@render children()}
 </Content>
+
+<style>
+	.impersonation-banner {
+		position: sticky;
+		top: 0;
+		z-index: 100;
+		display: flex;
+		align-items: center;
+		gap: 0.75rem;
+		padding: 0.6rem 1rem;
+		margin-bottom: 1rem;
+		border-radius: 8px;
+		background: var(--cds-support-warning, #f1c21b);
+		color: #161616;
+		font-size: 0.875rem;
+	}
+</style>

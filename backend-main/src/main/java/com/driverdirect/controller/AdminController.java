@@ -29,21 +29,27 @@ import com.driverdirect.service.AdminService;
 import com.driverdirect.service.ComplianceService;
 import com.driverdirect.service.LoadApplicationService;
 import com.driverdirect.service.LoadService;
+import com.driverdirect.security.util.JwtUtil;
 import lombok.AllArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 @RestController
 @RequestMapping("/api/admin")
 @AllArgsConstructor
+@Slf4j
 @CrossOrigin(origins = "*", maxAge = 3600)
 public class AdminController {
 
     private final AdminService adminService;
+    private final JwtUtil jwtUtil;
     private final ComplianceService complianceService;
     private final LoadService loadService;
     private final LoadApplicationService loadApplicationService;
@@ -71,6 +77,27 @@ public class AdminController {
     public ResponseEntity<AdminUserResponse> getUserById(@PathVariable Long id) {
         User user = adminService.getUserById(id);
         return ResponseEntity.ok(AdminUserResponse.from(user));
+    }
+
+    /**
+     * Mint a login-shape token for an arbitrary user so an admin can browse the
+     * app AS that user ("mimic"). Stateless: returns the SAME {message, user,
+     * token} shape as POST /api/user/login, so the frontend reuses its login
+     * flow. Guarded by /api/admin/** (ROLE_ADMIN); forbids mimicking yourself.
+     */
+    @PostMapping("/users/{id}/impersonate")
+    public ResponseEntity<Map<String, Object>> impersonateUser(@PathVariable Long id, Authentication auth) {
+        User target = adminService.getUserById(id);
+        if (target.getEmail().equalsIgnoreCase(auth.getName())) {
+            throw new IllegalArgumentException("You cannot mimic yourself");
+        }
+        log.info("IMPERSONATION: admin {} is now mimicking user {} (id={})",
+                auth.getName(), target.getEmail(), target.getId());
+        Map<String, Object> response = new HashMap<>();
+        response.put("message", "Login successful");
+        response.put("user", target);
+        response.put("token", jwtUtil.generateToken(target));
+        return ResponseEntity.ok(response);
     }
 
     // ---- Platform Stats ----
