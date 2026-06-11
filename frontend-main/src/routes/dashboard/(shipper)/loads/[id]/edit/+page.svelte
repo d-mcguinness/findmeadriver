@@ -404,7 +404,7 @@
 					<div class="route-map-section">
 						<h3>Route map</h3>
 						<p class="route-map-hint">Your stops, the route line, and the nearest air / rail / sea transfer points within 50&nbsp;km.</p>
-						<RouteTransferMap {stops} />
+						<RouteTransferMap {stops} {quantities} />
 					</div>
 
 					<div class="quantity-section">
