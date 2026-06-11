@@ -11,9 +11,9 @@
 	import { page } from '$app/state';
 	import { onMount } from 'svelte';
 	import LocationPicker from '$lib/components/LocationPicker.svelte';
-	import { calculateRoute, type RouteInfo } from '$lib/google-maps';
+	import { calculateRoute, findNearbyTransfers, type RouteInfo, type TransferOption } from '$lib/google-maps';
 	import { licenceCategoriesFor } from '$lib/licence-categories';
-	import { TRANSPORT_MODE_OPTIONS, transportModeLabel, estimatedCommissionPct } from '$lib/transport-modes';
+	import { TRANSPORT_MODE_OPTIONS, transportModeLabel, modeTagColor, estimatedCommissionPct } from '$lib/transport-modes';
 	import { estimateLegCarrierCost, chargeableQuantity, chargeUnitForMode, type LegQuantities } from '$lib/pricing';
 	import { formatMoney } from '$lib/money';
 	import { HAULAGE_COUNTRIES } from '$lib/countries';
@@ -152,6 +152,8 @@
 	});
 
 	let routeInfo = $state<RouteInfo | null>(null);
+	// Per-stop nearby transfer availability (by mode), keyed by the stop's clientId.
+	let transfersByStop = $state<Record<string, TransferOption[] | 'loading'>>({});
 	let routeLoading = $state(false);
 
 	async function recalculateRoute() {
@@ -185,6 +187,20 @@
 		stops[index].address = place.address;
 		stops[index].coords = { lat: place.lat, lng: place.lng };
 		recalculateRoute();
+		checkTransfers(stops[index].clientId, { lat: place.lat, lng: place.lng });
+	}
+
+	// When a stop gets real coordinates, ask Google Places which modes have a
+	// transfer point (airport / rail station / ferry terminal) nearby, so the
+	// shipper can see whether air/rail/sea are realistic from that stop.
+	async function checkTransfers(clientId: string, coords: { lat: number; lng: number }) {
+		transfersByStop = { ...transfersByStop, [clientId]: 'loading' };
+		try {
+			const result = await findNearbyTransfers(coords);
+			transfersByStop = { ...transfersByStop, [clientId]: result };
+		} catch {
+			transfersByStop = { ...transfersByStop, [clientId]: [] };
+		}
 	}
 
 	function addStop() {
@@ -445,6 +461,19 @@
 									on:click={() => removeStop(i)} />
 							</div>
 						</div>
+					{@const tx = transfersByStop[stop.clientId]}
+					{#if tx}
+						<div class="stop-transfers">
+							<span class="transfers-label">Transfers nearby</span>
+							{#if tx === 'loading'}
+								<span class="transfers-loading">checking…</span>
+							{:else}
+								{#each tx as t}
+									<Tag type={t.available ? modeTagColor(t.mode) : 'gray'} size="sm">{transportModeLabel(t.mode)}{#if t.available && t.distanceKm != null} · {t.distanceKm} km{:else if !t.available} · none{/if}</Tag>
+								{/each}
+							{/if}
+						</div>
+					{/if}
 					{/each}
 				</div>
 
@@ -700,4 +729,14 @@
 			grid-template-columns: 1fr;
 		}
 	}
+	.stop-transfers {
+		display: flex;
+		align-items: center;
+		flex-wrap: wrap;
+		gap: 0.35rem;
+		padding: 0 0.5rem 0.5rem;
+		font-size: 0.8125rem;
+	}
+	.transfers-label { color: var(--cds-text-secondary); margin-right: 0.25rem; }
+	.transfers-loading { color: var(--cds-text-secondary); font-style: italic; }
 </style>
