@@ -113,7 +113,7 @@ const TRANSFER_TYPE: Record<'RAIL' | 'OCEAN' | 'AIR', string> = {
 // searchNearby caps the location-restriction radius at 50 km.
 const TRANSFER_RADIUS_M = 50000;
 
-function haversineKm(a: google.maps.LatLngLiteral, b: google.maps.LatLngLiteral): number {
+export function haversineKm(a: google.maps.LatLngLiteral, b: google.maps.LatLngLiteral): number {
 	const R = 6371;
 	const dLat = ((b.lat - a.lat) * Math.PI) / 180;
 	const dLng = ((b.lng - a.lng) * Math.PI) / 180;

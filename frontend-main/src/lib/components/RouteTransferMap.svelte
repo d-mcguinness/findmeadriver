@@ -1,9 +1,13 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { loadGoogleMaps, findNearbyTransfers } from '$lib/google-maps';
+	import { Plane, Anchor } from 'carbon-icons-svelte';
+	import { loadGoogleMaps, findNearbyTransfers, haversineKm } from '$lib/google-maps';
+	import { estimateLegCarrierCost } from '$lib/pricing';
+	import { formatMoney } from '$lib/money';
 
 	type Stop = { type: string; address: string; country?: string; coords: { lat: number; lng: number } | null };
-	let { stops = [] }: { stops?: Stop[] } = $props();
+	type Quantities = { weightKg?: number | null; volumeM3?: number | null; containerCount?: number | null };
+	let { stops = [], quantities }: { stops?: Stop[]; quantities?: Quantities } = $props();
 
 	let mapEl: HTMLDivElement;
 	let map: google.maps.Map | null = null;
@@ -12,6 +16,16 @@
 	let markers: google.maps.marker.AdvancedMarkerElement[] = [];
 	let lines: google.maps.Polyline[] = [];
 	let renderToken = 0;
+	// Indicative air vs ferry time/price for the whole route — estimates, not
+	// live schedules/fares (speed model + the rate-card pricing mirror).
+	let estimates = $state<{ km: number; airHours: number; airPrice: number | null; seaHours: number; seaPrice: number | null } | null>(null);
+
+	function fmtHours(h: number): string {
+		if (h < 1) return `${Math.round(h * 60)}m`;
+		const hrs = Math.floor(h);
+		const mins = Math.round((h - hrs) * 60);
+		return mins ? `${hrs}h ${mins}m` : `${hrs}h`;
+	}
 
 	// Suggested-transfer marker colours per mode (match the per-stop chips).
 	const MODE_COLOR: Record<string, string> = {
@@ -36,6 +50,7 @@
 		markers = [];
 		for (const l of lines) l.setMap(null);
 		lines = [];
+		estimates = null;
 	}
 
 	async function render() {
@@ -68,6 +83,18 @@
 			if (pos) resolved.push({ stop: s, pos });
 		}
 		if (resolved.length === 0) return;
+
+		// Indicative time + price to move the load over this route by air vs ferry.
+		if (resolved.length >= 2) {
+			const km = haversineKm(resolved[0].pos, resolved[resolved.length - 1].pos);
+			estimates = {
+				km: Math.round(km),
+				airHours: km / 750 + 2.5,
+				airPrice: estimateLegCarrierCost('AIR', { weightKg: quantities?.weightKg ?? 500, volumeM3: quantities?.volumeM3 ?? undefined }),
+				seaHours: km / 38 + 2,
+				seaPrice: estimateLegCarrierCost('OCEAN', { containerCount: quantities?.containerCount ?? 1 })
+			};
+		}
 
 		const bounds = new g.maps.LatLngBounds();
 		const path: google.maps.LatLngLiteral[] = [];
@@ -157,6 +184,14 @@
 		<span><span class="dot" style="background:#007d79"></span> Rail</span>
 		<span><span class="dot" style="background:#0072c3"></span> Sea</span>
 	</div>
+	{#if estimates}
+		<div class="mode-estimates">
+			<span class="est-title">Move this {estimates.km} km route by:</span>
+			<span class="est-opt"><Plane size={16} /> Air · ~{fmtHours(estimates.airHours)}{#if estimates.airPrice != null} · {formatMoney(estimates.airPrice)}{/if}</span>
+			<span class="est-opt"><Anchor size={16} /> Ferry · ~{fmtHours(estimates.seaHours)}{#if estimates.seaPrice != null} · {formatMoney(estimates.seaPrice)}{/if}</span>
+			<span class="est-note">estimates only — not live schedules/fares</span>
+		</div>
+	{/if}
 </div>
 
 <style>
@@ -183,6 +218,20 @@
 		margin-right: 0.25rem;
 		vertical-align: middle;
 	}
+	.mode-estimates {
+		display: flex;
+		align-items: center;
+		flex-wrap: wrap;
+		gap: 0.75rem;
+		margin-top: 0.5rem;
+		padding: 0.5rem 0.75rem;
+		background: var(--cds-layer, #f4f4f4);
+		border-radius: 8px;
+		font-size: 0.8125rem;
+	}
+	.est-title { font-weight: 600; }
+	.est-opt { display: inline-flex; align-items: center; gap: 0.35rem; }
+	.est-note { color: var(--cds-text-secondary); font-style: italic; }
 	.map-err {
 		font-size: 0.8125rem;
 		color: #da1e28;
