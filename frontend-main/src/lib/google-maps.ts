@@ -98,6 +98,8 @@ export interface TransferOption {
 	available: boolean;
 	name?: string;
 	distanceKm?: number;
+	/** Coordinates of the transfer point (so it can be plotted on a map). */
+	location?: google.maps.LatLngLiteral;
 }
 
 // Google Place primary type per non-road mode. Google has no true "seaport"
@@ -150,7 +152,13 @@ export async function findNearbyTransfers(
 				const loc = p?.location;
 				if (p && loc) {
 					const km = haversineKm(coords, { lat: loc.lat(), lng: loc.lng() });
-					out.push({ mode, available: true, name: p.displayName ?? undefined, distanceKm: Math.round(km) });
+					out.push({
+						mode,
+						available: true,
+						name: p.displayName ?? undefined,
+						distanceKm: Math.round(km),
+						location: { lat: loc.lat(), lng: loc.lng() }
+					});
 				} else {
 					out.push({ mode, available: false });
 				}

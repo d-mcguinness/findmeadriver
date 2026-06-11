@@ -11,6 +11,7 @@
 	import { page } from '$app/state';
 	import { onMount } from 'svelte';
 	import LocationPicker from '$lib/components/LocationPicker.svelte';
+	import RouteTransferMap from '$lib/components/RouteTransferMap.svelte';
 	import { calculateRoute, type RouteInfo } from '$lib/google-maps';
 	import { licenceCategoriesFor } from '$lib/licence-categories';
 	import { TRANSPORT_MODE_OPTIONS, transportModeLabel, estimatedCommissionPct } from '$lib/transport-modes';
@@ -400,6 +401,12 @@
 						</div>
 					{/if}
 
+					<div class="route-map-section">
+						<h3>Route map</h3>
+						<p class="route-map-hint">Your stops, the route line, and the nearest air / rail / sea transfer points within 50&nbsp;km.</p>
+						<RouteTransferMap {stops} />
+					</div>
+
 					<div class="quantity-section">
 						<h3>Shipment quantity</h3>
 						<p class="quantity-hint">
@@ -629,4 +636,7 @@
 			grid-template-columns: 1fr;
 		}
 	}
+	.route-map-section { display: flex; flex-direction: column; gap: 0.5rem; }
+	.route-map-section h3 { margin: 0; font-size: 1rem; }
+	.route-map-hint { font-size: 0.8125rem; color: var(--cds-text-secondary); margin: 0; }
 </style>
