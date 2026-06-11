@@ -90,3 +90,77 @@ export async function calculateRoute(
 		return null;
 	}
 }
+
+export type TransferModeKey = 'ROAD' | 'RAIL' | 'OCEAN' | 'AIR';
+
+export interface TransferOption {
+	mode: TransferModeKey;
+	available: boolean;
+	name?: string;
+	distanceKm?: number;
+}
+
+// Google Place primary type per non-road mode. Google has no true "seaport"
+// type, so ferry_terminal is the best-effort sea transfer point (approximate).
+const TRANSFER_TYPE: Record<'RAIL' | 'OCEAN' | 'AIR', string> = {
+	AIR: 'airport',
+	RAIL: 'train_station',
+	OCEAN: 'ferry_terminal'
+};
+
+// searchNearby caps the location-restriction radius at 50 km.
+const TRANSFER_RADIUS_M = 50000;
+
+function haversineKm(a: google.maps.LatLngLiteral, b: google.maps.LatLngLiteral): number {
+	const R = 6371;
+	const dLat = ((b.lat - a.lat) * Math.PI) / 180;
+	const dLng = ((b.lng - a.lng) * Math.PI) / 180;
+	const lat1 = (a.lat * Math.PI) / 180;
+	const lat2 = (b.lat * Math.PI) / 180;
+	const h = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
+	return 2 * R * Math.asin(Math.sqrt(h));
+}
+
+/**
+ * Check which transport modes have a transfer point near a stop's coordinates,
+ * via the Google Places API (nearest airport / rail station / ferry terminal
+ * within 50 km). Road is always available (the marketplace baseline). Each
+ * non-road lookup fails soft — an error or no result just marks that mode
+ * unavailable rather than breaking the caller.
+ */
+export async function findNearbyTransfers(
+	coords: google.maps.LatLngLiteral
+): Promise<TransferOption[]> {
+	const out: TransferOption[] = [{ mode: 'ROAD', available: true }];
+	try {
+		await loadGoogleMaps();
+		const { Place, SearchNearbyRankPreference } =
+			(await google.maps.importLibrary('places')) as google.maps.PlacesLibrary;
+
+		for (const mode of ['AIR', 'RAIL', 'OCEAN'] as const) {
+			try {
+				const { places } = await Place.searchNearby({
+					fields: ['displayName', 'location'],
+					locationRestriction: { center: coords, radius: TRANSFER_RADIUS_M },
+					includedPrimaryTypes: [TRANSFER_TYPE[mode]],
+					maxResultCount: 1,
+					rankPreference: SearchNearbyRankPreference.DISTANCE
+				});
+				const p = places?.[0];
+				const loc = p?.location;
+				if (p && loc) {
+					const km = haversineKm(coords, { lat: loc.lat(), lng: loc.lng() });
+					out.push({ mode, available: true, name: p.displayName ?? undefined, distanceKm: Math.round(km) });
+				} else {
+					out.push({ mode, available: false });
+				}
+			} catch (err) {
+				console.error(`Transfer lookup failed for ${mode}:`, err);
+				out.push({ mode, available: false });
+			}
+		}
+	} catch (err) {
+		console.error('Transfer lookup failed to load Places:', err);
+	}
+	return out;
+}
