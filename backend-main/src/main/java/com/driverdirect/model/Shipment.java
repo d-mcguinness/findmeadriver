@@ -135,6 +135,15 @@ public class Shipment {
         updatedAt = LocalDateTime.now();
     }
 
+    /**
+     * International-vs-domestic classification of this leg, derived from its
+     * origin/destination countries. UNKNOWN when either is missing (strict —
+     * not silently treated as domestic). See {@link MovementType}.
+     */
+    public MovementType getMovementType() {
+        return MovementType.of(originCountry, destinationCountry);
+    }
+
     public enum Mode { ROAD, RAIL, OCEAN, AIR, INTERMODAL, PARCEL }
 
     public enum ShipmentStatus {

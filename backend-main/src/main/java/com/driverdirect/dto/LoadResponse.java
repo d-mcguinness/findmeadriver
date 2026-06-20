@@ -46,6 +46,8 @@ public class LoadResponse {
     private Integer pieceCount;
     private String pickupCountry;
     private String deliveryCountry;
+    // International / domestic / unknown classification of the leg (cabotage context).
+    private String movementType;
     private String requiredLicenceCategory;
     // Transport mode of the underlying Shipment leg (ROAD/RAIL/OCEAN/AIR/…).
     private String transportMode;
@@ -88,6 +90,7 @@ public class LoadResponse {
         }
         r.setPickupCountry(load.getPickupCountry());
         r.setDeliveryCountry(load.getDeliveryCountry());
+        r.setMovementType(load.getMovementType().name());
         r.setRequiredLicenceCategory(load.getRequiredLicenceCategory());
         r.setTransportMode(load.getMode() != null ? load.getMode().name() : null);
         r.setStatus(load.getStatus());
