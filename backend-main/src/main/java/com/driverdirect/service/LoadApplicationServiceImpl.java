@@ -199,6 +199,19 @@ public class LoadApplicationServiceImpl implements LoadApplicationService {
             throw new IllegalArgumentException("Can only accept pending applications");
         }
 
+        // Re-check cabotage at accept time. The apply-time gate can go stale: the
+        // carrier may have crossed the 3-in-7 limit (via other completed loads)
+        // between applying and being accepted, and accepting would assign an
+        // over-limit carrier — the breach the gate exists to prevent.
+        CabotageService.CabotageCheck cab =
+                cabotageService.check(application.getCarrier(), application.getLoad());
+        if (cab.isBlocking()) {
+            throw new IllegalArgumentException(
+                    "Cannot accept: carrier is over the cabotage limit for " + cab.country()
+                            + " (" + cab.opsInWindow() + " of " + cab.limit()
+                            + " ops in the last 7 days)");
+        }
+
         // Accept this application
         application.setStatus(ApplicationStatus.ACCEPTED);
         applicationRepository.save(application);
