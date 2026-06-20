@@ -179,7 +179,7 @@ public class DataInitializer implements CommandLineRunner {
         seedNode("Port of Rotterdam", "NL", Location.LocationType.SEAPORT, "NLRTM", null);
         seedNode("Ringaskiddy Port", "IE", Location.LocationType.SEAPORT, "IERAK", null);
         seedNode("Cork Airport", "IE", Location.LocationType.AIRPORT, null, "ORK");
-        seedNode("Paris Charles de Gaulle", "IE", Location.LocationType.AIRPORT, null, "CDG");
+        seedNode("Paris Charles de Gaulle", "FR", Location.LocationType.AIRPORT, null, "CDG");
         seedNode("Madrid Barajas", "ES", Location.LocationType.AIRPORT, null, "MAD");
         seedNode("Dublin North Wall", "IE", Location.LocationType.RAIL_TERMINAL, "IEDUB", null);
         seedNode("Ballina Railhead", "IE", Location.LocationType.RAIL_TERMINAL, null, null);
@@ -214,13 +214,13 @@ public class DataInitializer implements CommandLineRunner {
                 "Time-critical chilled pharma on a palletised ULD.",
                 "Cork Airport", "Paris Charles de Gaulle",
                 3.0, LocalDate.now().plusDays(2), new BigDecimal("80.00"),
-                Carrier.CDLType.CLASS_C, LoadStatus.OPEN, null, Shipment.Mode.AIR);
+                Carrier.CDLType.CLASS_C, LoadStatus.OPEN, null, Shipment.Mode.AIR, "IE", "FR");
 
         Load jSea = createLoad(acme, "Sea freight Dublin → Rotterdam",
                 "FCL container on the Dublin–Rotterdam lane, drayage included.",
                 "Dublin Port", "Port of Rotterdam",
                 8.0, LocalDate.now().plusDays(6), new BigDecimal("12.00"),
-                Carrier.CDLType.CLASS_A, LoadStatus.OPEN, null, Shipment.Mode.OCEAN);
+                Carrier.CDLType.CLASS_A, LoadStatus.OPEN, null, Shipment.Mode.OCEAN, "IE", "NL");
 
         Load jRail = createLoad(murphy, "Rail intermodal Dublin → Ballina",
                 "Containerised rail haul, terminal-to-terminal block-train slot.",
@@ -605,6 +605,20 @@ public class DataInitializer implements CommandLineRunner {
                           double hours, LocalDate dateNeeded, BigDecimal rate,
                           Carrier.CDLType cdl, LoadStatus status, Carrier assigned,
                           Shipment.Mode mode) {
+        // Domestic by default: both ends take the shipper's country.
+        String country = shipper.getCountry() != null ? shipper.getCountry() : "IE";
+        return createLoad(shipper, title, description, pickup, delivery, hours,
+                dateNeeded, rate, cdl, status, assigned, mode, country, country);
+    }
+
+    // Explicit origin/destination countries — for cross-border demo legs (e.g. the
+    // air/sea loads) so they classify as INTERNATIONAL rather than inheriting the
+    // shipper's country on both ends.
+    private Load createLoad(Shipper shipper, String title, String description,
+                          String pickup, String delivery,
+                          double hours, LocalDate dateNeeded, BigDecimal rate,
+                          Carrier.CDLType cdl, LoadStatus status, Carrier assigned,
+                          Shipment.Mode mode, String originCountry, String destinationCountry) {
         // Load-level fields only — customer metadata lives on the tree.
         Load j = new Load();
         j.setShipper(shipper);
@@ -617,11 +631,10 @@ public class DataInitializer implements CommandLineRunner {
         j = loadRepository.save(j);
 
         // Compose the tree (TransportOrder + Shipment + 2 Stops + Locations).
-        String country = shipper.getCountry() != null ? shipper.getCountry() : "IE";
         String currency = shipper.getCurrency() != null ? shipper.getCurrency() : "EUR";
         TmsTreeService.TmsOrderInput input = new TmsTreeService.TmsOrderInput(
                 title, description, dateNeeded,
-                pickup, delivery, country, country, currency, mode);
+                pickup, delivery, originCountry, destinationCountry, currency, mode);
         tmsTreeService.createTreeFor(j, input);
         j = loadRepository.save(j);
         pricingService.priceLoad(j);
