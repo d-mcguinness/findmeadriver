@@ -28,20 +28,74 @@
 
 	// Eircode: routing key (letter + 2 digits/chars) + optional space + 4 alphanumeric
 	const EIRCODE_REGEX = /^[A-Za-z]\d[\dWw]\s?[A-Za-z0-9]{4}$/;
+	// Eircode routing key only — identifies the area (e.g. D02, T12, A45)
+	const ROUTING_KEY_REGEX = /^[A-Za-z]\d[\dWw]$/;
 
 	function isEircode(val: string): boolean {
 		return EIRCODE_REGEX.test(val.trim());
 	}
 
 	function extractEircode(results: google.maps.GeocoderResult[]): string | null {
-		for (const result of results) {
+		// Prefer results whose top-level type IS postal_code — that's the eircode area itself.
+		const postalFirst = [...results].sort((a, b) => {
+			const aIs = a.types.includes('postal_code') ? 0 : 1;
+			const bIs = b.types.includes('postal_code') ? 0 : 1;
+			return aIs - bIs;
+		});
+		for (const result of postalFirst) {
 			for (const component of result.address_components) {
 				if (component.types.includes('postal_code') && isEircode(component.long_name)) {
-					return component.long_name;
+					return component.long_name.toUpperCase();
 				}
 			}
 		}
 		return null;
+	}
+
+	// Routing-key-only fallback when a full eircode isn't available (e.g. "D02").
+	function extractRoutingKey(results: google.maps.GeocoderResult[]): string | null {
+		for (const result of results) {
+			for (const component of result.address_components) {
+				if (component.types.includes('postal_code')) {
+					const code = component.long_name.trim();
+					if (ROUTING_KEY_REGEX.test(code)) return code.toUpperCase();
+					// Some results return the full eircode where only the routing key is meaningful
+					const routing = code.split(/\s+/)[0];
+					if (ROUTING_KEY_REGEX.test(routing)) return routing.toUpperCase();
+				}
+				if (component.types.includes('postal_code_prefix')) {
+					const code = component.long_name.trim();
+					if (ROUTING_KEY_REGEX.test(code)) return code.toUpperCase();
+				}
+			}
+		}
+		return null;
+	}
+
+	// Best human-readable place name when no postcode is available.
+	function extractLocality(results: google.maps.GeocoderResult[]): string | null {
+		const preferredTypes = ['locality', 'postal_town', 'sublocality', 'administrative_area_level_2', 'administrative_area_level_1'];
+		for (const type of preferredTypes) {
+			for (const result of results) {
+				for (const component of result.address_components) {
+					if (component.types.includes(type)) return component.long_name;
+				}
+			}
+		}
+		return null;
+	}
+
+	// Resolve the most precise short label available: full eircode → routing key →
+	// locality (~ prefixed) → the raw formatted address as a last resort.
+	function approximateAddressCode(results: google.maps.GeocoderResult[], fallbackAddress: string): string {
+		const eircode = extractEircode(results);
+		const routingKey = extractRoutingKey(results);
+		const locality = extractLocality(results);
+
+		if (eircode) return locality ? `${eircode}, ${locality}` : eircode;
+		if (routingKey) return locality ? `${routingKey}, ${locality}` : routingKey;
+		if (locality) return `~ ${locality}`;
+		return fallbackAddress;
 	}
 
 	function setAutocompleteInputValue(text: string) {
@@ -113,8 +167,7 @@
 					const res = await geocoder.geocode({ location: { lat, lng } });
 					if (res.results[0]) {
 						const address = res.results[0].formatted_address;
-						const eircode = extractEircode(res.results);
-						const display = eircode || address;
+						const display = approximateAddressCode(res.results, address);
 						value = display;
 						setAutocompleteInputValue(display);
 						onPlaceSelected({ address, lat, lng });
@@ -216,8 +269,7 @@
 				const lat = loc.lat();
 				const lng = loc.lng();
 				const address = res.results[0].formatted_address;
-				const eircode = extractEircode(res.results);
-				const display = eircode || address;
+				const display = approximateAddressCode(res.results, address);
 
 				value = display;
 				lastGeocodedValue = display.trim();
