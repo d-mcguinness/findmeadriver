@@ -108,6 +108,8 @@ export interface Load {
 	pieceCount?: number;
 	pickupCountry?: string;
 	deliveryCountry?: string;
+	/** International / domestic / unknown classification of the leg (cabotage context). */
+	movementType?: string;
 	requiredLicenceCategory?: string;
 	/** @deprecated kept for legacy callers; mirror of requiredLicenceCategory. */
 	requiredCdlType?: string;

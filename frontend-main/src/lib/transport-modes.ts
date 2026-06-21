@@ -43,6 +43,34 @@ export function modeTagColor(mode: string | undefined | null): CarbonTagColor {
 	return MODE_TAG_COLOR[mode ?? 'ROAD'] ?? 'gray';
 }
 
+// International / domestic classification of a leg (cabotage context). Mirrors the
+// backend MovementType enum: DOMESTIC + a foreign carrier = cabotage; INTERNATIONAL
+// legs are the cabotage-granting entries; UNKNOWN = missing country data (needs review).
+const MOVEMENT_TYPE_LABELS: Record<string, string> = {
+	DOMESTIC: 'Domestic',
+	INTERNATIONAL: 'International',
+	UNKNOWN: 'Unknown'
+};
+
+/** Human label for a load's international/domestic classification. */
+export function movementTypeLabel(type: string | undefined | null): string {
+	if (!type) return 'Unknown';
+	return MOVEMENT_TYPE_LABELS[type] ?? type;
+}
+
+type MovementTagColor = 'teal' | 'blue' | 'cool-gray';
+
+const MOVEMENT_TAG_COLOR: Record<string, MovementTagColor> = {
+	DOMESTIC: 'teal',
+	INTERNATIONAL: 'blue',
+	UNKNOWN: 'cool-gray'
+};
+
+/** Carbon Tag colour for a movement type; cool-gray (needs-review) for unknown. */
+export function movementTypeColor(type: string | undefined | null): MovementTagColor {
+	return MOVEMENT_TAG_COLOR[type ?? 'UNKNOWN'] ?? 'cool-gray';
+}
+
 // Estimated platform commission % for the Post-a-Load live preview. Delegates to
 // the single client-side fallback table in pricing.ts (which the public
 // /api/pricing/modes endpoint mirrors); the backend recomputes the authoritative

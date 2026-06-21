@@ -9,7 +9,7 @@
 	import { api } from '$lib/api';
 	import { carrierState } from '$lib/stores/carrierState.svelte';
 	import type { AvailabilityResponse, Load, LoadApplication, CarrierComplianceSummary, TimeSlot, CarrierLane, CabotageExposure } from '$lib/types';
-	import { transportModeLabel, modeTagColor } from '$lib/transport-modes';
+	import { transportModeLabel, modeTagColor, movementTypeLabel, movementTypeColor } from '$lib/transport-modes';
 	import { HAULAGE_COUNTRIES, countryName } from '$lib/countries';
 	import { onMount } from 'svelte';
 	import { page } from '$app/state';
@@ -803,6 +803,7 @@
 												<h4>{load.title}</h4>
 												<div class="header-tags">
 													<Tag type={modeTagColor(load.transportMode)}>{transportModeLabel(load.transportMode)}</Tag>
+													<Tag type={movementTypeColor(load.movementType)} size="sm">{movementTypeLabel(load.movementType)}</Tag>
 													<Tag type="blue">{load.requiredLicenceCategory ?? load.requiredCdlType ?? 'Any licence'}</Tag>
 													{#if isWithdrawn}
 														<Tag type="magenta" icon={Undo}>Withdrawn</Tag>

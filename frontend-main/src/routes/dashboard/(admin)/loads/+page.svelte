@@ -7,6 +7,7 @@
 	import type { Load } from '$lib/types';
 	import { onMount } from 'svelte';
 	import LoadsTable from '$lib/components/admin/LoadsTable.svelte';
+	import { movementTypeLabel, movementTypeColor } from '$lib/transport-modes';
 
 	type CarrierOption = {
 		id: number;
@@ -224,6 +225,7 @@
 >
 	{#if appsLoad}
 		<p class="apps-meta">
+			<Tag type={movementTypeColor(appsLoad.movementType)} size="sm">{movementTypeLabel(appsLoad.movementType)}</Tag>
 			{#if appsLoad.requiredLicenceCategory}requires <strong>{appsLoad.requiredLicenceCategory}</strong> · {/if}
 			status <strong>{appsLoad.status}</strong>
 			{#if appsLoad.status !== 'OPEN'}<span class="apps-note"> · not open for new applications</span>{/if}

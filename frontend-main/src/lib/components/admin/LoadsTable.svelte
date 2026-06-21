@@ -5,7 +5,7 @@
 	import { Add } from 'carbon-icons-svelte';
 	import type { Snippet } from 'svelte';
 	import type { Load } from '$lib/types';
-	import { transportModeLabel } from '$lib/transport-modes';
+	import { transportModeLabel, movementTypeLabel, movementTypeColor } from '$lib/transport-modes';
 	import { formatMoney } from '$lib/money';
 
 	let {
@@ -39,6 +39,7 @@
 		{ key: 'deliveryLocation', value: 'To' },
 		{ key: 'dateNeeded', value: 'Date' },
 		{ key: 'transportMode', value: 'Mode' },
+		{ key: 'movementType', value: 'Movement' },
 		{ key: 'status', value: 'Status' },
 		{ key: 'applicationCount', value: 'Applications' },
 		{ key: 'hours', value: 'Hours' },
@@ -72,6 +73,7 @@
 			deliveryLocation: j.deliveryLocation || '—',
 			dateNeeded: j.dateNeeded,
 			transportMode: transportModeLabel(j.transportMode),
+			movementType: j.movementType ?? 'UNKNOWN',
 			status: j.status,
 			applicationCount: j.applicationCount,
 			hours: j.estimatedDurationHours != null ? `${j.estimatedDurationHours.toFixed(1)}h` : '—',
@@ -105,6 +107,8 @@
 	<svelte:fragment slot="cell" let:row let:cell>
 		{#if cell.key === 'status'}
 			<Tag type={statusKind(cell.value)} size="sm">{cell.value}</Tag>
+		{:else if cell.key === 'movementType'}
+			<Tag type={movementTypeColor(cell.value)} size="sm">{movementTypeLabel(cell.value)}</Tag>
 		{:else if cell.key === 'actions' && actions}
 			{@const load = loadsById.get(row.id)}
 			{#if load}

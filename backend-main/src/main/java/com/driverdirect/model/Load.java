@@ -145,6 +145,15 @@ public class Load {
                 ? shipment.getMode() : Shipment.Mode.ROAD;
     }
 
+    /**
+     * International-vs-domestic classification of this load's leg, read off the
+     * linked Shipment. UNKNOWN when there is no leg or its countries are missing
+     * (strict — never silently "domestic"). See {@link MovementType}.
+     */
+    public MovementType getMovementType() {
+        return shipment != null ? shipment.getMovementType() : MovementType.UNKNOWN;
+    }
+
     private TransportOrder orderOf() {
         if (shipment == null || shipment.getShipmentLines() == null
                 || shipment.getShipmentLines().isEmpty()) return null;
