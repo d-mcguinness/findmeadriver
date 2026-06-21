@@ -112,7 +112,7 @@
 					<p>Post a load in any mode and see your total before you commit.</p>
 					<div class="cta-actions">
 						{#if auth.isAuthenticated}
-							<Button href="/dashboard" icon={ArrowRight}>Go to Dashboard</Button>
+							<Button href={auth.homePath} icon={ArrowRight}>Go to your account</Button>
 						{:else}
 							<Button href="/register" icon={DeliveryTruck}>Register as Carrier</Button>
 							<Button href="/register" kind="secondary" icon={Enterprise}>Register as Shipper</Button>

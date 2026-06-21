@@ -13,7 +13,7 @@
 		SkipToContent,
 		Button
 	} from 'carbon-components-svelte';
-	import { LogoGithub, Login, Logout, UserAvatar, Dashboard, Time, Search, Document, Add, Enterprise, CertificateCheck, UserFollow } from 'carbon-icons-svelte';
+	import { LogoGithub, Login, Logout, UserAvatar, Add, Enterprise, CertificateCheck, UserFollow, Settings } from 'carbon-icons-svelte';
 	import { goto } from '$app/navigation';
 	import { auth } from '$lib/stores/auth.svelte';
 
@@ -40,7 +40,7 @@
 	</svelte:fragment>
 	<HeaderUtilities>
 		{#if auth.isAuthenticated}
-			<HeaderNavItem href="/dashboard" text={auth.user?.firstName ?? 'Account'} />
+			<HeaderNavItem href={auth.homePath} text={auth.user?.firstName ?? 'Account'} />
 			<HeaderNavItem on:click={handleLogout} text="Logout" />
 		{:else}
 			<HeaderNavItem href="/login" text="Login" />
@@ -53,16 +53,18 @@
 	<SideNav bind:isOpen={isSideNavOpen}>
 		<SideNavItems>
 			<SideNavLink icon={LogoGithub} text="Home" href="/" />
-			<SideNavLink icon={Dashboard} text="Dashboard" href="/dashboard" />
-			{#if auth.isCarrier}
-				<SideNavLink icon={Time} text="Availability" href="/dashboard?tab=availability" />
-				<SideNavLink icon={CertificateCheck} text="Compliance" href="/dashboard?tab=compliance" />
-				<SideNavLink icon={Search} text="Browse Loads" href="/dashboard?tab=loads" />
-				<SideNavLink icon={Document} text="My Applications" href="/dashboard?tab=applications" />
+			{#if auth.isAdmin}
+				<SideNavLink icon={UserAvatar} text="Users" href="/dashboard/users" />
+				<SideNavLink icon={Enterprise} text="Loads" href="/dashboard/loads" />
+				<SideNavLink icon={CertificateCheck} text="Documents" href="/dashboard/documents" />
+				<SideNavLink icon={Settings} text="Settings" href="/dashboard/settings" />
 			{/if}
 			{#if auth.isShipper}
 				<SideNavLink icon={Add} text="Create a Load" href="/dashboard/loads/post" />
-				<SideNavLink icon={Enterprise} text="My Loads" href="/dashboard" />
+				<SideNavLink icon={Enterprise} text="Itineraries" href="/dashboard/itineraries" />
+			{/if}
+			{#if auth.isCarrier}
+				<SideNavLink icon={UserFollow} text="Capabilities" href="/dashboard/capabilities" />
 			{/if}
 			<SideNavLink icon={Logout} text="Logout" on:click={handleLogout} />
 		</SideNavItems>
