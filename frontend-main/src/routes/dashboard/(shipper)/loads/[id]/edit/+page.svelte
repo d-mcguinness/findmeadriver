@@ -275,7 +275,7 @@
 			const path = auth.isAdmin ? `/api/admin/loads/${loadId}` : `/api/shipper/loads/${loadId}`;
 			await api.put(path, payload);
 			postSuccess = 'Load updated successfully! Redirecting...';
-			setTimeout(() => goto(auth.isAdmin ? '/dashboard/loads' : '/dashboard'), 1200);
+			setTimeout(() => goto(auth.isAdmin ? '/dashboard/loads' : '/dashboard/itineraries'), 1200);
 		} catch (e: any) {
 			postError = e.message || 'Failed to update load';
 		} finally {
@@ -283,7 +283,7 @@
 		}
 	}
 
-	const backHref = $derived(auth.isAdmin ? '/dashboard/loads' : '/dashboard');
+	const backHref = $derived(auth.isAdmin ? '/dashboard/loads' : '/dashboard/itineraries');
 </script>
 
 <Grid>

@@ -339,7 +339,7 @@
 				await api.post('/api/shipper/loads', payload);
 			}
 			postSuccess = 'Load created successfully! Redirecting...';
-			setTimeout(() => goto('/dashboard'), 1500);
+			setTimeout(() => goto('/dashboard/itineraries'), 1500);
 		} catch (e: any) {
 			postError = e.message || 'Failed to create load';
 		} finally {
@@ -352,8 +352,8 @@
 	<Row>
 		<Column>
 			<div class="page-header">
-				<Button kind="ghost" size="small" href="/dashboard" icon={ArrowLeft}>
-					Back to My Loads
+				<Button kind="ghost" size="small" href="/dashboard/itineraries" icon={ArrowLeft}>
+					Back
 				</Button>
 				<h1 class="section-heading"><span class="icon-badge sm"><Add size={20} /></span> Create a Load</h1>
 				<Button kind="ghost" size="small" href="/dashboard/loads/post-intermodal">

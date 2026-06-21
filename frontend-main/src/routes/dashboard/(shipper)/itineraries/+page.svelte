@@ -57,7 +57,7 @@
 	<Row>
 		<Column>
 			<div class="page-header">
-				<Button kind="ghost" size="small" href="/dashboard" icon={ArrowLeft}>Back to Dashboard</Button>
+				<Button kind="ghost" size="small" href="/" icon={ArrowLeft}>Home</Button>
 				<div class="head-row">
 					<h1 class="section-heading">Intermodal Itineraries</h1>
 					<Button size="small" icon={Add} href="/dashboard/loads/post-intermodal">Post intermodal load</Button>

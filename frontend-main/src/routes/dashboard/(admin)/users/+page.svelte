@@ -34,7 +34,7 @@
 			const res = await api.post<{ token: string; user: unknown; message: string }>(
 				`/api/admin/users/${user.id}/impersonate`, {});
 			auth.impersonate(res);
-			goto('/dashboard');
+			goto(auth.homePath);
 		} catch (e: any) {
 			mimicError = e?.error || e?.message || 'Failed to mimic user';
 		}
@@ -131,7 +131,7 @@
 	<Row>
 		<Column>
 			<div class="page-header">
-				<Button kind="ghost" size="small" href="/dashboard" icon={ArrowLeft}>
+				<Button kind="ghost" size="small" href="/" icon={ArrowLeft}>
 					Back
 				</Button>
 				<h1 class="section-heading"><span class="icon-badge sm"><UserAdmin size={20} /></span> Manage Users</h1>

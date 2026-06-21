@@ -189,7 +189,7 @@
 	<Row>
 		<Column>
 			<div class="page-header">
-				<Button kind="ghost" size="small" href="/dashboard" icon={ArrowLeft}>
+				<Button kind="ghost" size="small" href="/dashboard/users" icon={ArrowLeft}>
 					Back
 				</Button>
 				<h1 class="section-heading"><span class="icon-badge sm"><Van size={20} /></span> All Loads</h1>

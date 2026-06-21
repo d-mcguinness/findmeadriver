@@ -42,7 +42,7 @@
 					</p>
 					<div class="hero-actions">
 						{#if auth.isAuthenticated}
-							<Button href="/dashboard" icon={ArrowRight}>Go to Dashboard</Button>
+							<Button href={auth.homePath} icon={ArrowRight}>Go to your account</Button>
 						{:else}
 							<Button href="/register" icon={DeliveryTruck}>I'm a Carrier</Button>
 							<Button href="/register" kind="secondary" icon={Enterprise}>I'm a Shipper</Button>
@@ -99,7 +99,7 @@
 					<p>Whether you have spare capacity to fill or deliveries that need doing, sign up in under a minute.</p>
 					<div class="cta-actions">
 						{#if auth.isAuthenticated}
-							<Button href="/dashboard" icon={ArrowRight}>Go to Dashboard</Button>
+							<Button href={auth.homePath} icon={ArrowRight}>Go to your account</Button>
 						{:else}
 							<Button href="/register" icon={DeliveryTruck}>Register as Carrier</Button>
 							<Button href="/register" kind="secondary" icon={Enterprise}>Register as Shipper</Button>

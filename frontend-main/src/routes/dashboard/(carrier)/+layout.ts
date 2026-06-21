@@ -4,6 +4,6 @@ import type { LayoutLoad } from './$types';
 
 export const load: LayoutLoad = () => {
 	if (!auth.isCarrier) {
-		redirect(307, '/dashboard');
+		redirect(307, auth.homePath);
 	}
 };

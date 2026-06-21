@@ -119,6 +119,14 @@ function createAuth() {
 		get isCarrier() { return user?.roles?.includes('ROLE_CARRIER') ?? false; },
 		get isShipper() { return user?.roles?.includes('ROLE_SHIPPER') ?? false; },
 		get isAdmin() { return user?.roles?.includes('ROLE_ADMIN') ?? false; },
+		// Per-role landing path — the dashboard index was removed, so login, the
+		// role-group guards and the nav all route here instead of a shared /dashboard.
+		get homePath() {
+			if (user?.roles?.includes('ROLE_ADMIN')) return '/dashboard/users';
+			if (user?.roles?.includes('ROLE_SHIPPER')) return '/dashboard/itineraries';
+			if (user?.roles?.includes('ROLE_CARRIER')) return '/dashboard/capabilities';
+			return '/login';
+		},
 		get isImpersonating() { return impersonating; },
 		get impersonatedLabel() {
 			return user ? (`${user.firstName ?? ''} ${user.lastName ?? ''}`.trim() || user.email) : '';
