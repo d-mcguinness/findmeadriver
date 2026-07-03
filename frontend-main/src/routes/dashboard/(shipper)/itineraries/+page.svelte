@@ -60,7 +60,7 @@
 				<Button kind="ghost" size="small" href="/" icon={ArrowLeft}>Home</Button>
 				<div class="head-row">
 					<h1 class="section-heading">Intermodal Itineraries</h1>
-					<Button size="small" icon={Add} href="/dashboard/loads/post-intermodal">Post intermodal load</Button>
+					<Button size="small" icon={Add} href="/dashboard/loads/post?mode=INTERMODAL">Post intermodal load</Button>
 				</div>
 			</div>
 		</Column>

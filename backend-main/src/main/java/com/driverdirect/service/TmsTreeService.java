@@ -145,14 +145,24 @@ public class TmsTreeService {
         }
 
         /** Parse a client-supplied mode string to {@link Shipment.Mode},
-         *  defaulting to ROAD on null/blank/unrecognised values. */
+         *  defaulting to ROAD on null/blank/unrecognised values. INTERMODAL is
+         *  rejected outright: it's a derived, multi-leg-only label (see
+         *  {@link Itinerary#getMode()}), never a concrete single leg's mode —
+         *  allowing it here would let a standalone load carry a mode with no
+         *  rate card, no marketed pricing, and no carriers opted in to match it. */
         private static Shipment.Mode parseMode(String raw) {
             if (raw == null || raw.isBlank()) return Shipment.Mode.ROAD;
+            Shipment.Mode mode;
             try {
-                return Shipment.Mode.valueOf(raw.trim().toUpperCase());
+                mode = Shipment.Mode.valueOf(raw.trim().toUpperCase());
             } catch (IllegalArgumentException e) {
                 return Shipment.Mode.ROAD;
             }
+            if (mode == Shipment.Mode.INTERMODAL) {
+                throw new IllegalArgumentException(
+                        "INTERMODAL is not a valid mode for a single-leg load — post a multi-leg itinerary instead");
+            }
+            return mode;
         }
 
         private static String firstCountryOfType(List<TmsStopInput> ss, Stop.StopType t, String dflt) {

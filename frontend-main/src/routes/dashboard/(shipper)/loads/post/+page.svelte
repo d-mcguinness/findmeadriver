@@ -11,6 +11,7 @@
 	import { page } from '$app/state';
 	import { onMount } from 'svelte';
 	import LocationPicker from '$lib/components/LocationPicker.svelte';
+	import RouteTransferMap from '$lib/components/RouteTransferMap.svelte';
 	import { calculateRoute, findNearbyTransfers, type RouteInfo, type TransferOption } from '$lib/google-maps';
 	import { licenceCategoriesFor } from '$lib/licence-categories';
 	import { TRANSPORT_MODE_OPTIONS, transportModeLabel, modeTagColor, estimatedCommissionPct } from '$lib/transport-modes';
@@ -27,6 +28,22 @@
 		country: string;
 		address: string;
 		coords: { lat: number; lng: number } | null;
+	};
+
+	type LegDraft = {
+		clientId: string;
+		transportMode: string;
+		pickupLocation: string;
+		deliveryLocation: string;
+		pickupCountry: string;
+		deliveryCountry: string;
+		pickupCoords: { lat: number; lng: number } | null;
+		deliveryCoords: { lat: number; lng: number } | null;
+		requiredLicenceCategory: string;
+		distanceKm: number;
+		weightKg: number;
+		volumeM3: number;
+		containerCount: number;
 	};
 
 	const STOP_TYPE_OPTIONS: { value: LoadStopType; label: string }[] = [
@@ -49,6 +66,13 @@
 		EUROTUNNEL: 'teal'
 	};
 
+	const BASIS_LABELS: Record<string, string> = {
+		PER_KM: 'per km',
+		PER_CONTAINER: 'per container',
+		PER_CHARGEABLE_KG: 'per chargeable-kg',
+		PER_PIECE: 'per piece'
+	};
+
 	let shipperCountry = $state('IE');
 	let licenceOptions = $derived(licenceCategoriesFor(shipperCountry));
 
@@ -61,6 +85,8 @@
 		ratePerHour: 25,
 		requiredLicenceCategory: 'C'
 	});
+
+	let isIntermodal = $derived(loadForm.transportMode === 'INTERMODAL');
 
 	// Per-mode quantity inputs that drive the rate card (per-km / per-container /
 	// per-chargeable-kg). Left blank → the server prices on rate × hours instead.
@@ -85,7 +111,7 @@
 	const unitQty = (u: string) => UNIT_QTY[u] ?? '';
 
 	// LegQuantities for the rate-card mirror (null → undefined = "not provided").
-	let legQuantities: LegQuantities = $derived({
+	let singleLegQuantities: LegQuantities = $derived({
 		distanceKm: quantities.distanceKm ?? undefined,
 		weightKg: quantities.weightKg ?? undefined,
 		volumeM3: quantities.volumeM3 ?? undefined,
@@ -101,14 +127,14 @@
 		const mode = loadForm.transportMode;
 		const hours = Number(loadForm.estimatedDurationHours) || 0;
 		const rate = Number(loadForm.ratePerHour) || 0;
-		const rateCardCost = estimateLegCarrierCost(mode, legQuantities);
+		const rateCardCost = estimateLegCarrierCost(mode, singleLegQuantities);
 		const usingRateCard = rateCardCost != null;
 		const carrierCost = rateCardCost ?? hours * rate;
 		const pct = estimatedCommissionPct(mode);
 		const fee = carrierCost * (pct / 100);
 		return {
 			carrierCost, pct, fee, total: carrierCost + fee,
-			usingRateCard, unit: chargeUnitForMode(mode), qty: chargeableQuantity(mode, legQuantities)
+			usingRateCard, unit: chargeUnitForMode(mode), qty: chargeableQuantity(mode, singleLegQuantities)
 		};
 	});
 
@@ -128,6 +154,98 @@
 	let firstPickup = $derived(stops.find(s => s.type === 'PICKUP'));
 	let lastDelivery = $derived([...stops].reverse().find(s => s.type === 'DELIVERY'));
 
+	function newLeg(mode: string): LegDraft {
+		return {
+			clientId: `leg-${Math.random().toString(36).slice(2, 9)}`,
+			transportMode: mode,
+			pickupLocation: '',
+			deliveryLocation: '',
+			pickupCountry: shipperCountry,
+			deliveryCountry: shipperCountry,
+			pickupCoords: null,
+			deliveryCoords: null,
+			requiredLicenceCategory: 'C',
+			distanceKm: 100,
+			weightKg: 100,
+			volumeM3: 1,
+			containerCount: 1
+		};
+	}
+
+	// Sensible starter: a road feeder into an ocean main leg.
+	let legs = $state<LegDraft[]>([newLeg('ROAD'), newLeg('OCEAN')]);
+
+	// Live estimate, mirroring the server: each leg priced on its mode's rate
+	// card (per-km / per-container / per chargeable-kg), then the per-mode fee
+	// on top, summed. The backend recomputes the authoritative figure on submit.
+	function legQuantitiesFor(l: LegDraft) {
+		return {
+			distanceKm: Number(l.distanceKm) || undefined,
+			weightKg: Number(l.weightKg) || undefined,
+			volumeM3: Number(l.volumeM3) || undefined,
+			containerCount: Number(l.containerCount) || undefined
+		};
+	}
+	let intermodalPreview = $derived.by(() => {
+		let carrier = 0;
+		let fee = 0;
+		const rows = legs.map((l) => {
+			const q = legQuantitiesFor(l);
+			const c = estimateLegCarrierCost(l.transportMode, q) ?? 0;
+			const pct = estimatedCommissionPct(l.transportMode);
+			const f = (c * pct) / 100;
+			carrier += c;
+			fee += f;
+			return {
+				carrier: c,
+				pct,
+				fee: f,
+				total: c + f,
+				unit: chargeUnitForMode(l.transportMode),
+				qty: chargeableQuantity(l.transportMode, q)
+			};
+		});
+		return { rows, carrier, fee, total: carrier + fee };
+	});
+
+	// Every leg's pickup + delivery, in order, for the admin-only overview map
+	// that links the whole itinerary together — each leg keeps its own mode so
+	// the overview draws the same recommended route (real road/rail/sea
+	// routing, not a straight line) as that leg's own map below.
+	let allLegRoutes = $derived(
+		legs.map((l) => ({
+			mode: l.transportMode,
+			stops: [
+				{ type: 'PICKUP', address: l.pickupLocation, country: l.pickupCountry, coords: l.pickupCoords },
+				{ type: 'DELIVERY', address: l.deliveryLocation, country: l.deliveryCountry, coords: l.deliveryCoords }
+			]
+		}))
+	);
+
+	function onLegPickupSelected(leg: LegDraft, place: { address: string; lat: number; lng: number }) {
+		leg.pickupLocation = place.address;
+		leg.pickupCoords = { lat: place.lat, lng: place.lng };
+	}
+	function onLegDeliverySelected(leg: LegDraft, place: { address: string; lat: number; lng: number }) {
+		leg.deliveryLocation = place.address;
+		leg.deliveryCoords = { lat: place.lat, lng: place.lng };
+	}
+
+	function addLeg() {
+		legs = [...legs, newLeg('ROAD')];
+	}
+	function removeLeg(i: number) {
+		if (legs.length <= 1) return;
+		legs = legs.filter((_, j) => j !== i);
+	}
+	function moveLeg(i: number, delta: -1 | 1) {
+		const t = i + delta;
+		if (t < 0 || t >= legs.length) return;
+		const copy = [...legs];
+		[copy[i], copy[t]] = [copy[t], copy[i]];
+		legs = copy;
+	}
+
 	let postError = $state('');
 	let postSuccess = $state('');
 	let postLoading = $state(false);
@@ -136,6 +254,12 @@
 	let selectedShipperId = $state<string>('');
 
 	onMount(async () => {
+		// Arriving via the old /loads/post-intermodal link/bookmark.
+		const modeParam = page.url.searchParams.get('mode');
+		if (modeParam && (modeParam === 'INTERMODAL' || TRANSPORT_MODE_OPTIONS.some((o) => o.value === modeParam))) {
+			loadForm.transportMode = modeParam;
+		}
+
 		if (auth.isAdmin) {
 			try {
 				shippers = await api.get<ShipperOption[]>('/api/admin/shippers');
@@ -228,6 +352,16 @@
 	function validate(): string | null {
 		if (!loadForm.title.trim()) return 'Title is required.';
 		if (!loadForm.dateNeeded) return 'Date is required.';
+		if (isIntermodal) {
+			if (legs.length < 1) return 'Add at least one leg.';
+			for (let i = 0; i < legs.length; i++) {
+				const l = legs[i];
+				if (!l.pickupLocation.trim() || !l.deliveryLocation.trim()) {
+					return `Leg ${i + 1} needs a pickup and delivery location.`;
+				}
+			}
+			return null;
+		}
 		if (!firstPickup || !firstPickup.address.trim()) return 'At least one pickup with an address is required.';
 		if (!lastDelivery || !lastDelivery.address.trim()) return 'At least one delivery with an address is required.';
 		const blank = stops.findIndex(s => !s.address.trim());
@@ -235,7 +369,8 @@
 		return null;
 	}
 
-	// --- Demo convenience: fill the form with a realistic sample load. Shown to
+	// --- Demo convenience: fill the form with a realistic sample load (single-leg
+	// or intermodal, depending on the mode currently selected). Shown to
 	// shippers/admins only — handy for exercising the pricing preview per mode. ---
 	type LoadSample = {
 		mode: string; title: string; description: string;
@@ -263,7 +398,64 @@
 		  hours: 14, rate: 35, licence: 'C', q: { containerCount: 3 } }
 	];
 
-	function autofillForm() {
+	type SampleLeg = {
+		mode: string; from: string; fromCountry: string; to: string; toCountry: string;
+		distanceKm?: number; weightKg?: number; volumeM3?: number; containerCount?: number;
+	};
+	type ItinerarySample = { title: string; description: string; dueInDays: number; legs: SampleLeg[] };
+
+	const ITINERARY_SAMPLES: ItinerarySample[] = [
+		{ title: 'Dublin → Amsterdam door-to-door', dueInDays: 10,
+		  description: 'Road feeder, short-sea, then final-mile road — one 40ft container.',
+		  legs: [
+			{ mode: 'ROAD', from: 'Dublin, Ireland', fromCountry: 'IE', to: 'Dublin Port, Ireland', toCountry: 'IE', distanceKm: 12 },
+			{ mode: 'OCEAN', from: 'Dublin Port, Ireland', fromCountry: 'IE', to: 'Port of Rotterdam, Netherlands', toCountry: 'NL', containerCount: 1 },
+			{ mode: 'ROAD', from: 'Port of Rotterdam, Netherlands', fromCountry: 'NL', to: 'Amsterdam, Netherlands', toCountry: 'NL', distanceKm: 80 }
+		  ] },
+		{ title: 'Madrid → Dublin express (air)', dueInDays: 5,
+		  description: 'Road to the airport, air freight, then road to the consignee — 600 kg.',
+		  legs: [
+			{ mode: 'ROAD', from: 'Madrid, Spain', fromCountry: 'ES', to: 'Madrid-Barajas Airport, Spain', toCountry: 'ES', distanceKm: 18 },
+			{ mode: 'AIR', from: 'Madrid-Barajas Airport, Spain', fromCountry: 'ES', to: 'Dublin Airport, Ireland', toCountry: 'IE', weightKg: 600, volumeM3: 2.4 },
+			{ mode: 'ROAD', from: 'Dublin Airport, Ireland', fromCountry: 'IE', to: 'Dublin, Ireland', toCountry: 'IE', distanceKm: 12 }
+		  ] },
+		{ title: 'Hamburg → Dublin (rail + short-sea)', dueInDays: 14,
+		  description: 'Rail to the port, short-sea crossing, then road final mile — two containers.',
+		  legs: [
+			{ mode: 'RAIL', from: 'Hamburg, Germany', fromCountry: 'DE', to: 'Bremerhaven, Germany', toCountry: 'DE', containerCount: 2 },
+			{ mode: 'OCEAN', from: 'Bremerhaven, Germany', fromCountry: 'DE', to: 'Dublin Port, Ireland', toCountry: 'IE', containerCount: 2 },
+			{ mode: 'ROAD', from: 'Dublin Port, Ireland', fromCountry: 'IE', to: 'Naas, Ireland', toCountry: 'IE', distanceKm: 35 }
+		  ] }
+	];
+
+	// Fills a random intermodal sample and switches the mode to Multimodal —
+	// used by both the mode-aware autofill button (when already on Multimodal)
+	// and the admin-only "autofill multimodal" shortcut (regardless of the
+	// mode currently selected).
+	function fillIntermodalSample() {
+		const s = ITINERARY_SAMPLES[Math.floor(Math.random() * ITINERARY_SAMPLES.length)];
+		const due = new Date();
+		due.setDate(due.getDate() + s.dueInDays);
+		loadForm = { ...loadForm, transportMode: 'INTERMODAL', title: s.title, description: s.description, dateNeeded: due.toISOString().split('T')[0] };
+		legs = s.legs.map((l) => {
+			const base = newLeg(l.mode);
+			return {
+				...base,
+				pickupLocation: l.from,
+				deliveryLocation: l.to,
+				pickupCountry: l.fromCountry,
+				deliveryCountry: l.toCountry,
+				distanceKm: l.distanceKm ?? base.distanceKm,
+				weightKg: l.weightKg ?? base.weightKg,
+				volumeM3: l.volumeM3 ?? base.volumeM3,
+				containerCount: l.containerCount ?? base.containerCount
+			};
+		});
+		postError = '';
+		postSuccess = '';
+	}
+
+	function fillSingleLegSample() {
 		const s = LOAD_SAMPLES[Math.floor(Math.random() * LOAD_SAMPLES.length)];
 		const due = new Date();
 		due.setDate(due.getDate() + 7);
@@ -292,7 +484,12 @@
 		postSuccess = '';
 	}
 
-	async function postLoad() {
+	function autofillForm() {
+		if (isIntermodal) fillIntermodalSample();
+		else fillSingleLegSample();
+	}
+
+	async function handleSubmit() {
 		postError = '';
 		postSuccess = '';
 		const v = validate();
@@ -300,6 +497,46 @@
 
 		postLoading = true;
 		try {
+			if (isIntermodal) {
+				const payload = {
+					title: loadForm.title,
+					description: loadForm.description,
+					dateNeeded: loadForm.dateNeeded,
+					legs: legs.map((l) => ({
+						transportMode: l.transportMode,
+						pickupLocation: l.pickupLocation,
+						deliveryLocation: l.deliveryLocation,
+						pickupCountry: l.pickupCountry,
+						deliveryCountry: l.deliveryCountry,
+						requiredLicenceCategory: l.requiredLicenceCategory,
+						// Mode-specific quantity drives the rate-card carrier cost.
+						distanceKm: l.transportMode === 'ROAD' ? l.distanceKm : undefined,
+						weightKg: l.transportMode === 'AIR' ? l.weightKg : undefined,
+						volumeM3: l.transportMode === 'AIR' ? l.volumeM3 : undefined,
+						containerCount:
+							l.transportMode === 'OCEAN' || l.transportMode === 'RAIL'
+								? l.containerCount
+								: undefined
+					}))
+				};
+				if (auth.isAdmin) {
+					if (!selectedShipperId) {
+						postError = 'Please choose an shipper to create the load under.';
+						postLoading = false;
+						return;
+					}
+					await api.post(
+						`/api/admin/itineraries?shipperId=${encodeURIComponent(selectedShipperId)}`,
+						payload
+					);
+				} else {
+					await api.post('/api/shipper/itineraries', payload);
+				}
+				postSuccess = 'Intermodal load created! Redirecting...';
+				setTimeout(() => goto('/dashboard/itineraries'), 1200);
+				return;
+			}
+
 			// Send the full ordered Stops list. Legacy pickup/delivery fields are
 			// still populated for any consumer that hasn't migrated; the backend
 			// uses stops when present and ignores them.
@@ -341,7 +578,7 @@
 			postSuccess = 'Load created successfully! Redirecting...';
 			setTimeout(() => goto('/dashboard/itineraries'), 1500);
 		} catch (e: any) {
-			postError = e.message || 'Failed to create load';
+			postError = e.message || (isIntermodal ? 'Failed to create intermodal load' : 'Failed to create load');
 		} finally {
 			postLoading = false;
 		}
@@ -355,16 +592,22 @@
 				<Button kind="ghost" size="small" href="/dashboard/itineraries" icon={ArrowLeft}>
 					Back
 				</Button>
-				<h1 class="section-heading"><span class="icon-badge sm"><Add size={20} /></span> Create a Load</h1>
-				<Button kind="ghost" size="small" href="/dashboard/loads/post-intermodal">
-					Shipping across multiple modes? Post an intermodal load &rarr;
-				</Button>
+				<h1 class="section-heading">
+					<span class="icon-badge sm"><Add size={20} /></span>
+					{isIntermodal ? 'Post an Intermodal Load' : 'Create a Load'}
+				</h1>
+				{#if isIntermodal}
+					<p class="sub">
+						Build a door-to-door movement from multiple legs — each with its own mode, route, and
+						rate. We price every leg with its mode's platform fee and roll them up to one total.
+					</p>
+				{/if}
 			</div>
 		</Column>
 	</Row>
 
 	<Row>
-		<Column lg={10} md={8} sm={4}>
+		<Column lg={11} md={8} sm={4}>
 			{#if postError}
 				<InlineNotification kind="error" title="Error" subtitle={postError}
 					on:close={() => postError = ''} />
@@ -378,8 +621,13 @@
 				{#if auth.isShipper || auth.isAdmin}
 					<div class="autofill-bar">
 						<Button kind="tertiary" size="small" icon={MagicWand} on:click={autofillForm}>
-							Autofill with sample data
+							{isIntermodal ? 'Autofill with a sample intermodal route' : 'Autofill with sample data'}
 						</Button>
+						{#if auth.isAdmin}
+							<Button kind="tertiary" size="small" icon={MagicWand} on:click={fillIntermodalSample}>
+								Autofill multimodal sample (admin)
+							</Button>
+						{/if}
 						<span class="autofill-hint">Fills a random demo load — handy for quick testing.</span>
 					</div>
 				{/if}
@@ -401,169 +649,285 @@
 					labelText="Description" placeholder="Describe the delivery requirements..."
 					rows={3} />
 
+				<TextInput bind:value={loadForm.dateNeeded}
+					labelText="Date Needed (YYYY-MM-DD)" placeholder="2026-04-10"
+					type="date" />
+
 				<Select bind:selected={loadForm.transportMode} labelText="Transport Mode">
 					{#each TRANSPORT_MODE_OPTIONS as opt}
 						<SelectItem value={opt.value} text={opt.label} />
 					{/each}
+					<SelectItem value="INTERMODAL" text="Multimodal" />
 				</Select>
 
-				<div class="stops-section">
-					<div class="stops-header">
-						<h3>Route</h3>
-						<Button kind="tertiary" size="small" icon={Add} on:click={addStop}>
-							Add stop
-						</Button>
-					</div>
-					<p class="stops-hint">
-						Order matters — drag-free reordering via the arrow buttons. International
-						routes can include border, ferry, or Eurotunnel stops between pickup and
-						delivery.
-					</p>
-
-					{#each stops as stop, i (stop.clientId)}
-						<div class="stop-row">
-							<div class="stop-index">
-								<span class="seq">{i + 1}</span>
-								<Tag type={STOP_TAG_COLOR[stop.type]} size="sm">{stop.type}</Tag>
+				{#if isIntermodal}
+					<div class="legs-section">
+						{#if auth.isAdmin}
+							<div class="legs-overview-map">
+								<h4>Full itinerary overview</h4>
+								<p class="legs-overview-hint">All legs linked in order, each drawn with its own mode's recommended route — real road/rail routing, sea lanes, etc. — not a straight line.</p>
+								<RouteTransferMap legs={allLegRoutes} showRouteOptions={false} />
 							</div>
+						{/if}
 
-							<div class="stop-fields">
-								<Select bind:selected={stop.type} labelText="Type" hideLabel>
-									{#each STOP_TYPE_OPTIONS as opt}
-										<SelectItem value={opt.value} text={opt.label} />
-									{/each}
-								</Select>
-								<Select bind:selected={stop.country} labelText="Country" hideLabel>
-									{#each HAULAGE_COUNTRIES as c}
-										<SelectItem value={c.code} text="{c.code} — {c.name}" />
-									{/each}
-								</Select>
-								<LocationPicker
-									labelText={`Stop ${i + 1} address`}
-									placeholder="Address, Eircode, or postcode"
-									bind:value={stop.address}
-									onPlaceSelected={(place) => onStopPlaceSelected(i, place)}
-								/>
-							</div>
-
-							<div class="stop-actions">
-								<Button kind="ghost" size="small" icon={ArrowUp}
-									iconDescription="Move up"
-									disabled={i === 0}
-									on:click={() => moveStop(i, -1)} />
-								<Button kind="ghost" size="small" icon={ArrowDown}
-									iconDescription="Move down"
-									disabled={i === stops.length - 1}
-									on:click={() => moveStop(i, 1)} />
-								<Button kind="danger-ghost" size="small" icon={TrashCan}
-									iconDescription="Remove stop"
-									disabled={stops.length <= 2}
-									on:click={() => removeStop(i)} />
-							</div>
+						<div class="legs-header">
+							<h3 class="section-heading">Legs</h3>
+							<Button kind="tertiary" size="small" icon={Add} on:click={addLeg}>Add leg</Button>
 						</div>
-					{@const tx = transfersByStop[stop.clientId]}
-					{#if tx}
-						<div class="stop-transfers">
-							<span class="transfers-label">Transfers nearby</span>
-							{#if tx === 'loading'}
-								<span class="transfers-loading">checking…</span>
-							{:else}
-								{#each tx as t}
-									<Tag type={t.available ? modeTagColor(t.mode) : 'gray'} size="sm">{transportModeLabel(t.mode)}{#if t.available && t.distanceKm != null} · {t.distanceKm} km{:else if !t.available} · none{/if}</Tag>
-								{/each}
-							{/if}
+						<p class="legs-hint">Legs run in order, top to bottom. Each leg is priced — and its recommended route shown — on its own mode.</p>
+
+						{#each legs as leg, i (leg.clientId)}
+							<div class="leg-card">
+								<div class="leg-top">
+									<span class="leg-seq">Leg {i + 1}</span>
+									<Tag type={modeTagColor(leg.transportMode)}>{transportModeLabel(leg.transportMode)}</Tag>
+									<span class="leg-spacer"></span>
+									<Button kind="ghost" size="small" icon={ArrowUp} iconDescription="Move up"
+										disabled={i === 0} on:click={() => moveLeg(i, -1)} />
+									<Button kind="ghost" size="small" icon={ArrowDown} iconDescription="Move down"
+										disabled={i === legs.length - 1} on:click={() => moveLeg(i, 1)} />
+									<Button kind="danger-ghost" size="small" icon={TrashCan} iconDescription="Remove leg"
+										disabled={legs.length <= 1} on:click={() => removeLeg(i)} />
+								</div>
+
+								<div class="leg-row">
+									<Select bind:selected={leg.transportMode} labelText="Mode">
+										{#each TRANSPORT_MODE_OPTIONS as opt}
+											<SelectItem value={opt.value} text={opt.label} />
+										{/each}
+									</Select>
+									<Select bind:selected={leg.requiredLicenceCategory} labelText="Required Licence">
+										{#each licenceOptions as opt}
+											<SelectItem value={opt.code} text={opt.label} />
+										{/each}
+									</Select>
+								</div>
+
+								<div class="leg-row">
+									<Select bind:selected={leg.pickupCountry} labelText="From country">
+										{#each HAULAGE_COUNTRIES as c}
+											<SelectItem value={c.code} text="{c.code} — {c.name}" />
+										{/each}
+									</Select>
+									<LocationPicker
+										labelText="From"
+										placeholder="Pickup location"
+										bind:value={leg.pickupLocation}
+										onPlaceSelected={(place) => onLegPickupSelected(leg, place)}
+									/>
+								</div>
+								<div class="leg-row">
+									<Select bind:selected={leg.deliveryCountry} labelText="To country">
+										{#each HAULAGE_COUNTRIES as c}
+											<SelectItem value={c.code} text="{c.code} — {c.name}" />
+										{/each}
+									</Select>
+									<LocationPicker
+										labelText="To"
+										placeholder="Delivery location"
+										bind:value={leg.deliveryLocation}
+										onPlaceSelected={(place) => onLegDeliverySelected(leg, place)}
+									/>
+								</div>
+
+								<div class="leg-map">
+									<RouteTransferMap
+										stops={[
+											{ type: 'PICKUP', address: leg.pickupLocation, country: leg.pickupCountry, coords: leg.pickupCoords },
+											{ type: 'DELIVERY', address: leg.deliveryLocation, country: leg.deliveryCountry, coords: leg.deliveryCoords }
+										]}
+										quantities={{ distanceKm: leg.distanceKm, weightKg: leg.weightKg, volumeM3: leg.volumeM3, containerCount: leg.containerCount }}
+										mode={leg.transportMode}
+									/>
+								</div>
+
+								<div class="leg-row">
+									{#if leg.transportMode === 'AIR'}
+										<NumberInput bind:value={leg.weightKg} label="Weight (kg)" min={1} step={1} />
+										<NumberInput bind:value={leg.volumeM3} label="Volume (m³)" min={0.1} step={0.1} />
+									{:else if leg.transportMode === 'ROAD'}
+										<NumberInput bind:value={leg.distanceKm} label="Distance (km)" min={1} step={1} />
+									{:else}
+										<NumberInput bind:value={leg.containerCount} label="Containers" min={1} step={1} />
+									{/if}
+								</div>
+
+								<div class="leg-price">
+									<span class="leg-basis">{BASIS_LABELS[intermodalPreview.rows[i]?.unit] ?? ''} × {intermodalPreview.rows[i]?.qty ?? '—'}</span>
+									<span>Carrier {formatMoney(intermodalPreview.rows[i]?.carrier)}</span>
+									<span>+ {transportModeLabel(leg.transportMode)} fee {intermodalPreview.rows[i]?.pct}% ({formatMoney(intermodalPreview.rows[i]?.fee)})</span>
+									<strong>= {formatMoney(intermodalPreview.rows[i]?.total)}</strong>
+								</div>
+							</div>
+						{/each}
+					</div>
+
+					<div class="totals">
+						<div class="totals-line"><span>Carrier cost (all legs)</span><strong>{formatMoney(intermodalPreview.carrier)}</strong></div>
+						<div class="totals-line"><span>Platform fee (all legs)</span><strong>{formatMoney(intermodalPreview.fee)}</strong></div>
+						<div class="totals-line grand"><span>Estimated total</span><strong>{formatMoney(intermodalPreview.total)}</strong></div>
+						<p class="totals-hint">Estimate — the server confirms exact per-mode fees on submit.</p>
+					</div>
+				{:else}
+					<div class="stops-section">
+						<div class="stops-header">
+							<h3>Route</h3>
+							<Button kind="tertiary" size="small" icon={Add} on:click={addStop}>
+								Add stop
+							</Button>
+						</div>
+						<p class="stops-hint">
+							Order matters — drag-free reordering via the arrow buttons. International
+							routes can include border, ferry, or Eurotunnel stops between pickup and
+							delivery.
+						</p>
+
+						{#each stops as stop, i (stop.clientId)}
+							<div class="stop-row">
+								<div class="stop-index">
+									<span class="seq">{i + 1}</span>
+									<Tag type={STOP_TAG_COLOR[stop.type]} size="sm">{stop.type}</Tag>
+								</div>
+
+								<div class="stop-fields">
+									<Select bind:selected={stop.type} labelText="Type" hideLabel>
+										{#each STOP_TYPE_OPTIONS as opt}
+											<SelectItem value={opt.value} text={opt.label} />
+										{/each}
+									</Select>
+									<Select bind:selected={stop.country} labelText="Country" hideLabel>
+										{#each HAULAGE_COUNTRIES as c}
+											<SelectItem value={c.code} text="{c.code} — {c.name}" />
+										{/each}
+									</Select>
+									<LocationPicker
+										labelText={`Stop ${i + 1} address`}
+										placeholder="Address, Eircode, or postcode"
+										bind:value={stop.address}
+										onPlaceSelected={(place) => onStopPlaceSelected(i, place)}
+									/>
+								</div>
+
+								<div class="stop-actions">
+									<Button kind="ghost" size="small" icon={ArrowUp}
+										iconDescription="Move up"
+										disabled={i === 0}
+										on:click={() => moveStop(i, -1)} />
+									<Button kind="ghost" size="small" icon={ArrowDown}
+										iconDescription="Move down"
+										disabled={i === stops.length - 1}
+										on:click={() => moveStop(i, 1)} />
+									<Button kind="danger-ghost" size="small" icon={TrashCan}
+										iconDescription="Remove stop"
+										disabled={stops.length <= 2}
+										on:click={() => removeStop(i)} />
+								</div>
+							</div>
+						{@const tx = transfersByStop[stop.clientId]}
+						{#if tx}
+							<div class="stop-transfers">
+								<span class="transfers-label">Transfers nearby</span>
+								{#if tx === 'loading'}
+									<span class="transfers-loading">checking…</span>
+								{:else}
+									{#each tx as t}
+										<Tag type={t.available ? modeTagColor(t.mode) : 'gray'} size="sm">{transportModeLabel(t.mode)}{#if t.available && t.distanceKm != null} · {t.distanceKm} km{:else if !t.available} · none{/if}</Tag>
+									{/each}
+								{/if}
+							</div>
+						{/if}
+						{/each}
+					</div>
+
+					{#if routeLoading}
+						<div class="route-info">
+							<p class="route-calculating">Calculating route through all stops...</p>
+						</div>
+					{:else if routeInfo}
+						<div class="route-info">
+							<div class="route-detail">
+								<strong>Distance:</strong> {routeInfo.distanceText} ({routeInfo.distanceKm.toFixed(1)} km)
+							</div>
+							<div class="route-detail">
+								<strong>Estimated Drive Time:</strong> {routeInfo.durationText}
+							</div>
 						</div>
 					{/if}
-					{/each}
-				</div>
 
-				{#if routeLoading}
-					<div class="route-info">
-						<p class="route-calculating">Calculating route through all stops...</p>
+					<div class="route-map-section">
+						<h3>Route map</h3>
+						<p class="route-map-hint">Your stops, the recommended route for {transportModeLabel(loadForm.transportMode)}, and the nearest air / rail / sea transfer points within 50&nbsp;km.</p>
+						<RouteTransferMap {stops} {quantities} mode={loadForm.transportMode} />
 					</div>
-				{:else if routeInfo}
-					<div class="route-info">
-						<div class="route-detail">
-							<strong>Distance:</strong> {routeInfo.distanceText} ({routeInfo.distanceKm.toFixed(1)} km)
-						</div>
-						<div class="route-detail">
-							<strong>Estimated Drive Time:</strong> {routeInfo.durationText}
-						</div>
+
+					<div class="quantity-section">
+						<h3>Shipment quantity</h3>
+						<p class="quantity-hint">
+							Priced on the {transportModeLabel(loadForm.transportMode)} rate card
+							({unitLabel(pricingPreview.unit)}). Leave blank to fall back to rate &times; hours.
+						</p>
+						{#if loadForm.transportMode === 'ROAD'}
+							<NumberInput bind:value={quantities.distanceKm}
+								label="Distance (km)" min={0} step={1} allowEmpty
+								helperText="Auto-filled from the route above — override if needed." />
+						{:else if loadForm.transportMode === 'RAIL' || loadForm.transportMode === 'OCEAN'}
+							<NumberInput bind:value={quantities.containerCount}
+								label="Containers" min={0} step={1} allowEmpty />
+						{:else if loadForm.transportMode === 'AIR'}
+							<div class="form-row">
+								<NumberInput bind:value={quantities.weightKg}
+									label="Weight (kg)" min={0} step={1} allowEmpty />
+								<NumberInput bind:value={quantities.volumeM3}
+									label="Volume (m³)" min={0} step={0.1} allowEmpty
+									helperText="Chargeable kg = max(actual, volume × 167)." />
+							</div>
+						{/if}
 					</div>
-				{/if}
 
-				<div class="quantity-section">
-					<h3>Shipment quantity</h3>
-					<p class="quantity-hint">
-						Priced on the {transportModeLabel(loadForm.transportMode)} rate card
-						({unitLabel(pricingPreview.unit)}). Leave blank to fall back to rate &times; hours.
-					</p>
-					{#if loadForm.transportMode === 'ROAD'}
-						<NumberInput bind:value={quantities.distanceKm}
-							label="Distance (km)" min={0} step={1} allowEmpty
-							helperText="Auto-filled from the route above — override if needed." />
-					{:else if loadForm.transportMode === 'RAIL' || loadForm.transportMode === 'OCEAN'}
-						<NumberInput bind:value={quantities.containerCount}
-							label="Containers" min={0} step={1} allowEmpty />
-					{:else if loadForm.transportMode === 'AIR'}
-						<div class="form-row">
-							<NumberInput bind:value={quantities.weightKg}
-								label="Weight (kg)" min={0} step={1} allowEmpty />
-							<NumberInput bind:value={quantities.volumeM3}
-								label="Volume (m³)" min={0} step={0.1} allowEmpty
-								helperText="Chargeable kg = max(actual, volume × 167)." />
-						</div>
-					{/if}
-				</div>
+					<div class="form-row">
+						<NumberInput bind:value={loadForm.estimatedDurationHours}
+							label="Estimated Hours" min={0.01} max={10} step={0.01} />
+						<NumberInput bind:value={loadForm.ratePerHour}
+							label="Rate per Hour (&euro;)" min={10} max={200} step={1} />
+					</div>
 
-				<div class="form-row">
-					<TextInput bind:value={loadForm.dateNeeded}
-						labelText="Date Needed (YYYY-MM-DD)" placeholder="2026-04-10"
-						type="date" />
-					<NumberInput bind:value={loadForm.estimatedDurationHours}
-						label="Estimated Hours" min={0.01} max={10} step={0.01} />
-				</div>
-
-				<div class="form-row">
-					<NumberInput bind:value={loadForm.ratePerHour}
-						label="Rate per Hour (&euro;)" min={10} max={200} step={1} />
 					<Select bind:selected={loadForm.requiredLicenceCategory}
 						labelText="Required Licence Category">
 						{#each licenceOptions as opt}
 							<SelectItem value={opt.code} text={opt.label} />
 						{/each}
 					</Select>
-				</div>
 
-				<div class="pricing-preview">
-					<h4>Pricing preview</h4>
-					<div class="pricing-rows">
-						<div class="pricing-line">
-							{#if pricingPreview.usingRateCard}
-								<span>Carrier cost · {unitLabel(pricingPreview.unit)} ({Math.round(pricingPreview.qty ?? 0)} {unitQty(pricingPreview.unit)})</span>
-							{:else}
-								<span>Carrier cost · hourly ({loadForm.estimatedDurationHours}h × {formatMoney(loadForm.ratePerHour)})</span>
-							{/if}
-							<strong>{formatMoney(pricingPreview.carrierCost)}</strong>
+					<div class="pricing-preview">
+						<h4>Pricing preview</h4>
+						<div class="pricing-rows">
+							<div class="pricing-line">
+								{#if pricingPreview.usingRateCard}
+									<span>Carrier cost · {unitLabel(pricingPreview.unit)} ({Math.round(pricingPreview.qty ?? 0)} {unitQty(pricingPreview.unit)})</span>
+								{:else}
+									<span>Carrier cost · hourly ({loadForm.estimatedDurationHours}h × {formatMoney(loadForm.ratePerHour)})</span>
+								{/if}
+								<strong>{formatMoney(pricingPreview.carrierCost)}</strong>
+							</div>
+							<div class="pricing-line">
+								<span>Platform fee · {transportModeLabel(loadForm.transportMode)} ({pricingPreview.pct}%)</span>
+								<strong>{formatMoney(pricingPreview.fee)}</strong>
+							</div>
+							<div class="pricing-line pricing-total">
+								<span>You pay</span>
+								<strong>{formatMoney(pricingPreview.total)}</strong>
+							</div>
 						</div>
-						<div class="pricing-line">
-							<span>Platform fee · {transportModeLabel(loadForm.transportMode)} ({pricingPreview.pct}%)</span>
-							<strong>{formatMoney(pricingPreview.fee)}</strong>
-						</div>
-						<div class="pricing-line pricing-total">
-							<span>You pay</span>
-							<strong>{formatMoney(pricingPreview.total)}</strong>
-						</div>
+						<p class="pricing-hint">
+							{pricingPreview.usingRateCard
+								? 'Priced on the mode rate card — the server confirms the exact figure when you post.'
+								: 'Falling back to rate × hours — enter the shipment quantity above to price on the rate card.'}
+						</p>
 					</div>
-					<p class="pricing-hint">
-						{pricingPreview.usingRateCard
-							? 'Priced on the mode rate card — the server confirms the exact figure when you post.'
-							: 'Falling back to rate × hours — enter the shipment quantity above to price on the rate card.'}
-					</p>
-				</div>
+				{/if}
 
-				<Button on:click={postLoad} disabled={postLoading || !loadForm.title || !loadForm.dateNeeded}>
-					{postLoading ? 'Creating...' : 'Create a Load'}
+				<Button on:click={handleSubmit} disabled={postLoading || !loadForm.title || !loadForm.dateNeeded}>
+					{postLoading ? 'Creating...' : isIntermodal ? 'Create Intermodal Load' : 'Create a Load'}
 				</Button>
 			</div>
 		</Column>
@@ -580,11 +944,12 @@
 		gap: 0.5rem;
 		margin-top: 0.5rem;
 	}
+	.sub { color: var(--cds-text-secondary); max-width: 720px; line-height: 1.5; margin-top: 0.5rem; }
 	.form-grid {
 		display: flex;
 		flex-direction: column;
 		gap: 1rem;
-		max-width: 760px;
+		max-width: 820px;
 	}
 	.form-row {
 		display: grid;
@@ -669,6 +1034,20 @@
 		font-style: italic;
 		margin: 0;
 	}
+	.route-map-section {
+		display: flex;
+		flex-direction: column;
+		gap: 0.5rem;
+	}
+	.route-map-section h3 {
+		margin: 0;
+		font-size: 1rem;
+	}
+	.route-map-hint {
+		font-size: 0.8125rem;
+		color: var(--cds-text-secondary);
+		margin: 0;
+	}
 	.quantity-section {
 		display: flex;
 		flex-direction: column;
@@ -720,9 +1099,59 @@
 		color: var(--cds-text-secondary);
 		margin: 0.5rem 0 0;
 	}
+	.legs-section {
+		display: flex; flex-direction: column; gap: 0.75rem; padding: 1rem;
+		background: var(--cds-layer, #f4f4f4);
+		border-left: 3px solid var(--cds-interactive, #0f62fe);
+	}
+	.legs-header { display: flex; justify-content: space-between; align-items: center; }
+	.legs-header h3 { margin: 0; font-size: 1rem; }
+	.legs-hint { font-size: 0.8125rem; color: var(--cds-text-secondary); margin: 0; }
+	.leg-card {
+		display: flex; flex-direction: column; gap: 0.5rem;
+		padding: 0.75rem; background: var(--cds-background, #fff);
+		border: 1px solid var(--cds-border-subtle, #e0e0e0);
+	}
+	.leg-top { display: flex; align-items: center; gap: 0.5rem; }
+	.leg-seq { font-weight: 600; font-size: 0.875rem; }
+	.leg-spacer { flex: 1 1 auto; }
+	.leg-row { display: grid; grid-template-columns: 1fr 2fr; gap: 0.5rem; }
+	.leg-map { margin: 0.25rem 0; }
+	.legs-overview-map {
+		display: flex; flex-direction: column; gap: 0.375rem;
+		padding: 0.75rem; margin-bottom: 0.25rem;
+		background: var(--cds-background, #fff);
+		border: 1px solid var(--cds-border-subtle, #e0e0e0);
+	}
+	.legs-overview-map h4 { margin: 0; font-size: 0.875rem; }
+	.legs-overview-hint { font-size: 0.8125rem; color: var(--cds-text-secondary); margin: 0; }
+	.leg-price {
+		display: flex; gap: 0.75rem; flex-wrap: wrap; align-items: baseline;
+		font-size: 0.8125rem; color: var(--cds-text-secondary);
+		border-top: 1px dashed var(--cds-border-subtle, #e0e0e0); padding-top: 0.5rem;
+	}
+	.leg-price strong { color: var(--cds-text-primary); font-size: 0.9375rem; }
+	.leg-basis {
+		padding: 0.05rem 0.4rem;
+		border-radius: 3px;
+		background: var(--cds-layer-accent, #e0e0e0);
+		font-size: 0.6875rem;
+	}
+	.totals {
+		background: var(--cds-layer, #f4f4f4);
+		border-left: 3px solid var(--cds-support-success, #24a148);
+		padding: 0.75rem 1rem;
+	}
+	.totals-line { display: flex; justify-content: space-between; gap: 1rem; font-size: 0.875rem; }
+	.totals-line.grand {
+		border-top: 1px solid var(--cds-border-subtle, #e0e0e0);
+		margin-top: 0.35rem; padding-top: 0.45rem; font-size: 1.0625rem;
+	}
+	.totals-hint { font-size: 0.75rem; color: var(--cds-text-secondary); margin: 0.5rem 0 0; }
 	@media (max-width: 672px) {
 		.form-row,
-		.stop-fields {
+		.stop-fields,
+		.leg-row {
 			grid-template-columns: 1fr;
 		}
 		.stop-row {

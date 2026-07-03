@@ -140,14 +140,23 @@ public class LoadServiceImpl implements LoadService {
         return ItineraryResponse.from(it);
     }
 
-    /** Parse a client mode string to {@link Shipment.Mode}, defaulting to ROAD. */
+    /** Parse a client mode string to {@link Shipment.Mode}, defaulting to ROAD.
+     *  INTERMODAL is rejected — a leg always resolves to one concrete mode;
+     *  the itinerary's own INTERMODAL label is derived from its legs, never
+     *  assigned to one (see {@link Itinerary#getMode()}). */
     private static Shipment.Mode parseMode(String raw) {
         if (raw == null || raw.isBlank()) return Shipment.Mode.ROAD;
+        Shipment.Mode mode;
         try {
-            return Shipment.Mode.valueOf(raw.trim().toUpperCase());
+            mode = Shipment.Mode.valueOf(raw.trim().toUpperCase());
         } catch (IllegalArgumentException e) {
             return Shipment.Mode.ROAD;
         }
+        if (mode == Shipment.Mode.INTERMODAL) {
+            throw new IllegalArgumentException(
+                    "Leg transport mode cannot be INTERMODAL — each leg must be one concrete mode");
+        }
+        return mode;
     }
 
     @Override

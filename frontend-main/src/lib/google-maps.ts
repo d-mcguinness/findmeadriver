@@ -91,6 +91,137 @@ export async function calculateRoute(
 	}
 }
 
+export type RouteTravelMode = 'DRIVE' | 'TRANSIT';
+
+/**
+ * Real-world routed path (road driving, or best-effort public transit as a
+ * rail proxy) through an ordered sequence of stops. Computed leg-by-leg
+ * (intermediates aren't supported for TRANSIT by the Routes API, so a single
+ * multi-waypoint call won't work for both travel modes) and concatenated
+ * into one path. Returns null if any leg can't be routed — callers should
+ * fall back to a straight/geodesic line between stops.
+ */
+export async function calculateRoutePath(
+	stops: google.maps.LatLngLiteral[],
+	travelMode: RouteTravelMode = 'DRIVE'
+): Promise<google.maps.LatLngLiteral[] | null> {
+	if (stops.length < 2) return null;
+	try {
+		const g = await loadGoogleMaps();
+		const { encoding } = (await g.maps.importLibrary('geometry')) as google.maps.GeometryLibrary;
+		const fullPath: google.maps.LatLngLiteral[] = [stops[0]];
+
+		for (let i = 0; i < stops.length - 1; i++) {
+			const toWaypoint = (p: google.maps.LatLngLiteral) => ({
+				location: { latLng: { latitude: p.lat, longitude: p.lng } }
+			});
+			const response = await fetch(
+				`https://routes.googleapis.com/directions/v2:computeRoutes`,
+				{
+					method: 'POST',
+					headers: {
+						'Content-Type': 'application/json',
+						'X-Goog-Api-Key': PUBLIC_GOOGLE_MAPS_API_KEY,
+						'X-Goog-FieldMask': 'routes.polyline.encodedPolyline'
+					},
+					body: JSON.stringify({
+						origin: toWaypoint(stops[i]),
+						destination: toWaypoint(stops[i + 1]),
+						travelMode
+					})
+				}
+			);
+			if (!response.ok) return null;
+			const data = await response.json();
+			const encoded = data?.routes?.[0]?.polyline?.encodedPolyline;
+			if (!encoded) return null;
+			const legPath = encoding.decodePath(encoded);
+			// Drop the leg's first point — it duplicates the previous leg's last point.
+			fullPath.push(...legPath.slice(1).map((p) => ({ lat: p.lat(), lng: p.lng() })));
+		}
+		return fullPath;
+	} catch (err) {
+		console.error('Route path calculation failed:', err);
+		return null;
+	}
+}
+
+// ---- Approximate sea-lane routing ----
+// There's no maritime routing API available here, so a "recommended shipping
+// lane" is approximated by inserting the canonical canal/strait a real vessel
+// would transit whenever the origin and destination sit in different ocean
+// basins — e.g. Suez between Europe and Asia, Panama between the Atlantic and
+// Pacific Americas — rather than drawing a straight line that can cut across
+// entire continents. This is a coarse geographic approximation, not a real
+// router: it won't reflect closures, vessel-size restrictions, or coastal
+// hugging, and captions on the map say so.
+
+interface SeaChokepoint {
+	lat: number;
+	lng: number;
+	name: string;
+}
+
+const GIBRALTAR: SeaChokepoint = { lat: 36.14, lng: -5.35, name: 'Strait of Gibraltar' };
+const SUEZ: SeaChokepoint = { lat: 30.5, lng: 32.35, name: 'Suez Canal' };
+const PANAMA: SeaChokepoint = { lat: 9.08, lng: -79.68, name: 'Panama Canal' };
+
+type SeaRegion = 'MEDITERRANEAN' | 'PACIFIC_AMERICAS' | 'ATLANTIC_AMERICAS' | 'ATLANTIC_OLD_WORLD' | 'INDO_PACIFIC';
+
+/** Coarse ocean-basin bucket for a point, by lat/lng bounding box — good
+ *  enough to decide which canal (if any) a leg between two points needs. */
+function seaRegionOf(p: google.maps.LatLngLiteral): SeaRegion {
+	if (p.lat >= 28 && p.lat <= 47 && p.lng >= -6 && p.lng <= 37) return 'MEDITERRANEAN';
+	if (p.lng >= -170 && p.lng < -95) return 'PACIFIC_AMERICAS';
+	if (p.lng >= -95 && p.lng < -30) return 'ATLANTIC_AMERICAS';
+	if (p.lng >= -30 && p.lng < 60) return 'ATLANTIC_OLD_WORLD';
+	return 'INDO_PACIFIC';
+}
+
+function isRegionPair(a: SeaRegion, b: SeaRegion, x: SeaRegion, y: SeaRegion): boolean {
+	return (a === x && b === y) || (a === y && b === x);
+}
+
+/** Which canal/strait (if any) connects two ocean-basin regions. Empty when
+ *  both ends share a basin, or the crossing is a realistic open-ocean run
+ *  (e.g. trans-Atlantic, trans-Pacific) that needs no chokepoint. */
+function chokepointsBetween(a: SeaRegion, b: SeaRegion): SeaChokepoint[] {
+	if (a === b) return [];
+	if (isRegionPair(a, b, 'MEDITERRANEAN', 'ATLANTIC_OLD_WORLD')) return [GIBRALTAR];
+	if (isRegionPair(a, b, 'MEDITERRANEAN', 'ATLANTIC_AMERICAS')) return [GIBRALTAR];
+	if (isRegionPair(a, b, 'MEDITERRANEAN', 'PACIFIC_AMERICAS')) return [GIBRALTAR];
+	if (isRegionPair(a, b, 'MEDITERRANEAN', 'INDO_PACIFIC')) return [SUEZ];
+	if (isRegionPair(a, b, 'ATLANTIC_OLD_WORLD', 'INDO_PACIFIC')) return [SUEZ];
+	if (isRegionPair(a, b, 'ATLANTIC_AMERICAS', 'PACIFIC_AMERICAS')) return [PANAMA];
+	if (isRegionPair(a, b, 'ATLANTIC_AMERICAS', 'INDO_PACIFIC')) return [PANAMA];
+	if (isRegionPair(a, b, 'PACIFIC_AMERICAS', 'ATLANTIC_OLD_WORLD')) return [PANAMA];
+	return [];
+}
+
+export interface SeaLaneResult {
+	path: google.maps.LatLngLiteral[];
+	viaNames: string[];
+}
+
+/** Approximate recommended sea route through an ordered list of stops: for
+ *  each consecutive pair, insert the chokepoint(s) a real vessel would
+ *  transit between their ocean basins. Pure/synchronous — no API call. */
+export function recommendedSeaLane(stops: google.maps.LatLngLiteral[]): SeaLaneResult {
+	if (stops.length < 2) return { path: stops.slice(), viaNames: [] };
+	const path: google.maps.LatLngLiteral[] = [stops[0]];
+	const viaNames: string[] = [];
+	for (let i = 0; i < stops.length - 1; i++) {
+		const a = seaRegionOf(stops[i]);
+		const b = seaRegionOf(stops[i + 1]);
+		for (const cp of chokepointsBetween(a, b)) {
+			path.push({ lat: cp.lat, lng: cp.lng });
+			if (!viaNames.includes(cp.name)) viaNames.push(cp.name);
+		}
+		path.push(stops[i + 1]);
+	}
+	return { path, viaNames };
+}
+
 export type TransferModeKey = 'ROAD' | 'RAIL' | 'OCEAN' | 'AIR';
 
 export interface TransferOption {
