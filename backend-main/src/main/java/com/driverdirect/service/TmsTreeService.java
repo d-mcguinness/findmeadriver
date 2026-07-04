@@ -145,14 +145,24 @@ public class TmsTreeService {
         }
 
         /** Parse a client-supplied mode string to {@link Shipment.Mode},
-         *  defaulting to ROAD on null/blank/unrecognised values. */
+         *  defaulting to ROAD on null/blank/unrecognised values. INTERMODAL is
+         *  rejected outright: it's a derived, multi-leg-only label (see
+         *  {@link Itinerary#getMode()}), never a concrete single leg's mode —
+         *  allowing it here would let a standalone load carry a mode with no
+         *  rate card, no marketed pricing, and no carriers opted in to match it. */
         private static Shipment.Mode parseMode(String raw) {
             if (raw == null || raw.isBlank()) return Shipment.Mode.ROAD;
+            Shipment.Mode mode;
             try {
-                return Shipment.Mode.valueOf(raw.trim().toUpperCase());
+                mode = Shipment.Mode.valueOf(raw.trim().toUpperCase());
             } catch (IllegalArgumentException e) {
                 return Shipment.Mode.ROAD;
             }
+            if (mode == Shipment.Mode.INTERMODAL) {
+                throw new IllegalArgumentException(
+                        "INTERMODAL is not a valid mode for a single-leg load — post a multi-leg itinerary instead");
+            }
+            return mode;
         }
 
         private static String firstCountryOfType(List<TmsStopInput> ss, Stop.StopType t, String dflt) {
@@ -411,6 +421,74 @@ public class TmsTreeService {
         // Roll the priced legs up into the itinerary totals.
         pricingService.recalcItinerary(itinerary);
         return itinerary;
+    }
+
+    /**
+     * Reshape an existing Itinerary in place: order metadata, currency, and
+     * each leg's fields (mode/countries/quantities/route/rate) — matched to
+     * the existing legs by position, which lines up with {@code legSequence}
+     * order thanks to {@code @OrderBy} on {@link Itinerary#getLegs()}.
+     *
+     * <p>The leg count can't change here — legs have no cascade/orphanRemoval
+     * (same as Stops, see {@link #updateTreeFor}), so adding/removing one
+     * would mean deleting a whole Load/Shipment/Stop chain; out of scope for
+     * now, so that's rejected below (cancel and repost instead).
+     */
+    @Transactional
+    public void updateIntermodalTreeFor(Itinerary itinerary, IntermodalOrderInput input) {
+        List<Shipment> legs = itinerary.getLegs();
+        if (legs.size() != input.legs().size()) {
+            throw new IllegalArgumentException(
+                    "Cannot add or remove legs when editing an itinerary — cancel and repost instead");
+        }
+
+        TransportOrder order = itinerary.getOrder();
+        if (order != null) {
+            order.setTitle(input.title());
+            order.setDescription(input.description());
+            order.setDateNeeded(input.dateNeeded());
+            order.setCurrency(input.currency());
+            transportOrderRepository.save(order);
+        }
+        itinerary.setCurrency(input.currency());
+        itineraryRepository.save(itinerary);
+
+        for (int i = 0; i < legs.size(); i++) {
+            Shipment leg = legs.get(i);
+            LegInput li = input.legs().get(i);
+
+            leg.setMode(li.mode() != null ? li.mode() : Shipment.Mode.ROAD);
+            leg.setOriginCountry(CountryCodes.normalize(li.pickupCountry()));
+            leg.setDestinationCountry(CountryCodes.normalize(li.deliveryCountry()));
+            leg.setDistanceKm(li.distanceKm());
+            leg.setWeightKg(li.weightKg());
+            leg.setVolumeM3(li.volumeM3());
+            leg.setContainerCount(li.containerCount());
+            leg.setPieceCount(li.pieceCount());
+
+            // Stops have no cascade/orphanRemoval — delete the old pair before
+            // re-inserting, exactly like updateTreeFor does for a single leg.
+            List<Stop> existingStops = stopRepository.findByShipmentOrderBySequenceAsc(leg);
+            if (!existingStops.isEmpty()) stopRepository.deleteAllInBatch(existingStops);
+            leg.getStops().clear();
+            persistPickupDelivery(leg, li.pickupLocation(), li.pickupCountry(),
+                    li.deliveryLocation(), li.deliveryCountry(), input.dateNeeded());
+
+            leg = shipmentRepository.save(leg);
+
+            Load load = loadRepository.findByShipment(leg)
+                    .orElseThrow(() -> new IllegalStateException("Leg has no Load to update"));
+            load.setEstimatedDurationHours(li.estimatedDurationHours() != null ? li.estimatedDurationHours() : 0.0);
+            load.setRatePerHour(li.ratePerHour() != null ? li.ratePerHour() : BigDecimal.ZERO);
+            load.setRequiredLicenceCategory(li.requiredLicenceCategory());
+            loadRepository.save(load);
+
+            // Re-price this leg now that its quantities/rate may have changed.
+            pricingService.priceLoad(load);
+        }
+
+        // Roll the re-priced legs back up into the itinerary totals.
+        pricingService.recalcItinerary(itinerary);
     }
 
     /** Multi-stop path: one Stop per TmsStopInput, 1-indexed in submission order. */

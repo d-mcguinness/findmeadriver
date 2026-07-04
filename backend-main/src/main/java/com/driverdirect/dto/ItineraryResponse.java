@@ -1,14 +1,17 @@
 package com.driverdirect.dto;
 
 import com.driverdirect.model.Itinerary;
+import com.driverdirect.model.Load;
 import com.driverdirect.model.Location;
 import com.driverdirect.model.Shipment;
 import com.driverdirect.model.Stop;
 import lombok.Data;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Read view of an intermodal movement (M2): the rolled-up totals plus an
@@ -21,6 +24,10 @@ public class ItineraryResponse {
     private String shipperName;
     private Long orderId;
     private String orderTitle;
+    // Order-level metadata (M2c) — surfaced so the edit form can prefill,
+    // mirroring LoadResponse's description/dateNeeded.
+    private String description;
+    private LocalDate dateNeeded;
     private String status;
     private String mode; // INTERMODAL when legs span >1 mode, else the shared mode
     private String currency;
@@ -55,8 +62,23 @@ public class ItineraryResponse {
         private BigDecimal commissionPercent;
         private BigDecimal commissionAmount;
         private BigDecimal shipperTotal;
+        // Per-mode pricing quantities + the carrier-assignment fields that live
+        // on the leg's Load rather than its Shipment — surfaced (Load present)
+        // so the edit form can prefill, mirroring LoadResponse.
+        private BigDecimal distanceKm;
+        private BigDecimal weightKg;
+        private BigDecimal volumeM3;
+        private Integer containerCount;
+        private Integer pieceCount;
+        private String requiredLicenceCategory;
+        private BigDecimal ratePerHour;
+        private Double estimatedDurationHours;
 
         static LegSummary from(Shipment s) {
+            return from(s, null);
+        }
+
+        static LegSummary from(Shipment s, Load load) {
             LegSummary l = new LegSummary();
             l.shipmentId = s.getId();
             l.legSequence = s.getLegSequence();
@@ -83,6 +105,16 @@ public class ItineraryResponse {
             l.commissionPercent = s.getCommissionPercent();
             l.commissionAmount = s.getCommissionAmount();
             l.shipperTotal = s.getShipperTotal();
+            l.distanceKm = s.getDistanceKm();
+            l.weightKg = s.getWeightKg();
+            l.volumeM3 = s.getVolumeM3();
+            l.containerCount = s.getContainerCount();
+            l.pieceCount = s.getPieceCount();
+            if (load != null) {
+                l.requiredLicenceCategory = load.getRequiredLicenceCategory();
+                l.ratePerHour = load.getRatePerHour();
+                l.estimatedDurationHours = load.getEstimatedDurationHours();
+            }
             return l;
         }
 
@@ -107,6 +139,15 @@ public class ItineraryResponse {
     }
 
     public static ItineraryResponse from(Itinerary it) {
+        return from(it, Map.of());
+    }
+
+    /** @param loadsByShipmentId each leg's carrier-assignment Load, keyed by
+     *  its Shipment id — enriches every {@link LegSummary} with the fields
+     *  that live on Load (rate/hours/licence) for the edit form. Pass
+     *  {@code Map.of()} (via {@link #from(Itinerary)}) where that detail
+     *  isn't needed, e.g. list views. */
+    public static ItineraryResponse from(Itinerary it, Map<Long, Load> loadsByShipmentId) {
         ItineraryResponse r = new ItineraryResponse();
         r.setId(it.getId());
         if (it.getShipper() != null) {
@@ -116,6 +157,8 @@ public class ItineraryResponse {
         if (it.getOrder() != null) {
             r.setOrderId(it.getOrder().getId());
             r.setOrderTitle(it.getOrder().getTitle());
+            r.setDescription(it.getOrder().getDescription());
+            r.setDateNeeded(it.getOrder().getDateNeeded());
         }
         r.setStatus(it.getStatus() != null ? it.getStatus().name() : null);
         r.setMode(it.getMode() != null ? it.getMode().name() : null);
@@ -129,7 +172,7 @@ public class ItineraryResponse {
         r.setUpdatedAt(it.getUpdatedAt());
         List<Shipment> legs = it.getLegs() != null ? it.getLegs() : List.of();
         r.setLegCount(legs.size());
-        r.setLegs(legs.stream().map(LegSummary::from).toList());
+        r.setLegs(legs.stream().map(s -> LegSummary.from(s, loadsByShipmentId.get(s.getId()))).toList());
         return r;
     }
 }

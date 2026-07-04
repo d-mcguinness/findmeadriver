@@ -1,6 +1,9 @@
 <script lang="ts">
 	import { Grid, Row, Column, Button, Tile } from 'carbon-components-svelte';
-	import { DeliveryTruck, Enterprise, ArrowRight, Train, Plane, Anchor } from 'carbon-icons-svelte';
+	import {
+		DeliveryTruck, Enterprise, ArrowRight, Train, Plane, Anchor,
+		Money, Partnership, Security, FlowConnection
+	} from 'carbon-icons-svelte';
 	import { auth } from '$lib/stores/auth.svelte';
 	import { onMount } from 'svelte';
 	import { loadModePricing, FALLBACK_MODE_PRICING, type ModePricing } from '$lib/pricing';
@@ -34,19 +37,90 @@
 			<Column>
 				<div class="hero">
 					<span class="eyebrow">Multimodal freight marketplace</span>
-					<h1>Spare Capacity, Every Mode, <span class="accent">Put to Work</span></h1>
+					<h1>Freight, direct.<br /><span class="accent">Every mode. No markup.</span></h1>
 					<p class="hero-subtitle">
-						Connect directly with self-employed carriers across
-						<strong>road, rail, sea and air</strong> — and pay one transparent platform fee per
-						mode. No agencies, no markup.
+						FindMeADriver connects shippers straight to self-employed carriers across
+						<strong>road, rail, sea and air</strong> — one transparent platform fee per mode,
+						shown before you post.
 					</p>
 					<div class="hero-actions">
 						{#if auth.isAuthenticated}
 							<Button href={auth.homePath} icon={ArrowRight}>Go to your account</Button>
 						{:else}
-							<Button href="/register" icon={DeliveryTruck}>I'm a Carrier</Button>
-							<Button href="/register" kind="secondary" icon={Enterprise}>I'm a Shipper</Button>
+							<Button href="/register" icon={Enterprise}>Post a load</Button>
+							<Button href="/register" kind="secondary" icon={DeliveryTruck}>Find loads to carry</Button>
 						{/if}
+					</div>
+					<ul class="trust">
+						<li>Price shown before you post</li>
+						<li>No agency markup</li>
+						<li>Road · Rail · Sea · Air</li>
+						<li>Compliance-aware matching</li>
+					</ul>
+				</div>
+			</Column>
+		</Row>
+
+		<!-- Two-sided value -->
+		<Row>
+			<Column>
+				<h2 class="section-heading">Built for both sides of the load</h2>
+				<p class="section-sub">
+					One marketplace, two ways in — post the freight you need moved, or fill the capacity
+					you already have.
+				</p>
+				<div class="two-sided">
+					<div class="fmad-card side-card">
+						<Tile>
+							<span class="icon-badge"><Enterprise size={24} /></span>
+							<h3>I need to move freight</h3>
+							<p class="who">For shippers</p>
+							<ul class="benefits">
+								<li>One platform for road, rail, sea and air</li>
+								<li>One transparent fee per mode — shown upfront</li>
+								<li>Straight to self-employed, compliance-checked carriers</li>
+								<li>Door-to-door intermodal in a single booking</li>
+							</ul>
+							<Button href="/register" icon={ArrowRight}>Post a load</Button>
+						</Tile>
+					</div>
+					<div class="fmad-card side-card">
+						<Tile>
+							<span class="icon-badge"><DeliveryTruck size={24} /></span>
+							<h3>I have capacity to fill</h3>
+							<p class="who">For carriers</p>
+							<ul class="benefits">
+								<li>Browse loads that fit your modes, licence &amp; hours</li>
+								<li>Keep more of the rate — no agency taking a cut</li>
+								<li>Matched the moment a load fits your duty clock</li>
+								<li>Earn ratings that win you more work</li>
+							</ul>
+							<Button href="/register" kind="secondary" icon={ArrowRight}>Find loads</Button>
+						</Tile>
+					</div>
+				</div>
+			</Column>
+		</Row>
+
+		<!-- How it works -->
+		<Row>
+			<Column>
+				<h2 class="section-heading">How it works</h2>
+				<div class="steps">
+					<div class="step">
+						<span class="step-n">1</span>
+						<h3>Post or browse</h3>
+						<p>Shippers post a load in any mode; carriers browse live matches in seconds.</p>
+					</div>
+					<div class="step">
+						<span class="step-n">2</span>
+						<h3>Match</h3>
+						<p>We match on mode, licence, lane, available hours and cabotage rules — automatically.</p>
+					</div>
+					<div class="step">
+						<span class="step-n">3</span>
+						<h3>Move &amp; get paid</h3>
+						<p>The carrier moves the load; you pay one clear fee. No chains, no surprises.</p>
 					</div>
 				</div>
 			</Column>
@@ -91,18 +165,47 @@
 			</Column>
 		</Row>
 
+		<!-- Why FindMeADriver -->
+		<Row>
+			<Column>
+				<h2 class="section-heading">Why FindMeADriver</h2>
+				<div class="why">
+					<div class="why-item">
+						<span class="icon-badge sm"><Money size={22} /></span>
+						<h3>Transparent pricing</h3>
+						<p>Every fee is shown before you commit — carrier cost plus one fixed per-mode rate.</p>
+					</div>
+					<div class="why-item">
+						<span class="icon-badge sm"><Partnership size={22} /></span>
+						<h3>Direct connection</h3>
+						<p>No agencies, no markup, no chains. You deal straight with the carrier.</p>
+					</div>
+					<div class="why-item">
+						<span class="icon-badge sm"><Security size={22} /></span>
+						<h3>Compliance built in</h3>
+						<p>Cabotage limits, duty-clock hours and mode credentials are checked automatically.</p>
+					</div>
+					<div class="why-item">
+						<span class="icon-badge sm"><FlowConnection size={22} /></span>
+						<h3>True intermodal</h3>
+						<p>Sequence road, rail, sea and air into one door-to-door movement, priced per leg.</p>
+					</div>
+				</div>
+			</Column>
+		</Row>
+
 		<!-- Final CTA -->
 		<Row>
 			<Column>
 				<Tile class="cta-tile">
-					<h2>Ready to get started?</h2>
-					<p>Whether you have spare capacity to fill or deliveries that need doing, sign up in under a minute.</p>
+					<h2>Ready to move freight the direct way?</h2>
+					<p>Whether you've got capacity to fill or deliveries that need doing, you're set up in under a minute.</p>
 					<div class="cta-actions">
 						{#if auth.isAuthenticated}
 							<Button href={auth.homePath} icon={ArrowRight}>Go to your account</Button>
 						{:else}
-							<Button href="/register" icon={DeliveryTruck}>Register as Carrier</Button>
-							<Button href="/register" kind="secondary" icon={Enterprise}>Register as Shipper</Button>
+							<Button href="/register" icon={Enterprise}>Post a load</Button>
+							<Button href="/register" kind="secondary" icon={DeliveryTruck}>Find loads to carry</Button>
 						{/if}
 					</div>
 				</Tile>
@@ -165,6 +268,27 @@
 		gap: 1rem;
 		flex-wrap: wrap;
 	}
+	.trust {
+		list-style: none;
+		display: flex;
+		justify-content: center;
+		flex-wrap: wrap;
+		gap: 0.75rem 1.75rem;
+		margin: 2rem 0 0;
+		padding: 0;
+		font-size: 0.85rem;
+		color: var(--cds-text-secondary);
+	}
+	.trust li {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.4rem;
+	}
+	.trust li::before {
+		content: '✓';
+		color: #24a148;
+		font-weight: 800;
+	}
 
 	/* ---- Section heading ---- */
 	.section-heading {
@@ -188,6 +312,80 @@
 		line-height: 1.6;
 		max-width: 680px;
 		margin: 0 0 1.5rem;
+	}
+
+	/* ---- Two-sided value cards ---- */
+	.two-sided {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 1.25rem;
+		margin: 1.5rem 0;
+	}
+	.side-card :global(.bx--tile) {
+		display: flex;
+		flex-direction: column;
+		height: 100%;
+		padding: 1.75rem;
+	}
+	.side-card h3 {
+		font-size: 1.25rem;
+		margin: 0.85rem 0 0.15rem;
+	}
+	.side-card .who {
+		color: var(--cds-text-secondary);
+		font-size: 0.875rem;
+		margin: 0 0 1rem;
+	}
+	.benefits {
+		list-style: none;
+		padding: 0;
+		margin: 0 0 1.5rem;
+	}
+	.benefits li {
+		display: flex;
+		gap: 0.55rem;
+		padding: 0.4rem 0;
+		font-size: 0.95rem;
+		line-height: 1.45;
+	}
+	.benefits li::before {
+		content: '→';
+		color: var(--fmad-accent, #0f62fe);
+		font-weight: 700;
+	}
+	.side-card :global(.bx--btn) {
+		margin-top: auto;
+		align-self: flex-start;
+	}
+
+	/* ---- How it works ---- */
+	.steps {
+		display: grid;
+		grid-template-columns: repeat(3, 1fr);
+		gap: 1.5rem;
+		margin: 1.5rem 0;
+	}
+	.step-n {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		width: 2.5rem;
+		height: 2.5rem;
+		border-radius: 50%;
+		background: var(--fmad-grad, linear-gradient(135deg, #0f62fe, #8a3ffc));
+		color: #fff;
+		font-weight: 700;
+		margin-bottom: 0.85rem;
+	}
+	.step h3 {
+		font-size: 1.05rem;
+		margin: 0 0 0.35rem;
+	}
+	.step p {
+		color: var(--cds-text-secondary);
+		font-size: 0.92rem;
+		line-height: 1.5;
+		margin: 0;
 	}
 
 	/* ---- Mode pricing cards ---- */
@@ -255,6 +453,24 @@
 		margin-bottom: 1rem;
 	}
 
+	/* ---- Why FindMeADriver ---- */
+	.why {
+		display: grid;
+		grid-template-columns: repeat(4, 1fr);
+		gap: 1.25rem;
+		margin: 1.5rem 0;
+	}
+	.why-item h3 {
+		font-size: 1rem;
+		margin: 0.6rem 0 0.3rem;
+	}
+	.why-item p {
+		color: var(--cds-text-secondary);
+		font-size: 0.88rem;
+		line-height: 1.5;
+		margin: 0;
+	}
+
 	/* ---- Final CTA ---- */
 	:global(.cta-tile) {
 		text-align: center;
@@ -283,12 +499,22 @@
 		flex-wrap: wrap;
 	}
 
+	@media (max-width: 900px) {
+		.why {
+			grid-template-columns: 1fr 1fr;
+		}
+	}
 	@media (max-width: 672px) {
 		.hero {
 			padding: 2.5rem 1rem;
 		}
 		.hero h1 {
 			font-size: 2rem;
+		}
+		.two-sided,
+		.steps,
+		.why {
+			grid-template-columns: 1fr;
 		}
 	}
 </style>

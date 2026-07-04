@@ -14,6 +14,7 @@ import com.driverdirect.model.Shipment;
 import com.driverdirect.repository.ItineraryRepository;
 import com.driverdirect.repository.LoadApplicationRepository;
 import com.driverdirect.repository.LoadRepository;
+import com.driverdirect.repository.ShipmentRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -40,6 +41,7 @@ public class LoadServiceImpl implements LoadService {
     private final PricingService pricingService;
     private final CredentialMatcherRegistry credentialMatchers;
     private final ItineraryRepository itineraryRepository;
+    private final ShipmentRepository shipmentRepository;
 
     @Override
     @Transactional
@@ -81,16 +83,91 @@ public class LoadServiceImpl implements LoadService {
     @Override
     @Transactional
     public ItineraryResponse createIntermodalLoad(Shipper shipper, CreateIntermodalLoadRequest request) {
-        if (request.getLegs() == null || request.getLegs().isEmpty()) {
-            throw new IllegalArgumentException("An intermodal load needs at least one leg");
-        }
         String currency = request.getCurrency() != null
                 ? request.getCurrency()
                 : (shipper.getCurrency() != null ? shipper.getCurrency() : "EUR");
 
+        List<TmsTreeService.LegInput> legs = buildLegInputs(request.getLegs());
+
+        Itinerary itinerary = tmsTreeService.createIntermodalTreeFor(shipper,
+                new TmsTreeService.IntermodalOrderInput(
+                        request.getTitle(), request.getDescription(), request.getDateNeeded(),
+                        currency, legs));
+        return ItineraryResponse.from(itinerary);
+    }
+
+    @Override
+    @Transactional
+    public ItineraryResponse updateIntermodalLoad(Long id, Shipper shipper, CreateIntermodalLoadRequest request) {
+        Itinerary itinerary = itineraryRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Itinerary not found"));
+        if (shipper != null && (itinerary.getShipper() == null
+                || !itinerary.getShipper().getId().equals(shipper.getId()))) {
+            throw new IllegalArgumentException("You can only update your own itineraries");
+        }
+        // Only PLANNED is editable — once any leg is under way the route and
+        // price are committed, mirroring the OPEN-only rule for single loads.
+        if (itinerary.getStatus() != Itinerary.ItineraryStatus.PLANNED) {
+            throw new IllegalArgumentException("Only planned itineraries can be edited");
+        }
+
+        List<TmsTreeService.LegInput> legs = buildLegInputs(request.getLegs());
+        String currency = request.getCurrency() != null ? request.getCurrency() : itinerary.getCurrency();
+
+        tmsTreeService.updateIntermodalTreeFor(itinerary,
+                new TmsTreeService.IntermodalOrderInput(
+                        request.getTitle(), request.getDescription(), request.getDateNeeded(),
+                        currency, legs));
+
+        itinerary = itineraryRepository.findById(id).orElseThrow();
+        return ItineraryResponse.from(itinerary);
+    }
+
+    @Override
+    @Transactional
+    public ItineraryResponse cancelItinerary(Long id, Shipper shipper) {
+        Itinerary itinerary = itineraryRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Itinerary not found"));
+        if (shipper != null && (itinerary.getShipper() == null
+                || !itinerary.getShipper().getId().equals(shipper.getId()))) {
+            throw new IllegalArgumentException("You can only cancel your own itineraries");
+        }
+        Itinerary.ItineraryStatus current = itinerary.getStatus();
+        if (current == Itinerary.ItineraryStatus.DELIVERED || current == Itinerary.ItineraryStatus.CANCELLED) {
+            throw new IllegalArgumentException("Cannot cancel a " + current + " itinerary");
+        }
+        itinerary.setStatus(Itinerary.ItineraryStatus.CANCELLED);
+        itineraryRepository.save(itinerary);
+
+        // No cascade from Itinerary to its legs, so cancel each leg's Shipment
+        // and underlying Load explicitly — otherwise a carrier could still
+        // apply to (or keep working) a Load whose itinerary was cancelled.
+        for (Shipment leg : itinerary.getLegs()) {
+            if (leg.getStatus() != Shipment.ShipmentStatus.CANCELLED
+                    && leg.getStatus() != Shipment.ShipmentStatus.DELIVERED) {
+                leg.setStatus(Shipment.ShipmentStatus.CANCELLED);
+                shipmentRepository.save(leg);
+            }
+            loadRepository.findByShipment(leg).ifPresent(load -> {
+                if (load.getStatus() != LoadStatus.CANCELLED && load.getStatus() != LoadStatus.COMPLETED) {
+                    load.setStatus(LoadStatus.CANCELLED);
+                    loadRepository.save(load);
+                }
+            });
+        }
+
+        return ItineraryResponse.from(itinerary);
+    }
+
+    /** Validate + map the client's leg list to {@link TmsTreeService.LegInput},
+     *  shared by create and update — same checks either way. */
+    private List<TmsTreeService.LegInput> buildLegInputs(List<com.driverdirect.dto.CreateLegRequest> rawLegs) {
+        if (rawLegs == null || rawLegs.isEmpty()) {
+            throw new IllegalArgumentException("An intermodal load needs at least one leg");
+        }
         List<TmsTreeService.LegInput> legs = new ArrayList<>();
         int i = 1;
-        for (var leg : request.getLegs()) {
+        for (var leg : rawLegs) {
             if (leg.getPickupLocation() == null || leg.getPickupLocation().isBlank()
                     || leg.getDeliveryLocation() == null || leg.getDeliveryLocation().isBlank()) {
                 throw new IllegalArgumentException("Leg " + i + " needs a pickup and delivery location");
@@ -112,12 +189,7 @@ public class LoadServiceImpl implements LoadService {
                     leg.getContainerCount(), leg.getPieceCount()));
             i++;
         }
-
-        Itinerary itinerary = tmsTreeService.createIntermodalTreeFor(shipper,
-                new TmsTreeService.IntermodalOrderInput(
-                        request.getTitle(), request.getDescription(), request.getDateNeeded(),
-                        currency, legs));
-        return ItineraryResponse.from(itinerary);
+        return legs;
     }
 
     @Override
@@ -137,17 +209,31 @@ public class LoadServiceImpl implements LoadService {
                 || !it.getShipper().getId().equals(shipper.getId()))) {
             throw new IllegalArgumentException("You can only view your own itineraries");
         }
-        return ItineraryResponse.from(it);
+        // Enrich with each leg's Load fields (rate/hours/licence) in one batch
+        // query — this single-itinerary fetch is what the edit form prefills from.
+        Map<Long, Load> loadsByShipmentId = loadRepository.findByShipmentIn(it.getLegs()).stream()
+                .filter(l -> l.getShipment() != null)
+                .collect(Collectors.toMap(l -> l.getShipment().getId(), l -> l));
+        return ItineraryResponse.from(it, loadsByShipmentId);
     }
 
-    /** Parse a client mode string to {@link Shipment.Mode}, defaulting to ROAD. */
+    /** Parse a client mode string to {@link Shipment.Mode}, defaulting to ROAD.
+     *  INTERMODAL is rejected — a leg always resolves to one concrete mode;
+     *  the itinerary's own INTERMODAL label is derived from its legs, never
+     *  assigned to one (see {@link Itinerary#getMode()}). */
     private static Shipment.Mode parseMode(String raw) {
         if (raw == null || raw.isBlank()) return Shipment.Mode.ROAD;
+        Shipment.Mode mode;
         try {
-            return Shipment.Mode.valueOf(raw.trim().toUpperCase());
+            mode = Shipment.Mode.valueOf(raw.trim().toUpperCase());
         } catch (IllegalArgumentException e) {
             return Shipment.Mode.ROAD;
         }
+        if (mode == Shipment.Mode.INTERMODAL) {
+            throw new IllegalArgumentException(
+                    "Leg transport mode cannot be INTERMODAL — each leg must be one concrete mode");
+        }
+        return mode;
     }
 
     @Override

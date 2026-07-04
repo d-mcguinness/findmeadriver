@@ -79,6 +79,21 @@ public class ShipperController {
         return ResponseEntity.ok(loadService.getItineraryById(id, shipper));
     }
 
+    @PutMapping("/itineraries/{id}")
+    public ResponseEntity<ItineraryResponse> updateItinerary(
+            Authentication auth,
+            @PathVariable Long id,
+            @RequestBody CreateIntermodalLoadRequest request) {
+        Shipper shipper = getShipper(auth);
+        return ResponseEntity.ok(loadService.updateIntermodalLoad(id, shipper, request));
+    }
+
+    @PutMapping("/itineraries/{id}/cancel")
+    public ResponseEntity<ItineraryResponse> cancelItinerary(Authentication auth, @PathVariable Long id) {
+        Shipper shipper = getShipper(auth);
+        return ResponseEntity.ok(loadService.cancelItinerary(id, shipper));
+    }
+
     @PutMapping("/loads/{id}/status")
     public ResponseEntity<LoadResponse> updateLoadStatus(
             Authentication auth,

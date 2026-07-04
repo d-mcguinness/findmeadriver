@@ -13,6 +13,7 @@ import com.driverdirect.dto.OrderResponse;
 import com.driverdirect.dto.PlatformStatsResponse;
 import com.driverdirect.dto.ShipmentResponse;
 import com.driverdirect.model.Carrier;
+import com.driverdirect.model.Itinerary;
 import com.driverdirect.model.Shipper;
 import com.driverdirect.model.Load;
 import com.driverdirect.model.LoadStatus;
@@ -40,6 +41,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/admin")
@@ -313,9 +315,26 @@ public class AdminController {
 
     @GetMapping("/itineraries/{id}")
     public ResponseEntity<ItineraryResponse> getItinerary(@PathVariable Long id) {
-        return ResponseEntity.ok(itineraryRepository.findById(id)
-                .map(ItineraryResponse::from)
-                .orElseThrow(() -> new IllegalArgumentException("Itinerary not found: " + id)));
+        Itinerary it = itineraryRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Itinerary not found: " + id));
+        // Enrich with each leg's Load fields (rate/hours/licence) in one batch
+        // query — this single-itinerary fetch is what the edit form prefills from.
+        Map<Long, Load> loadsByShipmentId = loadRepository.findByShipmentIn(it.getLegs()).stream()
+                .filter(l -> l.getShipment() != null)
+                .collect(Collectors.toMap(l -> l.getShipment().getId(), l -> l));
+        return ResponseEntity.ok(ItineraryResponse.from(it, loadsByShipmentId));
+    }
+
+    @PutMapping("/itineraries/{id}")
+    public ResponseEntity<ItineraryResponse> updateItineraryAsAdmin(
+            @PathVariable Long id,
+            @RequestBody CreateIntermodalLoadRequest request) {
+        return ResponseEntity.ok(loadService.updateIntermodalLoad(id, null, request));
+    }
+
+    @PutMapping("/itineraries/{id}/cancel")
+    public ResponseEntity<ItineraryResponse> cancelItineraryAsAdmin(@PathVariable Long id) {
+        return ResponseEntity.ok(loadService.cancelItinerary(id, null));
     }
 
     @GetMapping("/locations")

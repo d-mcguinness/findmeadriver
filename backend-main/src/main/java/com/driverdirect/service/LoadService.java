@@ -33,4 +33,8 @@ public interface LoadService {
     List<ItineraryResponse> getItinerariesByShipper(Shipper shipper);
 
     ItineraryResponse getItineraryById(Long id, Shipper shipper);
+
+    ItineraryResponse updateIntermodalLoad(Long id, Shipper shipper, CreateIntermodalLoadRequest request);
+
+    ItineraryResponse cancelItinerary(Long id, Shipper shipper);
 }
