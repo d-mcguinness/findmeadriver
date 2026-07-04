@@ -144,6 +144,16 @@ export interface ItineraryLeg {
 	commissionPercent?: number;
 	commissionAmount?: number;
 	shipperTotal?: number;
+	// Per-mode pricing quantities + the Load-side fields — present only when
+	// fetched via GET one itinerary (the edit form's prefill), not in lists.
+	distanceKm?: number;
+	weightKg?: number;
+	volumeM3?: number;
+	containerCount?: number;
+	pieceCount?: number;
+	requiredLicenceCategory?: string;
+	ratePerHour?: number;
+	estimatedDurationHours?: number;
 }
 
 export interface Itinerary {
@@ -152,6 +162,8 @@ export interface Itinerary {
 	shipperName?: string;
 	orderId?: number;
 	orderTitle?: string;
+	description?: string;
+	dateNeeded?: string;
 	status?: string;
 	mode?: string;
 	currency?: string;

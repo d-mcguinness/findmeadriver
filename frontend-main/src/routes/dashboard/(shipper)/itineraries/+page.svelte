@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { Grid, Row, Column, Button, Tile, Tag, InlineNotification } from 'carbon-components-svelte';
-	import { ArrowLeft, Add, ArrowRight } from 'carbon-icons-svelte';
+	import { ArrowLeft, Add, ArrowRight, Edit, TrashCan } from 'carbon-icons-svelte';
 	import { api } from '$lib/api';
 	import { auth } from '$lib/stores/auth.svelte';
 	import { onMount } from 'svelte';
@@ -11,6 +11,7 @@
 	let itineraries = $state<Itinerary[]>([]);
 	let loading = $state(true);
 	let error = $state('');
+	let cancellingId = $state<number | null>(null);
 
 	const BASIS_LABELS: Record<string, string> = {
 		PER_KM: 'per km',
@@ -40,7 +41,7 @@
 		}
 	}
 
-	onMount(async () => {
+	async function loadItineraries() {
 		try {
 			itineraries = await api.get<Itinerary[]>(
 				auth.isAdmin ? '/api/admin/itineraries' : '/api/shipper/itineraries'
@@ -50,7 +51,22 @@
 		} finally {
 			loading = false;
 		}
-	});
+	}
+
+	async function cancelItinerary(id: number) {
+		cancellingId = id;
+		error = '';
+		try {
+			await api.put(`${auth.isAdmin ? '/api/admin' : '/api/shipper'}/itineraries/${id}/cancel`, {});
+			await loadItineraries();
+		} catch (e: any) {
+			error = e.message || 'Failed to cancel itinerary';
+		} finally {
+			cancellingId = null;
+		}
+	}
+
+	onMount(loadItineraries);
 </script>
 
 <Grid>
@@ -121,6 +137,22 @@
 								<span>Platform fee <strong>{formatMoney(it.commissionTotal, it.currency)}</strong></span>
 								<span class="grand">Total <strong>{formatMoney(it.grandTotal, it.currency)}</strong></span>
 							</div>
+
+							<div class="it-actions">
+								{#if it.status === 'PLANNED'}
+									<Button size="small" kind="ghost" icon={Edit} iconDescription="Edit itinerary"
+										href={`/dashboard/loads/post?mode=INTERMODAL&itineraryId=${it.id}`}>
+										Edit
+									</Button>
+								{/if}
+								{#if it.status === 'PLANNED' || it.status === 'IN_TRANSIT'}
+									<Button size="small" kind="danger-tertiary" icon={TrashCan}
+										disabled={cancellingId === it.id}
+										on:click={() => cancelItinerary(it.id)}>
+										{cancellingId === it.id ? 'Cancelling…' : 'Delete'}
+									</Button>
+								{/if}
+							</div>
 						</Tile>
 					{/each}
 				</div>
@@ -167,4 +199,8 @@
 		border-top: 1px solid var(--cds-border-subtle, #e0e0e0); padding-top: 0.6rem; font-size: 0.875rem;
 	}
 	.it-totals .grand { margin-left: auto; font-size: 1rem; }
+	.it-actions {
+		display: flex; gap: 0.5rem; justify-content: flex-end;
+		margin-top: 0.6rem;
+	}
 </style>

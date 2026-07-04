@@ -18,7 +18,7 @@
 	import { estimateLegCarrierCost, chargeableQuantity, chargeUnitForMode, type LegQuantities } from '$lib/pricing';
 	import { formatMoney } from '$lib/money';
 	import { HAULAGE_COUNTRIES } from '$lib/countries';
-	import type { LoadStopType } from '$lib/types';
+	import type { LoadStopType, Itinerary } from '$lib/types';
 
 	type ShipperOption = { id: number; companyName: string; email: string; country?: string };
 
@@ -87,6 +87,9 @@
 	});
 
 	let isIntermodal = $derived(loadForm.transportMode === 'INTERMODAL');
+	// Set once an existing itinerary has been loaded for editing (via
+	// ?itineraryId=), rather than posting a new one.
+	let editingItineraryId = $state<number | null>(null);
 
 	// Per-mode quantity inputs that drive the rate card (per-km / per-container /
 	// per-chargeable-kg). Left blank → the server prices on rate × hours instead.
@@ -273,7 +276,41 @@
 				shippers = [];
 			}
 		}
+
+		// Arriving via "Edit" on an existing itinerary (/dashboard/itineraries).
+		const itineraryId = page.url.searchParams.get('itineraryId');
+		if (itineraryId) {
+			await loadItineraryForEdit(Number(itineraryId));
+		}
 	});
+
+	async function loadItineraryForEdit(id: number) {
+		postError = '';
+		try {
+			const it = await api.get<Itinerary>(
+				auth.isAdmin ? `/api/admin/itineraries/${id}` : `/api/shipper/itineraries/${id}`
+			);
+			loadForm = { ...loadForm, transportMode: 'INTERMODAL', title: it.orderTitle ?? '', description: it.description ?? '', dateNeeded: it.dateNeeded ?? '' };
+			legs = (it.legs ?? []).map((l) => ({
+				clientId: `leg-${Math.random().toString(36).slice(2, 9)}`,
+				transportMode: l.mode,
+				pickupLocation: l.pickupLocation ?? '',
+				deliveryLocation: l.deliveryLocation ?? '',
+				pickupCountry: l.originCountry ?? shipperCountry,
+				deliveryCountry: l.destinationCountry ?? shipperCountry,
+				pickupCoords: null,
+				deliveryCoords: null,
+				requiredLicenceCategory: l.requiredLicenceCategory ?? 'C',
+				distanceKm: l.distanceKm ?? 100,
+				weightKg: l.weightKg ?? 100,
+				volumeM3: l.volumeM3 ?? 1,
+				containerCount: l.containerCount ?? 1
+			}));
+			editingItineraryId = it.id;
+		} catch (e: any) {
+			postError = e.message || 'Failed to load the itinerary for editing';
+		}
+	}
 
 	let routeInfo = $state<RouteInfo | null>(null);
 	// Per-stop nearby transfer availability (by mode), keyed by the stop's clientId.
@@ -519,20 +556,30 @@
 								: undefined
 					}))
 				};
-				if (auth.isAdmin) {
-					if (!selectedShipperId) {
-						postError = 'Please choose an shipper to create the load under.';
-						postLoading = false;
-						return;
-					}
-					await api.post(
-						`/api/admin/itineraries?shipperId=${encodeURIComponent(selectedShipperId)}`,
+				if (editingItineraryId) {
+					await api.put(
+						auth.isAdmin
+							? `/api/admin/itineraries/${editingItineraryId}`
+							: `/api/shipper/itineraries/${editingItineraryId}`,
 						payload
 					);
+					postSuccess = 'Itinerary updated! Redirecting...';
 				} else {
-					await api.post('/api/shipper/itineraries', payload);
+					if (auth.isAdmin) {
+						if (!selectedShipperId) {
+							postError = 'Please choose an shipper to create the load under.';
+							postLoading = false;
+							return;
+						}
+						await api.post(
+							`/api/admin/itineraries?shipperId=${encodeURIComponent(selectedShipperId)}`,
+							payload
+						);
+					} else {
+						await api.post('/api/shipper/itineraries', payload);
+					}
+					postSuccess = 'Intermodal load created! Redirecting...';
 				}
-				postSuccess = 'Intermodal load created! Redirecting...';
 				setTimeout(() => goto('/dashboard/itineraries'), 1200);
 				return;
 			}
@@ -594,12 +641,13 @@
 				</Button>
 				<h1 class="section-heading">
 					<span class="icon-badge sm"><Add size={20} /></span>
-					{isIntermodal ? 'Post an Intermodal Load' : 'Create a Load'}
+					{editingItineraryId ? 'Edit Intermodal Load' : isIntermodal ? 'Post an Intermodal Load' : 'Create a Load'}
 				</h1>
 				{#if isIntermodal}
 					<p class="sub">
-						Build a door-to-door movement from multiple legs — each with its own mode, route, and
-						rate. We price every leg with its mode's platform fee and roll them up to one total.
+						{editingItineraryId
+							? "Update this itinerary's legs and route — the number of legs can't change here; cancel and repost for that."
+							: "Build a door-to-door movement from multiple legs — each with its own mode, route, and rate. We price every leg with its mode's platform fee and roll them up to one total."}
 					</p>
 				{/if}
 			</div>
@@ -618,7 +666,7 @@
 			{/if}
 
 			<div class="form-grid">
-				{#if auth.isShipper || auth.isAdmin}
+				{#if !editingItineraryId && (auth.isShipper || auth.isAdmin)}
 					<div class="autofill-bar">
 						<Button kind="tertiary" size="small" icon={MagicWand} on:click={autofillForm}>
 							{isIntermodal ? 'Autofill with a sample intermodal route' : 'Autofill with sample data'}
@@ -632,7 +680,7 @@
 					</div>
 				{/if}
 
-				{#if auth.isAdmin}
+				{#if !editingItineraryId && auth.isAdmin}
 					<Select bind:selected={selectedShipperId}
 						labelText="Create Load On Behalf Of (Shipper)">
 						{#each shippers as emp}
@@ -653,7 +701,7 @@
 					labelText="Date Needed (YYYY-MM-DD)" placeholder="2026-04-10"
 					type="date" />
 
-				<Select bind:selected={loadForm.transportMode} labelText="Transport Mode">
+				<Select bind:selected={loadForm.transportMode} labelText="Transport Mode" disabled={!!editingItineraryId}>
 					{#each TRANSPORT_MODE_OPTIONS as opt}
 						<SelectItem value={opt.value} text={opt.label} />
 					{/each}
@@ -662,7 +710,7 @@
 
 				{#if isIntermodal}
 					<div class="legs-section">
-						{#if auth.isAdmin}
+						{#if auth.isShipper || auth.isAdmin}
 							<div class="legs-overview-map">
 								<h4>Full itinerary overview</h4>
 								<p class="legs-overview-hint">All legs linked in order, each drawn with its own mode's recommended route — real road/rail routing, sea lanes, etc. — not a straight line.</p>
@@ -672,9 +720,15 @@
 
 						<div class="legs-header">
 							<h3 class="section-heading">Legs</h3>
-							<Button kind="tertiary" size="small" icon={Add} on:click={addLeg}>Add leg</Button>
+							{#if !editingItineraryId}
+								<Button kind="tertiary" size="small" icon={Add} on:click={addLeg}>Add leg</Button>
+							{/if}
 						</div>
-						<p class="legs-hint">Legs run in order, top to bottom. Each leg is priced — and its recommended route shown — on its own mode.</p>
+						<p class="legs-hint">
+							{editingItineraryId
+								? "Legs run in order, top to bottom. Each leg is priced — and its recommended route shown — on its own mode. The number of legs can't be changed here."
+								: "Legs run in order, top to bottom. Each leg is priced — and its recommended route shown — on its own mode."}
+						</p>
 
 						{#each legs as leg, i (leg.clientId)}
 							<div class="leg-card">
@@ -687,7 +741,7 @@
 									<Button kind="ghost" size="small" icon={ArrowDown} iconDescription="Move down"
 										disabled={i === legs.length - 1} on:click={() => moveLeg(i, 1)} />
 									<Button kind="danger-ghost" size="small" icon={TrashCan} iconDescription="Remove leg"
-										disabled={legs.length <= 1} on:click={() => removeLeg(i)} />
+										disabled={legs.length <= 1 || !!editingItineraryId} on:click={() => removeLeg(i)} />
 								</div>
 
 								<div class="leg-row">
@@ -927,7 +981,15 @@
 				{/if}
 
 				<Button on:click={handleSubmit} disabled={postLoading || !loadForm.title || !loadForm.dateNeeded}>
-					{postLoading ? 'Creating...' : isIntermodal ? 'Create Intermodal Load' : 'Create a Load'}
+					{#if postLoading}
+						{editingItineraryId ? 'Saving...' : 'Creating...'}
+					{:else if editingItineraryId}
+						Save Changes
+					{:else if isIntermodal}
+						Create Intermodal Load
+					{:else}
+						Create a Load
+					{/if}
 				</Button>
 			</div>
 		</Column>

@@ -13,11 +13,22 @@ import org.springframework.stereotype.Repository;
 import java.time.LocalDate;
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface LoadRepository extends JpaRepository<Load, Long> {
 
     List<Load> findByShipperOrderByCreatedAtDesc(Shipper shipper);
+
+    // The carrier-assignment Load for one leg-Shipment — Load owns the FK, so
+    // this is the only way back from a Shipment to its Load (e.g. to cancel
+    // both sides of an intermodal leg together).
+    Optional<Load> findByShipment(Shipment shipment);
+
+    // Batch form for enriching an itinerary's legs with their Load fields
+    // (rate/hours/licence) in one query instead of N — used when fetching a
+    // single itinerary for the edit form.
+    List<Load> findByShipmentIn(Collection<Shipment> shipments);
 
     // dateNeeded now lives on TransportOrder via Shipment → ShipmentLine → Order.
     // Spring Data can't derive an ORDER BY through a collection-typed join, so
