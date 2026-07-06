@@ -14,6 +14,12 @@ public class CreateLoadRequest {
     private String deliveryLocation;
     private Double estimatedDurationHours;
     private LocalDate dateNeeded;
+    // Optional flexible-window context from a routing search (see README.md,
+    // "Proposed: multimodal routing engine"); dateNeeded above stays the
+    // authoritative single date regardless — these are richer context only.
+    private LocalDate earliestReadyDate;
+    private LocalDate latestHandoverDate;
+    private LocalDate arrivalDeadline;
     private BigDecimal ratePerHour;
     // All optional; backend falls back to the shipper's defaults.
     private String currency;

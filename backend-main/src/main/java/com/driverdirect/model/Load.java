@@ -116,6 +116,24 @@ public class Load {
         return o != null ? o.getDateNeeded() : null;
     }
 
+    // Optional flexible-window context from a routing search (see README.md,
+    // "Proposed: multimodal routing engine") — null for every load created
+    // the normal way today; getDateNeeded() above stays authoritative.
+    public LocalDate getEarliestReadyDate() {
+        TransportOrder o = orderOf();
+        return o != null ? o.getEarliestReadyDate() : null;
+    }
+
+    public LocalDate getLatestHandoverDate() {
+        TransportOrder o = orderOf();
+        return o != null ? o.getLatestHandoverDate() : null;
+    }
+
+    public LocalDate getArrivalDeadline() {
+        TransportOrder o = orderOf();
+        return o != null ? o.getArrivalDeadline() : null;
+    }
+
     public String getPickupLocation() {
         Stop s = stopOfType(Stop.StopType.PICKUP);
         return s != null && s.getLocation() != null ? s.getLocation().getName() : null;

@@ -28,6 +28,11 @@ public class ItineraryResponse {
     // mirroring LoadResponse's description/dateNeeded.
     private String description;
     private LocalDate dateNeeded;
+    // Optional flexible-window context from a routing search — surfaced for
+    // completeness; dateNeeded above stays the authoritative single date.
+    private LocalDate earliestReadyDate;
+    private LocalDate latestHandoverDate;
+    private LocalDate arrivalDeadline;
     private String status;
     private String mode; // INTERMODAL when legs span >1 mode, else the shared mode
     private String currency;
@@ -159,6 +164,9 @@ public class ItineraryResponse {
             r.setOrderTitle(it.getOrder().getTitle());
             r.setDescription(it.getOrder().getDescription());
             r.setDateNeeded(it.getOrder().getDateNeeded());
+            r.setEarliestReadyDate(it.getOrder().getEarliestReadyDate());
+            r.setLatestHandoverDate(it.getOrder().getLatestHandoverDate());
+            r.setArrivalDeadline(it.getOrder().getArrivalDeadline());
         }
         r.setStatus(it.getStatus() != null ? it.getStatus().name() : null);
         r.setMode(it.getMode() != null ? it.getMode().name() : null);
