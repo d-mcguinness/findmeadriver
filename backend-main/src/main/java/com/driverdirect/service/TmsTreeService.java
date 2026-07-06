@@ -61,6 +61,13 @@ public class TmsTreeService {
             String title,
             String description,
             java.time.LocalDate dateNeeded,
+            // Optional flexible-window context from a routing search (see
+            // README.md, "Proposed: multimodal routing engine"); null for
+            // every order created the normal way today. dateNeeded above
+            // stays the authoritative single date regardless.
+            java.time.LocalDate earliestReadyDate,
+            java.time.LocalDate latestHandoverDate,
+            java.time.LocalDate arrivalDeadline,
             String pickupLocation,
             String deliveryLocation,
             String pickupCountry,
@@ -80,7 +87,7 @@ public class TmsTreeService {
                              String pickupLocation, String deliveryLocation,
                              String pickupCountry, String deliveryCountry,
                              String currency) {
-            this(title, description, dateNeeded, pickupLocation, deliveryLocation,
+            this(title, description, dateNeeded, null, null, null, pickupLocation, deliveryLocation,
                     pickupCountry, deliveryCountry, currency, Collections.emptyList(),
                     Shipment.Mode.ROAD);
         }
@@ -92,7 +99,7 @@ public class TmsTreeService {
                              String pickupLocation, String deliveryLocation,
                              String pickupCountry, String deliveryCountry,
                              String currency, List<TmsStopInput> stops) {
-            this(title, description, dateNeeded, pickupLocation, deliveryLocation,
+            this(title, description, dateNeeded, null, null, null, pickupLocation, deliveryLocation,
                     pickupCountry, deliveryCountry, currency, stops, Shipment.Mode.ROAD);
         }
 
@@ -104,7 +111,7 @@ public class TmsTreeService {
                              String pickupLocation, String deliveryLocation,
                              String pickupCountry, String deliveryCountry,
                              String currency, Shipment.Mode mode) {
-            this(title, description, dateNeeded, pickupLocation, deliveryLocation,
+            this(title, description, dateNeeded, null, null, null, pickupLocation, deliveryLocation,
                     pickupCountry, deliveryCountry, currency, Collections.emptyList(), mode);
         }
 
@@ -140,6 +147,7 @@ public class TmsTreeService {
 
             return new TmsOrderInput(
                     req.getTitle(), req.getDescription(), req.getDateNeeded(),
+                    req.getEarliestReadyDate(), req.getLatestHandoverDate(), req.getArrivalDeadline(),
                     req.getPickupLocation(), req.getDeliveryLocation(),
                     pc, dc, c, stops, parseMode(req.getTransportMode()));
         }
@@ -233,6 +241,9 @@ public class TmsTreeService {
         order.setTitle(input.title());
         order.setDescription(input.description());
         order.setDateNeeded(input.dateNeeded());
+        order.setEarliestReadyDate(input.earliestReadyDate());
+        order.setLatestHandoverDate(input.latestHandoverDate());
+        order.setArrivalDeadline(input.arrivalDeadline());
         order.setCurrency(input.currency());
         order.setStatus(mapOrderStatus(load.getStatus()));
         order = transportOrderRepository.save(order);
@@ -282,6 +293,9 @@ public class TmsTreeService {
             order.setTitle(input.title());
             order.setDescription(input.description());
             order.setDateNeeded(input.dateNeeded());
+            order.setEarliestReadyDate(input.earliestReadyDate());
+            order.setLatestHandoverDate(input.latestHandoverDate());
+            order.setArrivalDeadline(input.arrivalDeadline());
             order.setCurrency(input.currency());
             transportOrderRepository.save(order);
         }
@@ -307,8 +321,20 @@ public class TmsTreeService {
 
     /** Order-level metadata + the ordered legs of an intermodal movement (M2). */
     public record IntermodalOrderInput(
-            String title, String description, LocalDate dateNeeded, String currency,
-            List<LegInput> legs) {}
+            String title, String description, LocalDate dateNeeded,
+            // Optional flexible-window context from a routing search — see the
+            // matching fields on TmsOrderInput. Null for every itinerary
+            // created the normal way (shipper-authored, explicit legs) today.
+            LocalDate earliestReadyDate, LocalDate latestHandoverDate, LocalDate arrivalDeadline,
+            String currency, List<LegInput> legs) {
+
+        // Legacy 5-arg constructor — every existing caller (createIntermodalLoad,
+        // updateIntermodalLoad, seed data) predates the flexible-window fields.
+        public IntermodalOrderInput(String title, String description, LocalDate dateNeeded,
+                                    String currency, List<LegInput> legs) {
+            this(title, description, dateNeeded, null, null, null, currency, legs);
+        }
+    }
 
     /** One leg of an intermodal movement: its mode, route endpoints, the carrier
      *  rate, and optional per-mode pricing quantities (priced independently,
@@ -355,6 +381,9 @@ public class TmsTreeService {
         order.setTitle(input.title());
         order.setDescription(input.description());
         order.setDateNeeded(input.dateNeeded());
+        order.setEarliestReadyDate(input.earliestReadyDate());
+        order.setLatestHandoverDate(input.latestHandoverDate());
+        order.setArrivalDeadline(input.arrivalDeadline());
         order.setCurrency(currency);
         order.setStatus(TransportOrder.OrderStatus.NEW);
         order = transportOrderRepository.save(order);
@@ -447,6 +476,9 @@ public class TmsTreeService {
             order.setTitle(input.title());
             order.setDescription(input.description());
             order.setDateNeeded(input.dateNeeded());
+            order.setEarliestReadyDate(input.earliestReadyDate());
+            order.setLatestHandoverDate(input.latestHandoverDate());
+            order.setArrivalDeadline(input.arrivalDeadline());
             order.setCurrency(input.currency());
             transportOrderRepository.save(order);
         }

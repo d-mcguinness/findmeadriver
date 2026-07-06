@@ -93,6 +93,12 @@ export interface Load {
 	stops?: LoadStop[];
 	estimatedDurationHours: number;
 	dateNeeded: string;
+	// Optional flexible-window context from a routing search (see README.md,
+	// "Proposed: multimodal routing engine"); not surfaced in any form yet —
+	// dateNeeded above stays the one date every existing UI reads.
+	earliestReadyDate?: string;
+	latestHandoverDate?: string;
+	arrivalDeadline?: string;
 	ratePerHour: number;
 	currency?: string;
 	/** Pricing (M1b): carrier cost, per-mode platform commission, shipper total. */
@@ -164,6 +170,11 @@ export interface Itinerary {
 	orderTitle?: string;
 	description?: string;
 	dateNeeded?: string;
+	// Optional flexible-window context from a routing search — not surfaced
+	// in any form yet; dateNeeded above stays the one date every existing UI reads.
+	earliestReadyDate?: string;
+	latestHandoverDate?: string;
+	arrivalDeadline?: string;
 	status?: string;
 	mode?: string;
 	currency?: string;

@@ -46,8 +46,32 @@ public class TransportOrder {
     @Column(name = "service_level", nullable = false)
     private ServiceLevel serviceLevel = ServiceLevel.STANDARD;
 
+    // dateNeeded stays the one required, authoritative date for every existing
+    // consumer (single-leg + shipper-authored intermodal creation, sorting,
+    // display) — nothing about its meaning changes. The three fields below are
+    // optional richer context from a flexible-handover routing search (see
+    // README.md, "Proposed: multimodal routing engine"): when present, they
+    // describe the window a RouteQuery searched, and dateNeeded is set to
+    // whichever handover date the accepted RouteOption actually used. All
+    // three are null for every order created the normal way today.
     @Column(name = "date_needed")
     private LocalDate dateNeeded;
+
+    /** Earliest the shipper can hand cargo over — the start of the window a
+     *  routing search explored. Null unless this order came from one. */
+    @Column(name = "earliest_ready_date")
+    private LocalDate earliestReadyDate;
+
+    /** Latest acceptable handover date — the end of the window a routing
+     *  search explored. Null unless this order came from one. */
+    @Column(name = "latest_handover_date")
+    private LocalDate latestHandoverDate;
+
+    /** The hard arrival deadline a routing search filtered on (never an
+     *  optimisation criterion — see README.md). Null unless this order came
+     *  from one; distinct from {@code dateNeeded}, which is a handover date. */
+    @Column(name = "arrival_deadline")
+    private LocalDate arrivalDeadline;
 
     @Column(length = 3, nullable = false)
     private String currency = "EUR";

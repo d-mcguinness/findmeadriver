@@ -27,6 +27,11 @@ public class LoadResponse {
     private List<StopResponse> stops;
     private Double estimatedDurationHours;
     private LocalDate dateNeeded;
+    // Optional flexible-window context from a routing search — surfaced for
+    // completeness; dateNeeded above stays the authoritative single date.
+    private LocalDate earliestReadyDate;
+    private LocalDate latestHandoverDate;
+    private LocalDate arrivalDeadline;
     private BigDecimal ratePerHour;
     private String currency;
     // Pricing (M1b): carrier cost = rate × hours; per-mode platform commission
@@ -72,6 +77,9 @@ public class LoadResponse {
                 : Collections.emptyList());
         r.setEstimatedDurationHours(load.getEstimatedDurationHours());
         r.setDateNeeded(load.getDateNeeded());
+        r.setEarliestReadyDate(load.getEarliestReadyDate());
+        r.setLatestHandoverDate(load.getLatestHandoverDate());
+        r.setArrivalDeadline(load.getArrivalDeadline());
         r.setRatePerHour(load.getRatePerHour());
         r.setCurrency(load.getCurrency());
         if (load.getShipment() != null) {

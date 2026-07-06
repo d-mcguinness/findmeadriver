@@ -92,6 +92,7 @@ public class LoadServiceImpl implements LoadService {
         Itinerary itinerary = tmsTreeService.createIntermodalTreeFor(shipper,
                 new TmsTreeService.IntermodalOrderInput(
                         request.getTitle(), request.getDescription(), request.getDateNeeded(),
+                        request.getEarliestReadyDate(), request.getLatestHandoverDate(), request.getArrivalDeadline(),
                         currency, legs));
         return ItineraryResponse.from(itinerary);
     }
@@ -117,6 +118,7 @@ public class LoadServiceImpl implements LoadService {
         tmsTreeService.updateIntermodalTreeFor(itinerary,
                 new TmsTreeService.IntermodalOrderInput(
                         request.getTitle(), request.getDescription(), request.getDateNeeded(),
+                        request.getEarliestReadyDate(), request.getLatestHandoverDate(), request.getArrivalDeadline(),
                         currency, legs));
 
         itinerary = itineraryRepository.findById(id).orElseThrow();
