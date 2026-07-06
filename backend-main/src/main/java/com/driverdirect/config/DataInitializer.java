@@ -435,6 +435,16 @@ public class DataInitializer implements CommandLineRunner {
         addLanes(liamByrne, "IE", "IE", "IE", "GB");
         addLanes(kieran, "IE", "IE");
 
+        // Two timetabled scheduled services (routing-engine step 2) on the
+        // multi-modal demo carrier: a twice-weekly short-sea sailing and a
+        // weekday air freight rotation, both anchored to typed terminals.
+        addTimetabledLane(seedCarrier, Shipment.Mode.OCEAN, "IE", "NL",
+                "Dublin Port", "Port of Rotterdam",
+                "MONDAY,THURSDAY", java.time.LocalTime.of(14, 0), 36.0);
+        addTimetabledLane(seedCarrier, Shipment.Mode.AIR, "IE", "FR",
+                "Cork Airport", "Paris Charles de Gaulle",
+                "MONDAY,TUESDAY,WEDNESDAY,THURSDAY,FRIDAY", java.time.LocalTime.of(9, 30), 2.0);
+
         // ---- Cabotage history for the demo carrier (IE-based) ----
         // GB: 2 ops in the rolling 7-day window → under the limit of 3.
         // FR: 3 ops → AT the limit, so the dashboard shows the red "blocked" tag.
@@ -498,6 +508,29 @@ public class DataInitializer implements CommandLineRunner {
         j = loadRepository.save(j);
         pricingService.priceLoad(j);
         return j;
+    }
+
+    /** A timetabled scheduled service on a lane: recurring weekly departures,
+     *  terminal-to-terminal (locations resolved by name+country from the
+     *  typed nodes seeded above). */
+    private void addTimetabledLane(Carrier carrier, Shipment.Mode mode,
+                                   String originCountry, String destinationCountry,
+                                   String originLocationName, String destinationLocationName,
+                                   String departureDays, java.time.LocalTime departureTime,
+                                   double transitHours) {
+        CarrierLane lane = new CarrierLane();
+        lane.setCarrier(carrier);
+        lane.setOriginCountry(originCountry);
+        lane.setDestinationCountry(destinationCountry);
+        lane.setServiceMode(mode);
+        lane.setDepartureDays(departureDays);
+        lane.setDepartureTime(departureTime);
+        lane.setTransitDurationHours(transitHours);
+        locationRepository.findFirstByNameIgnoreCaseAndCountry(originLocationName, originCountry)
+                .ifPresent(lane::setOriginLocation);
+        locationRepository.findFirstByNameIgnoreCaseAndCountry(destinationLocationName, destinationCountry)
+                .ifPresent(lane::setDestinationLocation);
+        carrierLaneRepository.save(lane);
     }
 
     /** Add lanes from a flat (origin, destination, origin, destination, ...) list. */

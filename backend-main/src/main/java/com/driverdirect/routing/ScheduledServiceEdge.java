@@ -8,9 +8,12 @@ import java.util.List;
 
 /**
  * A rail/sea/air service backed by a real carrier lane's timetable.
- * {@code departures} is a placeholder shape for this skeleton — the real
- * version attaches to {@code CarrierLane} once it grows timetable columns
- * (README.md build order step 2); nothing here touches that entity yet.
+ * {@code departures} is a placeholder shape for this skeleton — CarrierLane
+ * now carries the recurring weekly schedule (build-order step 2 landed:
+ * departureDays/departureTime/transitDurationHours + nextDeparture(after)),
+ * so the graph build should construct these from timetabled lanes, expanding
+ * or delegating to {@code CarrierLane.nextDeparture} rather than keeping a
+ * materialised departure list.
  */
 public record ScheduledServiceEdge(
         Long originLocationId,
