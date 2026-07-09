@@ -31,6 +31,12 @@ import java.util.Set;
 @NoArgsConstructor
 public class CarrierLane {
 
+    /** Sanity ceiling for one scheduled leg (a year). Shared by the API
+     *  validation and the graph build's fail-soft guard: an absurd or
+     *  non-finite stored value would otherwise overflow Duration arithmetic
+     *  when the lane is compiled into a ScheduledServiceEdge. */
+    public static final double MAX_TRANSIT_HOURS = 24 * 365;
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;

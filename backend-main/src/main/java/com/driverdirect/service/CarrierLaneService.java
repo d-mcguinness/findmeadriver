@@ -86,8 +86,11 @@ public class CarrierLaneService {
             throw new IllegalArgumentException(
                     "A timetable needs departureDays, departureTime and transitDurationHours together");
         }
-        if (request.getTransitDurationHours() <= 0) {
-            throw new IllegalArgumentException("transitDurationHours must be positive");
+        double transitHours = request.getTransitDurationHours();
+        if (!Double.isFinite(transitHours) || transitHours <= 0
+                || transitHours > CarrierLane.MAX_TRANSIT_HOURS) {
+            throw new IllegalArgumentException("transitDurationHours must be positive and at most "
+                    + (long) CarrierLane.MAX_TRANSIT_HOURS);
         }
 
         // Strict on input (unlike the fail-soft stored-value getter): an

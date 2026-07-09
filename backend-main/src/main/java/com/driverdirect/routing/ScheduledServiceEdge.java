@@ -2,35 +2,59 @@ package com.driverdirect.routing;
 
 import com.driverdirect.model.Shipment;
 
+import java.time.DayOfWeek;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.List;
+import java.time.LocalDate;
+import java.time.LocalTime;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.util.Collections;
+import java.util.EnumSet;
+import java.util.Set;
 
 /**
- * A rail/sea/air service backed by a real carrier lane's timetable.
- * {@code departures} is a placeholder shape for this skeleton — CarrierLane
- * now carries the recurring weekly schedule (build-order step 2 landed:
- * departureDays/departureTime/transitDurationHours + nextDeparture(after)),
- * so the graph build should construct these from timetabled lanes, expanding
- * or delegating to {@code CarrierLane.nextDeparture} rather than keeping a
- * materialised departure list.
+ * A rail/sea/air service compiled from a timetabled
+ * {@link com.driverdirect.model.CarrierLane}. Holds the recurring weekly
+ * <em>pattern</em> — days + origin-local time + zone — not a materialised
+ * departure list: {@link #nextDeparture} resolves each occurrence on the fly
+ * (at most 8 candidate days), so the graph never decays with the passage of
+ * time, far-future queries work without a planning horizon, and DST is
+ * handled per occurrence rather than baked in wrong at build time.
+ *
+ * <p>Gap/overlap semantics on DST transition days follow java.time: a
+ * departure time inside the spring-forward gap shifts forward by the gap
+ * length; a time repeated at the autumn overlap takes the earlier offset.
+ * ScheduledServiceEdgeTest pins both.
  */
 public record ScheduledServiceEdge(
         Long originLocationId,
         Long destinationLocationId,
         Shipment.Mode mode,
-        List<Instant> departures,
+        Set<DayOfWeek> departureDays,
+        LocalTime departureTime,
+        ZoneId zone,
         Duration transitDuration,
-        double baseCost,
-        double costPerKg,
-        double co2PerKg) implements ServiceEdge {
+        double distanceKm,
+        Tariff tariff) implements ServiceEdge {
+
+    public ScheduledServiceEdge {
+        departureDays = departureDays.isEmpty()
+                ? Set.of()
+                : Collections.unmodifiableSet(EnumSet.copyOf(departureDays));
+    }
 
     @Override
     public Instant nextDeparture(Instant after) {
-        return departures.stream()
-                .filter(d -> !d.isBefore(after))
-                .findFirst()
-                .orElse(null);
+        if (departureDays.isEmpty()) return null;
+        LocalDate from = after.atZone(zone).toLocalDate();
+        for (int i = 0; i <= 7; i++) {
+            LocalDate day = from.plusDays(i);
+            if (!departureDays.contains(day.getDayOfWeek())) continue;
+            Instant departure = ZonedDateTime.of(day, departureTime, zone).toInstant();
+            if (!departure.isBefore(after)) return departure;
+        }
+        return null; // unreachable with a non-empty day set, but be safe
     }
 
     @Override
@@ -40,13 +64,13 @@ public record ScheduledServiceEdge(
 
     @Override
     public double cost(CargoDetails cargo) {
-        double kg = cargo.weightKg() != null ? cargo.weightKg().doubleValue() : 0;
-        return baseCost + costPerKg * kg;
+        return tariff.cost(cargo, distanceKm);
     }
 
+    /** 0 until EmissionPolicy lands (README build order step 4): dominance
+     *  simply never differentiates on CO2 yet — it doesn't mislead. */
     @Override
     public double co2(CargoDetails cargo) {
-        double kg = cargo.weightKg() != null ? cargo.weightKg().doubleValue() : 0;
-        return co2PerKg * kg;
+        return 0;
     }
 }
