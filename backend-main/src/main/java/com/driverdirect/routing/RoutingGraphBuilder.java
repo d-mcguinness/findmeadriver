@@ -6,6 +6,7 @@ import com.driverdirect.model.Shipment;
 import com.driverdirect.repository.CarrierLaneRepository;
 import com.driverdirect.repository.LocationRepository;
 import com.driverdirect.service.PricingPolicy;
+import com.driverdirect.service.TransferPolicy;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -48,6 +49,7 @@ public class RoutingGraphBuilder {
     private final CarrierLaneRepository carrierLaneRepository;
     private final LocationRepository locationRepository;
     private final PricingPolicy pricingPolicy;
+    private final TransferPolicy transferPolicy;
 
     /** Read-only marks the build one non-flushing transaction. Note it does
      *  NOT make the two reads one consistent snapshot — they run at
@@ -68,11 +70,38 @@ public class RoutingGraphBuilder {
         }
 
         // Transfer profiles have no table yet (build-order step 2's second
-        // half); an empty map means "no transfers possible", which the search
-        // treats as such — see RoutingGraph.transferProfile. RoutingGraph's
-        // compact constructor deep-freezes the maps and lists.
-        return new RoutingGraph(edges, Map.of(), locations,
+        // half), so every typed terminal gets the TransferPolicy code
+        // defaults compiled in — without them "no profile = no transfer
+        // possible" would block every mode change and the search could never
+        // assemble an intermodal route. RoutingGraph's compact constructor
+        // deep-freezes the maps and lists.
+        return new RoutingGraph(edges, defaultTransferProfiles(locations), locations,
                 Tariff.from(pricingPolicy.rateCardFor(Shipment.Mode.ROAD)));
+    }
+
+    /** TransferPolicy defaults per typed terminal: every ordered pair of the
+     *  modes that terminal type handles, plus same-mode interchange for the
+     *  scheduled modes (RAIL/OCEAN/AIR) so a vessel→vessel / train→train
+     *  transshipment at a shared hub is costed like any other. ROAD self-pair
+     *  is skipped — road→road is one truck driving on, never an interchange.
+     *  ADDRESS locations get nothing. */
+    private Map<Long, List<TransferProfile>> defaultTransferProfiles(Map<Long, LocationNode> locations) {
+        Map<Long, List<TransferProfile>> byLocation = new HashMap<>();
+        for (LocationNode node : locations.values()) {
+            Set<Shipment.Mode> modes = transferPolicy.modesHandledAt(node.type());
+            if (modes.size() < 2) continue;
+            List<TransferProfile> profiles = new ArrayList<>();
+            for (Shipment.Mode from : modes) {
+                for (Shipment.Mode to : modes) {
+                    if (from == to && from == Shipment.Mode.ROAD) continue;
+                    profiles.add(new TransferProfile(node.id(), from, to,
+                            transferPolicy.transferCost(from, to),
+                            transferPolicy.transferDwellMinutes(from, to)));
+                }
+            }
+            byLocation.put(node.id(), profiles);
+        }
+        return byLocation;
     }
 
     /** One timetabled lane → one scheduled edge; null (logged) when the lane
@@ -121,7 +150,9 @@ public class RoutingGraphBuilder {
         return new ScheduledServiceEdge(
                 origin.id(), destination.id(), lane.getServiceMode(),
                 days, lane.getDepartureTime(), origin.zone(),
-                Duration.ofMinutes(Math.round(transitHours * 60)),
+                // Floor at 1 minute: a zero-duration edge would let the
+                // search chain hops without advancing time.
+                Duration.ofMinutes(Math.max(1, Math.round(transitHours * 60))),
                 distanceKm, Tariff.from(card));
     }
 }

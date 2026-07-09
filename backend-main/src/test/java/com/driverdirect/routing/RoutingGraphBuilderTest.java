@@ -7,6 +7,7 @@ import com.driverdirect.model.Shipment;
 import com.driverdirect.repository.CarrierLaneRepository;
 import com.driverdirect.repository.LocationRepository;
 import com.driverdirect.service.PricingPolicy;
+import com.driverdirect.service.TransferPolicy;
 import org.junit.jupiter.api.Test;
 
 import java.time.DayOfWeek;
@@ -34,13 +35,15 @@ class RoutingGraphBuilderTest {
 
     private final CarrierLaneRepository laneRepository = mock(CarrierLaneRepository.class);
     private final LocationRepository locationRepository = mock(LocationRepository.class);
-    private final RoutingGraphBuilder builder =
-            new RoutingGraphBuilder(laneRepository, locationRepository, new PricingPolicy());
+    private final RoutingGraphBuilder builder = new RoutingGraphBuilder(
+            laneRepository, locationRepository, new PricingPolicy(), new TransferPolicy());
 
     private final Location dublinPort = location(10L, "Dublin Port", Location.LocationType.SEAPORT,
             "IE", 53.3498, -6.2603, "Europe/Dublin");
     private final Location rotterdam = location(20L, "Rotterdam Europoort", Location.LocationType.SEAPORT,
             "NL", 51.9496, 4.1453, "Europe/Amsterdam");
+    private final Location addressStop = location(30L, "Acme DC", Location.LocationType.ADDRESS,
+            "IE", 53.30, -6.30, null);
 
     private static Location location(Long id, String name, Location.LocationType type,
                                      String country, Double lat, Double lon, String timezone) {
@@ -70,7 +73,7 @@ class RoutingGraphBuilderTest {
     }
 
     private RoutingGraph buildWith(CarrierLane... lanes) {
-        when(locationRepository.findAll()).thenReturn(List.of(dublinPort, rotterdam));
+        when(locationRepository.findAll()).thenReturn(List.of(dublinPort, rotterdam, addressStop));
         when(laneRepository.findTimetabledWithTerminals()).thenReturn(List.of(lanes));
         return builder.build();
     }
@@ -162,8 +165,26 @@ class RoutingGraphBuilderTest {
         // the live PricingPolicy mid-search.
         assertThat(graph.roadTariff().unit()).isEqualTo(ChargeUnit.PER_KM);
         assertThat(graph.roadTariff().minimumCharge()).isEqualTo(150.0);
-        // No transfer-profile table yet: absent means "no transfer possible".
-        assertThat(graph.transferProfile(10L, Shipment.Mode.OCEAN, Shipment.Mode.ROAD)).isNull();
+    }
+
+    @Test
+    void typedTerminalsGetDefaultTransferProfiles() {
+        // No per-location transfer table yet — TransferPolicy code defaults
+        // are compiled into the snapshot so mode changes are possible at all.
+        RoutingGraph graph = buildWith(oceanLane());
+        assertThat(graph.transferProfile(10L, Shipment.Mode.ROAD, Shipment.Mode.OCEAN)).isNotNull();
+        // Cost/dwell = the harder side's handling (OCEAN: 150 / 360 min).
+        assertThat(graph.transferProfile(10L, Shipment.Mode.OCEAN, Shipment.Mode.ROAD).cost())
+                .isEqualTo(150.0);
+        assertThat(graph.transferProfile(10L, Shipment.Mode.RAIL, Shipment.Mode.OCEAN)).isNotNull();
+        // Same-mode scheduled interchange (vessel→vessel) is costed too...
+        assertThat(graph.transferProfile(10L, Shipment.Mode.OCEAN, Shipment.Mode.OCEAN)).isNotNull();
+        // ...but road→road self-transfer is not (one truck driving on).
+        assertThat(graph.transferProfile(10L, Shipment.Mode.ROAD, Shipment.Mode.ROAD)).isNull();
+        // A seaport doesn't handle air.
+        assertThat(graph.transferProfile(10L, Shipment.Mode.ROAD, Shipment.Mode.AIR)).isNull();
+        // A plain address transfers nothing.
+        assertThat(graph.transferProfile(30L, Shipment.Mode.ROAD, Shipment.Mode.OCEAN)).isNull();
     }
 
     @Test

@@ -106,8 +106,10 @@ public class CarrierLaneService {
                 .distinct()
                 .collect(Collectors.joining(","));
 
-        // A scheduled service is one concrete mode; INTERMODAL is a derived,
-        // multi-leg-only label (same rule as load creation).
+        // A scheduled service is one concrete mode. INTERMODAL is a derived,
+        // multi-leg-only label; PARCEL has no routing-graph support yet
+        // (TransferPolicy pairs no terminal with it), so both are rejected —
+        // a timetabled service is ROAD, RAIL, OCEAN or AIR.
         Shipment.Mode mode;
         try {
             mode = Shipment.Mode.valueOf(request.getServiceMode() == null
@@ -115,8 +117,9 @@ public class CarrierLaneService {
         } catch (IllegalArgumentException e) {
             throw new IllegalArgumentException("A timetable needs a serviceMode (RAIL, OCEAN, AIR or ROAD)");
         }
-        if (mode == Shipment.Mode.INTERMODAL) {
-            throw new IllegalArgumentException("serviceMode cannot be INTERMODAL — one concrete mode per service");
+        if (mode == Shipment.Mode.INTERMODAL || mode == Shipment.Mode.PARCEL) {
+            throw new IllegalArgumentException(
+                    "serviceMode must be ROAD, RAIL, OCEAN or AIR — one concrete, routable mode per service");
         }
 
         lane.setServiceMode(mode);

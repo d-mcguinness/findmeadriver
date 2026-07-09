@@ -34,7 +34,9 @@ public record RoadEdge(
 
     @Override
     public Instant arrivalTime(Instant departure) {
-        return departure.plus(Duration.ofMinutes((long) (distanceKm / avgSpeedKph * 60)));
+        // Floor at 1 minute: a zero-duration edge would let the search chain
+        // road hops without advancing time.
+        return departure.plus(Duration.ofMinutes(Math.max(1, (long) (distanceKm / avgSpeedKph * 60))));
     }
 
     @Override

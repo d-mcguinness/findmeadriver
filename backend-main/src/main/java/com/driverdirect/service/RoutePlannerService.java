@@ -23,10 +23,11 @@ import java.util.List;
  * this network's size; the named escape hatch if that ever changes is a
  * short-TTL memoisation here — not a cron.
  *
- * <p>{@link RoutePlanner#findOptions} still throws
- * UnsupportedOperationException — the label-setting search is the back half
- * of README build-order step 3. This seam exists so the populate strategy
- * is settled and exercised before the search lands.
+ * <p>{@link RoutePlanner#findOptions} runs build-order step 3's search:
+ * the cheapest deadline-satisfying option for one handover day, or the
+ * fastest-possible option when the deadline can't be met (its arrival past
+ * the deadline is the caller's signal). Pareto on (cost, CO2) is step 4;
+ * the flexible-window loop is step 5.
  */
 @Service
 @RequiredArgsConstructor
