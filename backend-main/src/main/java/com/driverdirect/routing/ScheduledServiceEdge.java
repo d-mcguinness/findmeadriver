@@ -36,7 +36,7 @@ public record ScheduledServiceEdge(
         ZoneId zone,
         Duration transitDuration,
         double distanceKm,
-        Tariff tariff) implements ServiceEdge {
+        LegRates rates) implements ServiceEdge {
 
     public ScheduledServiceEdge {
         departureDays = departureDays.isEmpty()
@@ -64,13 +64,11 @@ public record ScheduledServiceEdge(
 
     @Override
     public double cost(CargoDetails cargo) {
-        return tariff.cost(cargo, distanceKm);
+        return rates.cost(cargo, distanceKm);
     }
 
-    /** 0 until EmissionPolicy lands (README build order step 4): dominance
-     *  simply never differentiates on CO2 yet — it doesn't mislead. */
     @Override
     public double co2(CargoDetails cargo) {
-        return 0;
+        return rates.co2(cargo, distanceKm);
     }
 }

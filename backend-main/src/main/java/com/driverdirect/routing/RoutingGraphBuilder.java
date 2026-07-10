@@ -5,6 +5,7 @@ import com.driverdirect.model.Location;
 import com.driverdirect.model.Shipment;
 import com.driverdirect.repository.CarrierLaneRepository;
 import com.driverdirect.repository.LocationRepository;
+import com.driverdirect.service.EmissionPolicy;
 import com.driverdirect.service.PricingPolicy;
 import com.driverdirect.service.TransferPolicy;
 import lombok.RequiredArgsConstructor;
@@ -50,6 +51,7 @@ public class RoutingGraphBuilder {
     private final LocationRepository locationRepository;
     private final PricingPolicy pricingPolicy;
     private final TransferPolicy transferPolicy;
+    private final EmissionPolicy emissionPolicy;
 
     /** Read-only marks the build one non-flushing transaction. Note it does
      *  NOT make the two reads one consistent snapshot — they run at
@@ -76,7 +78,8 @@ public class RoutingGraphBuilder {
         // assemble an intermodal route. RoutingGraph's compact constructor
         // deep-freezes the maps and lists.
         return new RoutingGraph(edges, defaultTransferProfiles(locations), locations,
-                Tariff.from(pricingPolicy.rateCardFor(Shipment.Mode.ROAD)));
+                LegRates.from(pricingPolicy.rateCardFor(Shipment.Mode.ROAD),
+                        emissionPolicy.kgCo2ePerTonneKm(Shipment.Mode.ROAD)));
     }
 
     /** TransferPolicy defaults per typed terminal: every ordered pair of the
@@ -153,6 +156,7 @@ public class RoutingGraphBuilder {
                 // Floor at 1 minute: a zero-duration edge would let the
                 // search chain hops without advancing time.
                 Duration.ofMinutes(Math.max(1, Math.round(transitHours * 60))),
-                distanceKm, Tariff.from(card));
+                distanceKm,
+                LegRates.from(card, emissionPolicy.kgCo2ePerTonneKm(lane.getServiceMode())));
     }
 }

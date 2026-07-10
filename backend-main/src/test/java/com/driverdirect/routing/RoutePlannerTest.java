@@ -5,24 +5,28 @@ import com.driverdirect.model.Location;
 import com.driverdirect.model.Shipment;
 import org.junit.jupiter.api.Test;
 
+import java.math.BigDecimal;
 import java.time.DayOfWeek;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.ZoneId;
+import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.within;
 
 /**
- * The step-3 search on hand-built graphs: cheapest time-dependent option
- * with deadline pruning, virtual road legs (direct + feeder), transfers
- * gated by TransferProfile, waiting for scheduled departures, and the
- * fastest-possible fallback when nothing meets the deadline.
+ * The step-3/4 search on hand-built graphs: the cheapest time-dependent
+ * option with deadline pruning, the (cost, CO2) Pareto front when options
+ * genuinely trade off, virtual road legs (direct + feeder), transfers gated
+ * by TransferProfile (incl. same-mode hub interchange), waiting for
+ * scheduled departures, and the fastest-possible fallback.
  *
  * <p>Geography: an origin address ~5 km from Dublin Port, a daily/weekly
  * sailing to Rotterdam, and a destination address ~25 km beyond it. Road
@@ -31,10 +35,14 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  */
 class RoutePlannerTest {
 
-    private static final Tariff ROAD = new Tariff(ChargeUnit.PER_KM, 50, 1.20, 150);
+    private static final LegRates ROAD =
+            new LegRates(new Tariff(ChargeUnit.PER_KM, 50, 1.20, 150), 0.075);
     /** Deliberately cheap sailing so intermodal beats direct road on cost. */
-    private static final Tariff CHEAP_OCEAN = new Tariff(ChargeUnit.PER_CONTAINER, 0, 10, 10);
+    private static final LegRates CHEAP_OCEAN =
+            new LegRates(new Tariff(ChargeUnit.PER_CONTAINER, 0, 10, 10), 0.012);
     private static final CargoDetails ONE_CONTAINER = new CargoDetails(null, null, 1, null);
+    /** 20 tonnes in one container — weight makes CO2 (and the Pareto front) real. */
+    private static final CargoDetails LADEN = new CargoDetails(BigDecimal.valueOf(20000), null, 1, null);
     /** 2026-07-06 is a Monday; start = 00:00 Dublin = 2026-07-05T23:00Z. */
     private static final LocalDate MONDAY = LocalDate.of(2026, 7, 6);
     private static final Instant START = Instant.parse("2026-07-05T23:00:00Z");
@@ -84,6 +92,41 @@ class RoutePlannerTest {
         assertThat(option.arrival())
                 .isAfter(Instant.parse("2026-07-07T07:00:00Z"))
                 .isBefore(Instant.parse("2026-07-07T10:00:00Z"));
+    }
+
+    @Test
+    void returnsTheCostCo2ParetoFrontWhenOptionsTradeOff() {
+        // Two direct sailings-of-different-mode between one port pair: RAIL is
+        // cheaper but dirtier, OCEAN pricier but greener — a genuine two-point
+        // (cost, CO2) front, both boarded from the seed (no transfer needed).
+        ScheduledServiceEdge rail = new ScheduledServiceEdge(1L, 2L, Shipment.Mode.RAIL,
+                EnumSet.allOf(DayOfWeek.class), LocalTime.of(8, 0), ZoneId.of("Europe/Dublin"),
+                Duration.ofHours(12), 800.0,
+                new LegRates(new Tariff(ChargeUnit.PER_CONTAINER, 0, 600, 600), 0.025));
+        ScheduledServiceEdge ocean = new ScheduledServiceEdge(1L, 2L, Shipment.Mode.OCEAN,
+                EnumSet.allOf(DayOfWeek.class), LocalTime.of(8, 0), ZoneId.of("Europe/Dublin"),
+                Duration.ofHours(24), 800.0,
+                new LegRates(new Tariff(ChargeUnit.PER_CONTAINER, 350, 1800, 1800), 0.012));
+        LocationNode portA = node(1, Location.LocationType.SEAPORT, 53.34, -6.20, "Europe/Dublin");
+        LocationNode portB = node(2, Location.LocationType.SEAPORT, 51.95, 4.14, "Europe/Amsterdam");
+        RoutingGraph graph = new RoutingGraph(
+                Map.of(1L, List.of(rail, ocean)), Map.of(),
+                Map.of(1L, portA, 2L, portB), ROAD);
+
+        List<RouteOption> options = new RoutePlanner(graph).findOptions(
+                new RouteQuery(1L, 2L, LADEN, MONDAY, null, null));
+
+        // Cost ascending: cheap-dirty RAIL, then pricey-green OCEAN. The direct
+        // road option (pricier AND dirtier than rail) is Pareto-dominated out.
+        assertThat(options).hasSize(2);
+        assertThat(options).extracting(RouteOption::legs)
+                .allSatisfy(legs -> assertThat(legs).hasSize(1));
+        assertThat(options.get(0).legs().get(0).mode()).isEqualTo(Shipment.Mode.RAIL);
+        assertThat(options.get(0).totalCost()).isEqualTo(600.0);
+        assertThat(options.get(0).totalCo2()).isCloseTo(800 * 20 * 0.025, within(0.01)); // 400
+        assertThat(options.get(1).legs().get(0).mode()).isEqualTo(Shipment.Mode.OCEAN);
+        assertThat(options.get(1).totalCost()).isEqualTo(2150.0);
+        assertThat(options.get(1).totalCo2()).isCloseTo(800 * 20 * 0.012, within(0.01)); // 192
     }
 
     @Test
@@ -233,5 +276,40 @@ class RoutePlannerTest {
                 new RouteQuery(1L, 4L, ONE_CONTAINER, null, null, null)))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("earliestReady");
+    }
+
+    // ---- Output projection + thinning (package-private statics) ----
+
+    private static Label label(double cost, double co2) {
+        return new Label(2L, Shipment.Mode.OCEAN, Instant.parse("2026-07-06T00:00:00Z"),
+                cost, co2, null, null);
+    }
+
+    @Test
+    void costCo2FrontKeepsTheParetoStaircase() {
+        Label cheap = label(600, 400);
+        Label dominated = label(1000, 500); // pricier AND dirtier than cheap
+        Label green = label(2150, 192);
+        List<Label> front = RoutePlanner.costCo2Front(List.of(dominated, green, cheap));
+        assertThat(front).containsExactly(cheap, green); // dominated dropped, cost-sorted
+    }
+
+    @Test
+    void thinFrontDropsEpsilonNearDuplicates() {
+        Label a = label(600, 400);
+        Label b = label(610, 398); // within 5% on both axes → same ε-grid cell
+        assertThat(RoutePlanner.thinFront(List.of(a, b))).containsExactly(a);
+    }
+
+    @Test
+    void thinFrontCapsAtSixKeepingEndpoints() {
+        List<Label> front = new ArrayList<>();
+        for (int i = 0; i < 10; i++) {
+            front.add(label(100 * (i + 1), 1000 - 100 * i)); // 10 well-separated points
+        }
+        List<Label> thinned = RoutePlanner.thinFront(front);
+        assertThat(thinned).hasSize(RoutePlanner.MAX_OPTIONS);
+        assertThat(thinned.get(0)).isEqualTo(front.get(0)); // cheapest kept
+        assertThat(thinned.get(thinned.size() - 1)).isEqualTo(front.get(9)); // greenest kept
     }
 }

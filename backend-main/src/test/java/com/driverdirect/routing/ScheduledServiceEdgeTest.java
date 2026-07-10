@@ -28,12 +28,12 @@ class ScheduledServiceEdgeTest {
     private static final ZoneId DUBLIN = ZoneId.of("Europe/Dublin");
     private static final ZoneId PARIS = ZoneId.of("Europe/Paris");
 
-    private static final Tariff OCEAN_TARIFF =
-            new Tariff(ChargeUnit.PER_CONTAINER, 350, 1800, 1800);
+    private static final LegRates OCEAN_RATES =
+            new LegRates(new Tariff(ChargeUnit.PER_CONTAINER, 350, 1800, 1800), 0.012);
 
     private ScheduledServiceEdge edge(Set<DayOfWeek> days, LocalTime time, ZoneId zone) {
         return new ScheduledServiceEdge(1L, 2L, Shipment.Mode.OCEAN,
-                days, time, zone, Duration.ofHours(36), 720.0, OCEAN_TARIFF);
+                days, time, zone, Duration.ofHours(36), 720.0, OCEAN_RATES);
     }
 
     @Test
@@ -121,6 +121,16 @@ class ScheduledServiceEdgeTest {
         // Missing the metered quantity → the minimum charge stands in as floor.
         CargoDetails unknown = new CargoDetails(BigDecimal.valueOf(500), null, null, null);
         assertThat(e.cost(unknown)).isEqualTo(1800);
+    }
+
+    @Test
+    void co2IsDistanceByTonnesByFactor() {
+        // 720 km × (20000 kg / 1000) tonnes × 0.012 kg/t·km = 172.8 kg CO2e.
+        ScheduledServiceEdge e = edge(Set.of(DayOfWeek.MONDAY), LocalTime.of(14, 0), DUBLIN);
+        CargoDetails twentyTonnes = new CargoDetails(BigDecimal.valueOf(20000), null, 1, null);
+        assertThat(e.co2(twentyTonnes)).isEqualTo(720.0 * 20 * 0.012);
+        // No weight → no emissions figure (search just doesn't differentiate).
+        assertThat(e.co2(new CargoDetails(null, null, 1, null))).isZero();
     }
 
     @Test

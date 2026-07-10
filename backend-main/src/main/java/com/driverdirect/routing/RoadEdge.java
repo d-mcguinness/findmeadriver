@@ -11,16 +11,16 @@ import java.time.Instant;
  * virtual". One of these is created per candidate location pair within
  * radius, not precomputed for every pair up front. The search constructs it
  * from the snapshot alone: coordinates from {@link LocationNode}, rates from
- * {@link RoutingGraph#roadTariff()} — never from live repositories or the
- * live pricing bean, so a query's ~30 flexible-window searches all price
- * consistently.
+ * {@link RoutingGraph#roadRates()} — never from live repositories or the
+ * live pricing/emission beans, so a query's ~30 flexible-window searches all
+ * price consistently.
  */
 public record RoadEdge(
         Long originLocationId,
         Long destinationLocationId,
         double distanceKm,
         double avgSpeedKph,
-        Tariff tariff) implements ServiceEdge {
+        LegRates rates) implements ServiceEdge {
 
     @Override
     public Shipment.Mode mode() {
@@ -41,12 +41,11 @@ public record RoadEdge(
 
     @Override
     public double cost(CargoDetails cargo) {
-        return tariff.cost(cargo, distanceKm);
+        return rates.cost(cargo, distanceKm);
     }
 
-    /** 0 until EmissionPolicy lands (README build order step 4). */
     @Override
     public double co2(CargoDetails cargo) {
-        return 0;
+        return rates.co2(cargo, distanceKm);
     }
 }

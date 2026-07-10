@@ -24,7 +24,7 @@ public record RoutingGraph(
         Map<Long, List<ServiceEdge>> edgesByOriginLocation,
         Map<Long, List<TransferProfile>> transferProfilesByLocation,
         Map<Long, LocationNode> locations,
-        Tariff roadTariff) {
+        LegRates roadRates) {
 
     public RoutingGraph {
         // Deep-freeze (Map.copyOf alone would leave the value lists mutable):

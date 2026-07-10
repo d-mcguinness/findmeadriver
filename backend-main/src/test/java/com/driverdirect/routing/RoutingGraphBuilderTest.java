@@ -6,6 +6,7 @@ import com.driverdirect.model.Location;
 import com.driverdirect.model.Shipment;
 import com.driverdirect.repository.CarrierLaneRepository;
 import com.driverdirect.repository.LocationRepository;
+import com.driverdirect.service.EmissionPolicy;
 import com.driverdirect.service.PricingPolicy;
 import com.driverdirect.service.TransferPolicy;
 import org.junit.jupiter.api.Test;
@@ -36,7 +37,8 @@ class RoutingGraphBuilderTest {
     private final CarrierLaneRepository laneRepository = mock(CarrierLaneRepository.class);
     private final LocationRepository locationRepository = mock(LocationRepository.class);
     private final RoutingGraphBuilder builder = new RoutingGraphBuilder(
-            laneRepository, locationRepository, new PricingPolicy(), new TransferPolicy());
+            laneRepository, locationRepository, new PricingPolicy(), new TransferPolicy(),
+            new EmissionPolicy());
 
     private final Location dublinPort = location(10L, "Dublin Port", Location.LocationType.SEAPORT,
             "IE", 53.3498, -6.2603, "Europe/Dublin");
@@ -90,8 +92,10 @@ class RoutingGraphBuilderTest {
         assertThat(edge.departureTime()).isEqualTo(LocalTime.of(8, 0));
         assertThat(edge.zone()).isEqualTo(ZoneId.of("Europe/Dublin")); // origin's zone
         assertThat(edge.transitDuration()).isEqualTo(Duration.ofHours(36));
-        assertThat(edge.tariff().unit()).isEqualTo(ChargeUnit.PER_CONTAINER);
-        assertThat(edge.tariff().minimumCharge()).isEqualTo(1800.0);
+        assertThat(edge.rates().tariff().unit()).isEqualTo(ChargeUnit.PER_CONTAINER);
+        assertThat(edge.rates().tariff().minimumCharge()).isEqualTo(1800.0);
+        // OCEAN carbon factor compiled onto the edge (kg CO2e per tonne-km).
+        assertThat(edge.rates().co2PerTonneKm()).isEqualTo(0.012);
         // Great-circle Dublin → Rotterdam ≈ 718 km.
         assertThat(edge.distanceKm()).isBetween(650.0, 780.0);
     }
@@ -162,9 +166,10 @@ class RoutingGraphBuilderTest {
         assertThat(graph.location(10L).name()).isEqualTo("Dublin Port");
         assertThat(graph.location(10L).hasCoordinates()).isTrue();
         // Road rates ride along so virtual RoadEdge generation never touches
-        // the live PricingPolicy mid-search.
-        assertThat(graph.roadTariff().unit()).isEqualTo(ChargeUnit.PER_KM);
-        assertThat(graph.roadTariff().minimumCharge()).isEqualTo(150.0);
+        // the live PricingPolicy/EmissionPolicy mid-search.
+        assertThat(graph.roadRates().tariff().unit()).isEqualTo(ChargeUnit.PER_KM);
+        assertThat(graph.roadRates().tariff().minimumCharge()).isEqualTo(150.0);
+        assertThat(graph.roadRates().co2PerTonneKm()).isEqualTo(0.075);
     }
 
     @Test
@@ -202,7 +207,7 @@ class RoutingGraphBuilderTest {
     void recordDeepFreezesHandBuiltGraphsToo() {
         // The immutability guarantee lives in the record's compact
         // constructor, not in the builder: mutable inputs are frozen.
-        Tariff road = new Tariff(ChargeUnit.PER_KM, 50, 1.20, 150);
+        LegRates road = new LegRates(new Tariff(ChargeUnit.PER_KM, 50, 1.20, 150), 0.075);
         ServiceEdge edge = new RoadEdge(1L, 2L, 100, 70, road);
         RoutingGraph graph = new RoutingGraph(
                 new HashMap<>(Map.of(1L, new ArrayList<>(List.of(edge)))),
