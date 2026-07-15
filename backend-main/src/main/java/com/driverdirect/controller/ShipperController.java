@@ -7,6 +7,7 @@ import com.driverdirect.repository.ShipperRepository;
 import com.driverdirect.service.LoadApplicationService;
 import com.driverdirect.service.LoadService;
 import com.driverdirect.service.RatingService;
+import com.driverdirect.service.RoutePlannerService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -26,6 +27,7 @@ public class ShipperController {
     private final LoadService loadService;
     private final LoadApplicationService applicationService;
     private final RatingService ratingService;
+    private final RoutePlannerService routePlannerService;
 
     @PostMapping("/loads")
     public ResponseEntity<LoadResponse> createLoad(
@@ -54,6 +56,43 @@ public class ShipperController {
             @RequestBody CreateLoadRequest request) {
         Shipper shipper = getShipper(auth);
         return ResponseEntity.ok(loadService.updateLoad(id, shipper, request));
+    }
+
+    // ---- Routing engine: propose door-to-door options (com.driverdirect.routing) ----
+
+    /**
+     * Propose Pareto-best (cost, CO2) routes for a cargo between two known
+     * locations. Read-only planning — nothing is persisted; the shipper then
+     * accepts an option and posts its legs through the existing itinerary
+     * flow. Unknown location / same origin-destination / missing earliestReady
+     * surface as 400 via {@link GlobalExceptionHandler}; an unreachable
+     * destination is an empty list, not an error.
+     */
+    @PostMapping("/route-options")
+    public ResponseEntity<List<RouteOptionResponse>> planRoutes(
+            Authentication auth,
+            @RequestBody RouteQueryRequest request) {
+        Shipper shipper = getShipper(auth);
+        // Tenant-scoped: a shipper can only route between public reference
+        // nodes and its own locations (see RoutePlannerService).
+        return ResponseEntity.ok(routePlannerService.planRoutesForShipper(request.toQuery(), shipper));
+    }
+
+    /**
+     * Accept a proposed route (the routing engine's integration point): the
+     * chosen option is re-planned + matched server-side, materialised as a
+     * draft PLANNED {@code Itinerary} through the existing intermodal-create
+     * flow, and its legs then fill through the normal Load-per-leg
+     * marketplace. Read-only planning becomes a real posting here.
+     */
+    @PostMapping("/route-options/accept")
+    public ResponseEntity<ItineraryResponse> acceptRoute(
+            Authentication auth,
+            @RequestBody AcceptRouteRequest request) {
+        Shipper shipper = getShipper(auth);
+        CreateIntermodalLoadRequest itinerary = routePlannerService.buildAcceptedItinerary(request, shipper);
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(loadService.createIntermodalLoad(shipper, itinerary));
     }
 
     // ---- Intermodal (M2b): post a multi-leg movement ----

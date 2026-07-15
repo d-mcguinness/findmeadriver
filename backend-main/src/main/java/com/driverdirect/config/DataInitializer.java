@@ -175,14 +175,34 @@ public class DataInitializer implements CommandLineRunner {
         // ---- Reference geography (M3): typed port/airport/terminal nodes ----
         // Seeded BEFORE loads so the tree builder's name+country upsert reuses
         // them — existing road/sea/air/rail loads then anchor on real nodes.
-        seedNode("Dublin Port", "IE", Location.LocationType.SEAPORT, "IEDUB", null);
-        seedNode("Port of Rotterdam", "NL", Location.LocationType.SEAPORT, "NLRTM", null);
-        seedNode("Ringaskiddy Port", "IE", Location.LocationType.SEAPORT, "IERAK", null);
-        seedNode("Cork Airport", "IE", Location.LocationType.AIRPORT, null, "ORK");
-        seedNode("Paris Charles de Gaulle", "FR", Location.LocationType.AIRPORT, null, "CDG");
-        seedNode("Madrid Barajas", "ES", Location.LocationType.AIRPORT, null, "MAD");
-        seedNode("Dublin North Wall", "IE", Location.LocationType.RAIL_TERMINAL, "IEDUB", null);
-        seedNode("Ballina Railhead", "IE", Location.LocationType.RAIL_TERMINAL, null, null);
+        // Coordinates + IANA timezone are load-bearing for the routing engine
+        // (steps 3–4): without lat/lng there are no virtual road legs, leg
+        // distances are 0 (so PER_KM pricing and all CO2 collapse), and A*
+        // deadline pruning can't run; timezone resolves origin-local
+        // departures instead of the UTC fallback.
+        seedNode("Dublin Port", "IE", Location.LocationType.SEAPORT, "IEDUB", null,
+                53.3499, -6.2076, "Europe/Dublin");
+        seedNode("Port of Rotterdam", "NL", Location.LocationType.SEAPORT, "NLRTM", null,
+                51.9550, 4.1420, "Europe/Amsterdam");
+        seedNode("Ringaskiddy Port", "IE", Location.LocationType.SEAPORT, "IERAK", null,
+                51.8300, -8.3130, "Europe/Dublin");
+        seedNode("Cork Airport", "IE", Location.LocationType.AIRPORT, null, "ORK",
+                51.8413, -8.4911, "Europe/Dublin");
+        seedNode("Paris Charles de Gaulle", "FR", Location.LocationType.AIRPORT, null, "CDG",
+                49.0097, 2.5479, "Europe/Paris");
+        seedNode("Madrid Barajas", "ES", Location.LocationType.AIRPORT, null, "MAD",
+                40.4719, -3.5626, "Europe/Madrid");
+        seedNode("Dublin North Wall", "IE", Location.LocationType.RAIL_TERMINAL, "IEDUB", null,
+                53.3489, -6.2280, "Europe/Dublin");
+        seedNode("Ballina Railhead", "IE", Location.LocationType.RAIL_TERMINAL, null, null,
+                54.1150, -9.1530, "Europe/Dublin");
+        // Continental nodes backing the competing multi-mode services below
+        // (a French seaport nearer Paris than Rotterdam, and a rail hub the
+        // Rotterdam sailing can feed for a sea→rail intermodal option).
+        seedNode("Le Havre", "FR", Location.LocationType.SEAPORT, "FRLEH", null,
+                49.4820, 0.1200, "Europe/Paris");
+        seedNode("Lille Rail Terminal", "FR", Location.LocationType.RAIL_TERMINAL, null, null,
+                50.6300, 3.0700, "Europe/Paris");
 
         // ---- Loads across all statuses ----
         Load j1 = createLoad(acme, "Pallet run Dublin → Cork",
@@ -445,6 +465,27 @@ public class DataInitializer implements CommandLineRunner {
                 "Cork Airport", "Paris Charles de Gaulle",
                 "MONDAY,TUESDAY,WEDNESDAY,THURSDAY,FRIDAY", java.time.LocalTime.of(9, 30), 2.0);
 
+        // Competing continental services on a dedicated line-haul operator, so
+        // a Dublin→Paris routing query yields a genuine (cost, CO2) Pareto
+        // front rather than a single option (routing-engine step 4): a direct
+        // sailing to Le Havre (cheap/green/slow, short onward road to Paris)
+        // and a Rotterdam→Lille rail leg the Dublin→Rotterdam sailing can feed
+        // for a sea→rail intermodal alternative. On a separate carrier because
+        // a lane is unique per (carrier, origin-country, destination-country)
+        // and the demo carrier's IE→FR pair is the air rotation above.
+        Carrier euroLink = createCarrier("ops@eurolink.example.com", "OP-90001-EU",
+                "EuroLink", "Multimodal", "0209000001",
+                Carrier.CDLType.NON_CDL, 20, LocalDate.now().plusYears(5), "NL");
+        euroLink.setSupportedModes(new java.util.HashSet<>(java.util.List.of(
+                Shipment.Mode.OCEAN, Shipment.Mode.RAIL)));
+        carrierRepository.save(euroLink);
+        addTimetabledLane(euroLink, Shipment.Mode.OCEAN, "IE", "FR",
+                "Dublin Port", "Le Havre",
+                "TUESDAY,FRIDAY", java.time.LocalTime.of(20, 0), 30.0);
+        addTimetabledLane(euroLink, Shipment.Mode.RAIL, "NL", "FR",
+                "Port of Rotterdam", "Lille Rail Terminal",
+                "MONDAY,TUESDAY,WEDNESDAY,THURSDAY,FRIDAY", java.time.LocalTime.of(6, 0), 10.0);
+
         // ---- Cabotage history for the demo carrier (IE-based) ----
         // GB: 2 ops in the rolling 7-day window → under the limit of 3.
         // FR: 3 ops → AT the limit, so the dashboard shows the red "blocked" tag.
@@ -676,7 +717,8 @@ public class DataInitializer implements CommandLineRunner {
 
     /** Upsert a typed geography node (port / airport / terminal) by name+country. */
     private void seedNode(String name, String country, Location.LocationType type,
-                          String unlocode, String iata) {
+                          String unlocode, String iata,
+                          double latitude, double longitude, String timezone) {
         Location loc = locationRepository.findFirstByNameIgnoreCaseAndCountry(name, country)
                 .orElseGet(Location::new);
         loc.setName(name);
@@ -685,6 +727,9 @@ public class DataInitializer implements CommandLineRunner {
         loc.setLocationType(type);
         loc.setUnlocode(unlocode);
         loc.setIata(iata);
+        loc.setLatitude(latitude);
+        loc.setLongitude(longitude);
+        loc.setTimezone(timezone);
         locationRepository.save(loc);
     }
 

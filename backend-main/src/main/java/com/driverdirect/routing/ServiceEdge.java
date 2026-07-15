@@ -20,8 +20,11 @@ public interface ServiceEdge {
     Shipment.Mode mode();
 
     /** Earliest instant this edge can be boarded at or after {@code after}.
-     *  Always {@code after} itself for a virtual road edge (no schedule);
-     *  {@code null} if no departure exists in the planning horizon. */
+     *  Always {@code after} itself for a virtual road edge (no schedule).
+     *  {@code null} means this service has no departures at all (empty
+     *  recurring pattern — the graph build never emits such edges); there is
+     *  no planning horizon: a non-empty pattern always yields a departure
+     *  within 8 days of {@code after}, however far in the future. */
     Instant nextDeparture(Instant after);
 
     Instant arrivalTime(Instant departure);
@@ -29,4 +32,10 @@ public interface ServiceEdge {
     double cost(CargoDetails cargo);
 
     double co2(CargoDetails cargo);
+
+    /** Leg distance in km — great-circle for a scheduled edge, great-circle ×
+     *  road circuity for a virtual road edge; 0 when either endpoint has no
+     *  coordinates. Carried onto the {@code Shipment} when a route is
+     *  accepted, so the leg re-prices on the same basis the estimate used. */
+    double distanceKm();
 }

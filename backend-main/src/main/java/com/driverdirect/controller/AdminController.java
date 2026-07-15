@@ -11,6 +11,8 @@ import com.driverdirect.dto.LoadResponse;
 import com.driverdirect.dto.LocationResponse;
 import com.driverdirect.dto.OrderResponse;
 import com.driverdirect.dto.PlatformStatsResponse;
+import com.driverdirect.dto.RouteOptionResponse;
+import com.driverdirect.dto.RouteQueryRequest;
 import com.driverdirect.dto.ShipmentResponse;
 import com.driverdirect.model.Carrier;
 import com.driverdirect.model.Itinerary;
@@ -30,6 +32,7 @@ import com.driverdirect.service.AdminService;
 import com.driverdirect.service.ComplianceService;
 import com.driverdirect.service.LoadApplicationService;
 import com.driverdirect.service.LoadService;
+import com.driverdirect.service.RoutePlannerService;
 import com.driverdirect.security.util.JwtUtil;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -63,6 +66,7 @@ public class AdminController {
     private final ShipmentRepository shipmentRepository;
     private final ItineraryRepository itineraryRepository;
     private final LocationRepository locationRepository;
+    private final RoutePlannerService routePlannerService;
 
     // ---- Users ----
 
@@ -348,5 +352,14 @@ public class AdminController {
         return ResponseEntity.ok(locationRepository.findById(id)
                 .map(LocationResponse::from)
                 .orElseThrow(() -> new IllegalArgumentException("Location not found: " + id)));
+    }
+
+    // ---- Routing engine (com.driverdirect.routing): propose options on-behalf ----
+
+    /** Mirror of the shipper route planner for admins (on-behalf planning /
+     *  support). Read-only; same 400 / empty-list semantics. */
+    @PostMapping("/route-options")
+    public ResponseEntity<List<RouteOptionResponse>> planRoutes(@RequestBody RouteQueryRequest request) {
+        return ResponseEntity.ok(routePlannerService.planRoutes(request.toQuery()));
     }
 }

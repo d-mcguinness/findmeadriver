@@ -86,8 +86,11 @@ public class CarrierLaneService {
             throw new IllegalArgumentException(
                     "A timetable needs departureDays, departureTime and transitDurationHours together");
         }
-        if (request.getTransitDurationHours() <= 0) {
-            throw new IllegalArgumentException("transitDurationHours must be positive");
+        double transitHours = request.getTransitDurationHours();
+        if (!Double.isFinite(transitHours) || transitHours <= 0
+                || transitHours > CarrierLane.MAX_TRANSIT_HOURS) {
+            throw new IllegalArgumentException("transitDurationHours must be positive and at most "
+                    + (long) CarrierLane.MAX_TRANSIT_HOURS);
         }
 
         // Strict on input (unlike the fail-soft stored-value getter): an
@@ -103,8 +106,10 @@ public class CarrierLaneService {
                 .distinct()
                 .collect(Collectors.joining(","));
 
-        // A scheduled service is one concrete mode; INTERMODAL is a derived,
-        // multi-leg-only label (same rule as load creation).
+        // A scheduled service is one concrete mode. INTERMODAL is a derived,
+        // multi-leg-only label; PARCEL has no routing-graph support yet
+        // (TransferPolicy pairs no terminal with it), so both are rejected —
+        // a timetabled service is ROAD, RAIL, OCEAN or AIR.
         Shipment.Mode mode;
         try {
             mode = Shipment.Mode.valueOf(request.getServiceMode() == null
@@ -112,8 +117,9 @@ public class CarrierLaneService {
         } catch (IllegalArgumentException e) {
             throw new IllegalArgumentException("A timetable needs a serviceMode (RAIL, OCEAN, AIR or ROAD)");
         }
-        if (mode == Shipment.Mode.INTERMODAL) {
-            throw new IllegalArgumentException("serviceMode cannot be INTERMODAL — one concrete mode per service");
+        if (mode == Shipment.Mode.INTERMODAL || mode == Shipment.Mode.PARCEL) {
+            throw new IllegalArgumentException(
+                    "serviceMode must be ROAD, RAIL, OCEAN or AIR — one concrete, routable mode per service");
         }
 
         lane.setServiceMode(mode);
