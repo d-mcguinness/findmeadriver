@@ -1,8 +1,12 @@
 package com.driverdirect.routing;
 
+import com.driverdirect.dto.RouteOptionResponse;
+import com.driverdirect.dto.RouteQueryRequest;
 import com.driverdirect.model.Location;
 import com.driverdirect.model.Shipment;
+import com.driverdirect.model.Shipper;
 import com.driverdirect.repository.LocationRepository;
+import com.driverdirect.repository.ShipperRepository;
 import com.driverdirect.service.RoutePlannerService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -33,6 +37,8 @@ class RoutingSeedIntegrationTest {
     private RoutePlannerService routePlannerService;
     @Autowired
     private LocationRepository locationRepository;
+    @Autowired
+    private ShipperRepository shipperRepository;
 
     private Long locationId(String name, String country) {
         return locationRepository.findFirstByNameIgnoreCaseAndCountry(name, country)
@@ -92,5 +98,61 @@ class RoutingSeedIntegrationTest {
                     .as("option %d greener than the cheaper option %d", i, i - 1)
                     .isLessThan(options.get(i - 1).totalCo2());
         }
+    }
+
+    @Test
+    void planRoutesMapsToResponseDtosWithResolvedLegNames() {
+        // The API-facing path (what the controllers call): request DTO in,
+        // response DTOs out, with leg location names resolved from the graph.
+        RouteQueryRequest request = new RouteQueryRequest();
+        request.setOriginLocationId(locationId("Dublin Port", "IE"));
+        request.setDestinationLocationId(locationId("Paris Charles de Gaulle", "FR"));
+        request.setWeightKg(BigDecimal.valueOf(15000));
+        request.setContainerCount(1);
+        request.setEarliestReady(LocalDate.now().plusDays(1));
+
+        List<RouteOptionResponse> options = routePlannerService.planRoutes(request.toQuery());
+
+        assertThat(options).hasSizeGreaterThanOrEqualTo(2);
+        assertThat(options).allSatisfy(o -> {
+            assertThat(o.getLegs()).isNotEmpty();
+            assertThat(o.getTotalCost()).isPositive();
+            assertThat(o.getArrival()).isNotNull();
+            // Every leg carries a resolved mode and endpoint names.
+            assertThat(o.getLegs()).allSatisfy(leg -> {
+                assertThat(leg.getMode()).isNotBlank();
+                assertThat(leg.getOriginLocationName()).isNotBlank();
+                assertThat(leg.getDestinationLocationName()).isNotBlank();
+            });
+        });
+        // At least one option includes a scheduled (timetabled sea/rail/air)
+        // leg — i.e. the graph's services are reachable through the DTO path.
+        assertThat(options).anySatisfy(o ->
+                assertThat(o.getLegs()).anyMatch(com.driverdirect.dto.RouteLegResponse::isScheduled));
+    }
+
+    @Test
+    void shipperScopingPermitsReferenceNodesButRejectsAnotherTenantsAddress() {
+        Shipper acme = shipperRepository.findByEmail("employer@company.com").orElseThrow();
+        Long dublinPort = locationId("Dublin Port", "IE");     // SEAPORT — public
+        Long parisCdg = locationId("Paris Charles de Gaulle", "FR"); // AIRPORT — public
+        CargoDetails cargo = new CargoDetails(BigDecimal.valueOf(15000), null, 1, null);
+
+        // Public reference nodes: allowed.
+        assertThat(routePlannerService.planRoutesForShipper(
+                new RouteQuery(dublinPort, parisCdg, cargo, LocalDate.now().plusDays(1), null, null), acme))
+                .isNotEmpty();
+
+        // An ad-hoc ADDRESS location created from another load (owner null,
+        // not the caller's) must be rejected exactly like an unknown id — no
+        // name resolved or leaked. "Cork City" is a seeded load delivery stop.
+        Long othersAddress = locationId("Cork City", "IE");
+        assertThat(othersAddress).isNotNull();
+        org.assertj.core.api.Assertions.assertThatThrownBy(() ->
+                routePlannerService.planRoutesForShipper(
+                        new RouteQuery(othersAddress, parisCdg, cargo,
+                                LocalDate.now().plusDays(1), null, null), acme))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Unknown location");
     }
 }

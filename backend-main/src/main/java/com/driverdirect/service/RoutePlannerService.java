@@ -1,5 +1,9 @@
 package com.driverdirect.service;
 
+import com.driverdirect.dto.RouteOptionResponse;
+import com.driverdirect.model.Location;
+import com.driverdirect.model.Shipper;
+import com.driverdirect.repository.LocationRepository;
 import com.driverdirect.routing.RouteOption;
 import com.driverdirect.routing.RoutePlanner;
 import com.driverdirect.routing.RouteQuery;
@@ -9,6 +13,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * Entry seam for the routing engine: builds a fresh {@link RoutingGraph}
@@ -34,9 +40,60 @@ import java.util.List;
 public class RoutePlannerService {
 
     private final RoutingGraphBuilder graphBuilder;
+    private final LocationRepository locationRepository;
 
+    /** Low-level entry: the raw Pareto front. Internal/test callers; the
+     *  controllers use {@link #planRoutes}. */
     public List<RouteOption> findOptions(RouteQuery query) {
-        RoutingGraph graph = graphBuilder.build();
-        return new RoutePlanner(graph).findOptions(query);
+        return planned(query).options();
     }
+
+    /**
+     * Shipper-facing entry: same as {@link #planRoutes} but tenant-scoped —
+     * a shipper may only route between <em>public reference nodes</em>
+     * (typed ports/airports/rail terminals) and locations they own. Any
+     * other id (another tenant's ad-hoc ADDRESS pickup/delivery site) is
+     * rejected exactly like an unknown id, so the endpoint can't be used to
+     * resolve/enumerate other shippers' private location names. The
+     * unrestricted {@link #planRoutes} is admin-only (cross-tenant by design).
+     */
+    public List<RouteOptionResponse> planRoutesForShipper(RouteQuery query, Shipper shipper) {
+        requireAccessible(query.originLocationId(), shipper);
+        requireAccessible(query.destinationLocationId(), shipper);
+        return planRoutes(query);
+    }
+
+    private void requireAccessible(Long locationId, Shipper shipper) {
+        if (locationId == null) return; // the planner's own require() 400s on null
+        Location loc = locationRepository.findById(locationId).orElse(null);
+        if (loc == null) return; // let the planner 400 it as unknown (uniform message)
+        boolean publicNode = loc.getLocationType() != null
+                && loc.getLocationType() != Location.LocationType.ADDRESS;
+        boolean ownedByCaller = loc.getOwnerShipper() != null
+                && loc.getOwnerShipper().getId().equals(shipper.getId());
+        if (!publicNode && !ownedByCaller) {
+            // Same shape as an unknown id — never reveal existence or the name.
+            throw new IllegalArgumentException("Unknown location: " + locationId);
+        }
+    }
+
+    /** API-facing entry: the Pareto front mapped to response DTOs, with leg
+     *  location names resolved from the same snapshot the options were
+     *  planned against (no extra queries — the graph already holds them). */
+    public List<RouteOptionResponse> planRoutes(RouteQuery query) {
+        Planned p = planned(query);
+        Map<Long, String> names = p.graph().locations().entrySet().stream()
+                .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().name()));
+        return p.options().stream()
+                .map(option -> RouteOptionResponse.from(option, names))
+                .collect(Collectors.toList());
+    }
+
+    /** One graph build shared by the plan and its DTO mapping. */
+    private Planned planned(RouteQuery query) {
+        RoutingGraph graph = graphBuilder.build();
+        return new Planned(graph, new RoutePlanner(graph).findOptions(query));
+    }
+
+    private record Planned(RoutingGraph graph, List<RouteOption> options) {}
 }

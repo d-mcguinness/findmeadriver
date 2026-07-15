@@ -276,6 +276,16 @@ class RoutePlannerTest {
                 new RouteQuery(1L, 4L, ONE_CONTAINER, null, null, null)))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("earliestReady");
+        // Out-of-range dates are a 400 (IllegalArgumentException), not an
+        // unhandled DateTimeException/500: LocalDate.MAX.plusDays would
+        // overflow deep in the search otherwise.
+        assertThatThrownBy(() -> planner.findOptions(
+                new RouteQuery(1L, 4L, ONE_CONTAINER, MONDAY, null, LocalDate.of(5000, 1, 1))))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("before");
+        assertThatThrownBy(() -> planner.findOptions(
+                new RouteQuery(1L, 4L, ONE_CONTAINER, LocalDate.MAX, null, null)))
+                .isInstanceOf(IllegalArgumentException.class);
     }
 
     // ---- Output projection + thinning (package-private statics) ----

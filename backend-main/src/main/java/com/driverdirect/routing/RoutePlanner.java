@@ -7,6 +7,7 @@ import org.slf4j.LoggerFactory;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -78,6 +79,11 @@ public class RoutePlanner {
     static final int MAX_LABEL_POPS = 50_000;
     /** Don't generate road legs between (near-)coincident locations. */
     static final double MIN_ROAD_KM = 0.1;
+    /** Upper bound on query dates — deterministic (no clock coupling) and far
+     *  enough out to never constrain a real query, but well below the ranges
+     *  where LocalDate.plusDays / Instant.plus arithmetic overflow. Keeps an
+     *  out-of-range date a 400, consistent with the other input validation. */
+    static final LocalDate MAX_PLAN_DATE = LocalDate.of(4000, 1, 1);
 
     private static final Logger log = LoggerFactory.getLogger(RoutePlanner.class);
 
@@ -106,6 +112,10 @@ public class RoutePlanner {
         }
         if (query.earliestReady() == null) {
             throw new IllegalArgumentException("earliestReady is required");
+        }
+        if (afterHorizon(query.earliestReady()) || afterHorizon(query.latestHandover())
+                || afterHorizon(query.arrivalDeadline())) {
+            throw new IllegalArgumentException("Query dates must be before " + MAX_PLAN_DATE);
         }
         Instant start = query.earliestReady().atStartOfDay(origin.zone()).toInstant();
         Instant deadline = query.arrivalDeadline() != null
@@ -351,6 +361,10 @@ public class RoutePlanner {
         Instant handoverBy = legList.get(0).nextDeparture(start);
         return new RouteOption(legList, winning.cost(), winning.co2(), handoverBy,
                 winning.arrivalTime());
+    }
+
+    private static boolean afterHorizon(LocalDate date) {
+        return date != null && date.isAfter(MAX_PLAN_DATE);
     }
 
     private LocationNode require(Long locationId, String which) {
