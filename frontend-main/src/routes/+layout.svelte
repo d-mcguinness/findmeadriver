@@ -13,7 +13,7 @@
 		SkipToContent,
 		Button
 	} from 'carbon-components-svelte';
-	import { LogoGithub, Login, Logout, UserAvatar, Add, Enterprise, CertificateCheck, UserFollow, Settings } from 'carbon-icons-svelte';
+	import { LogoGithub, Login, Logout, UserAvatar, Add, Enterprise, CertificateCheck, UserFollow, Settings, Roadmap } from 'carbon-icons-svelte';
 	import { goto } from '$app/navigation';
 	import { auth } from '$lib/stores/auth.svelte';
 
@@ -60,6 +60,7 @@
 				<SideNavLink icon={Settings} text="Settings" href="/dashboard/settings" />
 			{/if}
 			{#if auth.isShipper}
+				<SideNavLink icon={Roadmap} text="Plan a Route" href="/dashboard/route-planner" />
 				<SideNavLink icon={Add} text="Create a Load" href="/dashboard/loads/post" />
 				<SideNavLink icon={Enterprise} text="Itineraries" href="/dashboard/itineraries" />
 			{/if}

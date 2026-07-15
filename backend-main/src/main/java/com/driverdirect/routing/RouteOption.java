@@ -23,5 +23,6 @@ public record RouteOption(
         double totalCost,
         double totalCo2,
         Instant handoverBy,
-        Instant arrival) {
+        Instant arrival,
+        boolean meetsDeadline) {
 }

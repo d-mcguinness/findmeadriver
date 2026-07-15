@@ -23,6 +23,10 @@ public class RouteOptionResponse {
     private double totalCo2Kg;
     private Instant handoverBy;
     private Instant arrival;
+    /** False only on the fastest-possible fallback returned when no route met
+     *  the deadline — the deadline verdict computed in the destination zone,
+     *  so the client needn't (and can't correctly) re-derive it from UTC. */
+    private boolean meetsDeadline;
     private List<RouteLegResponse> legs;
 
     public static RouteOptionResponse from(RouteOption option, Map<Long, String> locationNames) {
@@ -31,6 +35,7 @@ public class RouteOptionResponse {
         r.setTotalCo2Kg(option.totalCo2());
         r.setHandoverBy(option.handoverBy());
         r.setArrival(option.arrival());
+        r.setMeetsDeadline(option.meetsDeadline());
         r.setLegs(option.legs().stream()
                 .map(edge -> RouteLegResponse.from(edge, locationNames))
                 .collect(Collectors.toList()));

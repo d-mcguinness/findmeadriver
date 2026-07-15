@@ -140,11 +140,13 @@ public class RoutePlanner {
         // One search per candidate handover day; a route found on several days
         // is the same leg sequence catching a different departure — merged to
         // its latest viable handover below.
+        // Main-path options are deadline-feasible by construction (deadline
+        // pruning), or the query set no deadline — either way they meet it.
         List<RouteOption> collected = new ArrayList<>();
         for (LocalDate day : candidateDays(query.earliestReady(), query.latestHandover())) {
             Instant start = day.atStartOfDay(origin.zone()).toInstant();
             for (Label label : searchParetoFront(query.cargo(), origin, destination, start, deadline)) {
-                collected.add(toOption(label, start));
+                collected.add(toOption(label, start, true));
             }
         }
         if (!collected.isEmpty()) {
@@ -154,11 +156,12 @@ public class RoutePlanner {
             return List.of(); // unreachable across the whole window, not just late
         }
         // Nothing satisfies the deadline — report the single fastest achievable
-        // arrival. It's reached from the earliest handover (you can't arrive
-        // sooner by handing over later), so one search suffices.
+        // arrival (meetsDeadline = false, the caller's signal). It's reached
+        // from the earliest handover (you can't arrive sooner by handing over
+        // later), so one search suffices.
         Instant earliest = query.earliestReady().atStartOfDay(origin.zone()).toInstant();
         return searchParetoFront(query.cargo(), origin, destination, earliest, null).stream()
-                .map(label -> toOption(label, earliest))
+                .map(label -> toOption(label, earliest, false))
                 .min(Comparator.comparing(RouteOption::arrival).thenComparingDouble(RouteOption::totalCost))
                 .map(List::of)
                 .orElse(List.of());
@@ -413,7 +416,7 @@ public class RoutePlanner {
         return (long) Math.floor(Math.log(value) / Math.log(1 + OUTPUT_EPSILON));
     }
 
-    private RouteOption toOption(Label winning, Instant start) {
+    private RouteOption toOption(Label winning, Instant start, boolean meetsDeadline) {
         Deque<ServiceEdge> legs = new ArrayDeque<>();
         for (Label label = winning; label.edgeTaken() != null; label = label.parent()) {
             legs.addFirst(label.edgeTaken());
@@ -425,7 +428,7 @@ public class RoutePlanner {
         // route across candidate days, which is the "latest viable handover".
         Instant handoverBy = legList.get(0).nextDeparture(start);
         return new RouteOption(legList, winning.cost(), winning.co2(), handoverBy,
-                winning.arrivalTime());
+                winning.arrivalTime(), meetsDeadline);
     }
 
     private static boolean afterHorizon(LocalDate date) {

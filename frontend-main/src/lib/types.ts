@@ -277,3 +277,40 @@ export interface TimeSlot {
 	endTime: string;
 	hours: number;
 }
+
+// ---- Routing engine (com.driverdirect.routing): propose / accept ----
+
+/** A location the shipper can route between (GET /api/shipper/locations):
+ *  public reference nodes (ports/airports/rail terminals) + the shipper's own. */
+export interface RoutableLocation {
+	id: number;
+	name: string;
+	country: string;
+	locationType: string;
+	unlocode?: string;
+	iata?: string;
+	latitude?: number;
+	longitude?: number;
+}
+
+/** One leg of a proposed route. */
+export interface RouteLeg {
+	mode: string;
+	originLocationId: number;
+	originLocationName: string;
+	destinationLocationId: number;
+	destinationLocationName: string;
+	scheduled: boolean;
+}
+
+/** One proposed door-to-door option — a Pareto-best point on (cost, CO2). */
+export interface RouteOption {
+	totalCost: number;
+	totalCo2Kg: number;
+	handoverBy: string;
+	arrival: string;
+	/** False only on the fastest-possible fallback when no route met the
+	 *  deadline (verdict computed server-side in the destination zone). */
+	meetsDeadline: boolean;
+	legs: RouteLeg[];
+}
