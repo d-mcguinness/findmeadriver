@@ -3,6 +3,7 @@
 	import { ArrowLeft, Add, ArrowRight, Edit, TrashCan } from 'carbon-icons-svelte';
 	import { api } from '$lib/api';
 	import { auth } from '$lib/stores/auth.svelte';
+	import { page } from '$app/state';
 	import { onMount } from 'svelte';
 	import type { Itinerary } from '$lib/types';
 	import { transportModeLabel, modeTagColor } from '$lib/transport-modes';
@@ -12,6 +13,8 @@
 	let loading = $state(true);
 	let error = $state('');
 	let cancellingId = $state<number | null>(null);
+	// Set when arriving from the route planner's "Accept" — closes the loop.
+	let acceptedId = $derived(page.url.searchParams.get('accepted'));
 
 	const BASIS_LABELS: Record<string, string> = {
 		PER_KM: 'per km',
@@ -84,6 +87,10 @@
 
 	<Row>
 		<Column lg={12} md={8} sm={4}>
+			{#if acceptedId}
+				<InlineNotification kind="success" title="Route accepted"
+					subtitle={`Draft itinerary #${acceptedId} created — its legs are now open for carriers.`} />
+			{/if}
 			{#if error}
 				<InlineNotification kind="error" title="Error" subtitle={error} on:close={() => (error = '')} />
 			{/if}

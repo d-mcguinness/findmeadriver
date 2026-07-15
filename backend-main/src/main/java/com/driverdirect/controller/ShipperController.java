@@ -1,8 +1,10 @@
 package com.driverdirect.controller;
 
 import com.driverdirect.dto.*;
+import com.driverdirect.model.Location;
 import com.driverdirect.model.Shipper;
 import com.driverdirect.model.LoadStatus;
+import com.driverdirect.repository.LocationRepository;
 import com.driverdirect.repository.ShipperRepository;
 import com.driverdirect.service.LoadApplicationService;
 import com.driverdirect.service.LoadService;
@@ -28,6 +30,7 @@ public class ShipperController {
     private final LoadApplicationService applicationService;
     private final RatingService ratingService;
     private final RoutePlannerService routePlannerService;
+    private final LocationRepository locationRepository;
 
     @PostMapping("/loads")
     public ResponseEntity<LoadResponse> createLoad(
@@ -59,6 +62,16 @@ public class ShipperController {
     }
 
     // ---- Routing engine: propose door-to-door options (com.driverdirect.routing) ----
+
+    /** The locations this shipper can route between — public reference nodes
+     *  (ports/airports/rail terminals) + its own — for the planner's picker. */
+    @GetMapping("/locations")
+    public ResponseEntity<List<LocationResponse>> getRoutableLocations(Authentication auth) {
+        Shipper shipper = getShipper(auth);
+        return ResponseEntity.ok(locationRepository
+                .findRoutableForShipper(Location.LocationType.ADDRESS, shipper)
+                .stream().map(LocationResponse::from).toList());
+    }
 
     /**
      * Propose Pareto-best (cost, CO2) routes for a cargo between two known

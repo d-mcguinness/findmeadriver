@@ -82,6 +82,7 @@ class RoutePlannerTest {
         RouteOption option = options.get(0);
         assertThat(option.legs()).extracting(ServiceEdge::mode).containsExactly(
                 Shipment.Mode.ROAD, Shipment.Mode.OCEAN, Shipment.Mode.ROAD);
+        assertThat(option.meetsDeadline()).isTrue(); // no deadline set → vacuously met
         // 150 (feeder min charge) + 50 (ROAD→OCEAN) + 10 (sailing)
         //   + 50 (OCEAN→ROAD) + 150 (last-mile min charge)
         assertThat(option.totalCost()).isEqualTo(410.0);
@@ -226,6 +227,7 @@ class RoutePlannerTest {
         assertThat(option.handoverBy()).isEqualTo(Instant.parse("2026-07-09T07:00:00Z"));
         assertThat(option.arrival()).isEqualTo(Instant.parse("2026-07-10T07:00:00Z"));
         assertThat(option.legs()).extracting(ServiceEdge::mode).containsExactly(Shipment.Mode.OCEAN);
+        assertThat(option.meetsDeadline()).isFalse(); // fastest-possible fallback misses the deadline
     }
 
     @Test
@@ -292,7 +294,7 @@ class RoutePlannerTest {
 
     private static RouteOption opt(double cost, double co2) {
         return new RouteOption(List.of(), cost, co2,
-                Instant.parse("2026-07-06T00:00:00Z"), Instant.parse("2026-07-06T00:00:00Z"));
+                Instant.parse("2026-07-06T00:00:00Z"), Instant.parse("2026-07-06T00:00:00Z"), true);
     }
 
     @Test
