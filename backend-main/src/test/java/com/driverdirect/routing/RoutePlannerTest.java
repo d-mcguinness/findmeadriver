@@ -290,36 +290,98 @@ class RoutePlannerTest {
 
     // ---- Output projection + thinning (package-private statics) ----
 
-    private static Label label(double cost, double co2) {
-        return new Label(2L, Shipment.Mode.OCEAN, Instant.parse("2026-07-06T00:00:00Z"),
-                cost, co2, null, null);
+    private static RouteOption opt(double cost, double co2) {
+        return new RouteOption(List.of(), cost, co2,
+                Instant.parse("2026-07-06T00:00:00Z"), Instant.parse("2026-07-06T00:00:00Z"));
     }
 
     @Test
     void costCo2FrontKeepsTheParetoStaircase() {
-        Label cheap = label(600, 400);
-        Label dominated = label(1000, 500); // pricier AND dirtier than cheap
-        Label green = label(2150, 192);
-        List<Label> front = RoutePlanner.costCo2Front(List.of(dominated, green, cheap));
+        RouteOption cheap = opt(600, 400);
+        RouteOption dominated = opt(1000, 500); // pricier AND dirtier than cheap
+        RouteOption green = opt(2150, 192);
+        List<RouteOption> front = RoutePlanner.costCo2Front(List.of(dominated, green, cheap));
         assertThat(front).containsExactly(cheap, green); // dominated dropped, cost-sorted
     }
 
     @Test
     void thinFrontDropsEpsilonNearDuplicates() {
-        Label a = label(600, 400);
-        Label b = label(610, 398); // within 5% on both axes → same ε-grid cell
+        RouteOption a = opt(600, 400);
+        RouteOption b = opt(610, 398); // within 5% on both axes → same ε-grid cell
         assertThat(RoutePlanner.thinFront(List.of(a, b))).containsExactly(a);
     }
 
     @Test
     void thinFrontCapsAtSixKeepingEndpoints() {
-        List<Label> front = new ArrayList<>();
+        List<RouteOption> front = new ArrayList<>();
         for (int i = 0; i < 10; i++) {
-            front.add(label(100 * (i + 1), 1000 - 100 * i)); // 10 well-separated points
+            front.add(opt(100 * (i + 1), 1000 - 100 * i)); // 10 well-separated points
         }
-        List<Label> thinned = RoutePlanner.thinFront(front);
+        List<RouteOption> thinned = RoutePlanner.thinFront(front);
         assertThat(thinned).hasSize(RoutePlanner.MAX_OPTIONS);
         assertThat(thinned.get(0)).isEqualTo(front.get(0)); // cheapest kept
         assertThat(thinned.get(thinned.size() - 1)).isEqualTo(front.get(9)); // greenest kept
+    }
+
+    // ---- Flexible window (step 5) ----
+
+    /** A weekly (Monday-only) sailing between two ports; port B has no
+     *  coordinates so no virtual road edge competes — the sailing is the only
+     *  route, which isolates the handover behaviour. */
+    private RoutePlanner weeklySailingPlanner() {
+        LocationNode portA = node(1, Location.LocationType.SEAPORT, 53.34, -6.20, "Europe/Dublin");
+        LocationNode portB = new LocationNode(2L, "B", Location.LocationType.SEAPORT,
+                "NL", null, null, ZoneId.of("Europe/Amsterdam"));
+        ScheduledServiceEdge sailing = new ScheduledServiceEdge(1L, 2L, Shipment.Mode.OCEAN,
+                EnumSet.of(DayOfWeek.MONDAY), LocalTime.of(8, 0), ZoneId.of("Europe/Dublin"),
+                Duration.ofHours(24), 800.0,
+                new LegRates(new Tariff(ChargeUnit.PER_CONTAINER, 350, 1800, 1800), 0.012));
+        return new RoutePlanner(new RoutingGraph(
+                Map.of(1L, List.of(sailing)), Map.of(),
+                Map.of(1L, portA, 2L, portB), ROAD));
+    }
+
+    @Test
+    void withoutAWindowHandoverIsTheEarliestSailing() {
+        // earliestReady = Monday 2026-07-06; no window → catches that Monday.
+        List<RouteOption> options = weeklySailingPlanner().findOptions(
+                new RouteQuery(1L, 2L, LADEN, LocalDate.of(2026, 7, 6), null, null));
+        assertThat(options).hasSize(1);
+        assertThat(options.get(0).handoverBy()).isEqualTo(Instant.parse("2026-07-06T07:00:00Z"));
+    }
+
+    @Test
+    void aWindowKeepsTheLatestViableHandoverAndDedupesTheRoute() {
+        // Window Mon 2026-07-06 .. Mon 2026-07-27 (4 candidate Mondays); no
+        // deadline → the latest sailing (07-27) is the latest viable handover,
+        // and the single route is deduped across all 22 candidate days.
+        List<RouteOption> options = weeklySailingPlanner().findOptions(
+                new RouteQuery(1L, 2L, LADEN, LocalDate.of(2026, 7, 6),
+                        LocalDate.of(2026, 7, 27), null));
+        assertThat(options).hasSize(1);
+        assertThat(options.get(0).legs()).extracting(ServiceEdge::mode).containsExactly(Shipment.Mode.OCEAN);
+        assertThat(options.get(0).handoverBy()).isEqualTo(Instant.parse("2026-07-27T07:00:00Z"));
+    }
+
+    @Test
+    void aDeadlineCapsTheLatestViableHandoverWithinTheWindow() {
+        // Same 3-week window, but the cargo must arrive by 2026-07-15. Sailings
+        // land the day after departure: 07-06→07-07, 07-13→07-14 (ok),
+        // 07-20→07-21 (too late). So the latest viable handover is 07-13.
+        List<RouteOption> options = weeklySailingPlanner().findOptions(
+                new RouteQuery(1L, 2L, LADEN, LocalDate.of(2026, 7, 6),
+                        LocalDate.of(2026, 7, 27), LocalDate.of(2026, 7, 15)));
+        assertThat(options).hasSize(1);
+        assertThat(options.get(0).handoverBy()).isEqualTo(Instant.parse("2026-07-13T07:00:00Z"));
+        assertThat(options.get(0).arrival()).isEqualTo(Instant.parse("2026-07-14T07:00:00Z"));
+    }
+
+    @Test
+    void latestHandoverBeforeEarliestReadyIsRejected() {
+        assertThatThrownBy(() -> weeklySailingPlanner().findOptions(
+                new RouteQuery(1L, 2L, LADEN, LocalDate.of(2026, 7, 27),
+                        LocalDate.of(2026, 7, 6), null)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("latestHandover");
     }
 }

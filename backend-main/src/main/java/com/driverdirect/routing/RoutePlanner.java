@@ -14,6 +14,7 @@ import java.util.Comparator;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.PriorityQueue;
@@ -21,14 +22,15 @@ import java.util.Set;
 
 /**
  * Entry point for the routing engine (README.md, "Proposed: multimodal
- * routing engine"). Build-order steps 3–4: a time-dependent label-setting
- * search returning the Pareto-best options on <strong>(cost, CO2)</strong>
- * for one handover day, with the arrival deadline a hard filter (never an
- * optimisation axis). When nothing satisfies the deadline it reruns for
- * speed alone and returns the single fastest-possible option (its arrival
- * being past the deadline is the caller's signal). The flexible-window
- * per-day loop and cross-day merge is step 5 — {@code latestHandover} is
- * accepted but not yet explored.
+ * routing engine"). Build-order steps 3–5: a time-dependent label-setting
+ * search returning the Pareto-best options on <strong>(cost, CO2)</strong>,
+ * with the arrival deadline a hard filter (never an optimisation axis). When
+ * nothing satisfies the deadline it reruns for speed alone and returns the
+ * single fastest-possible option (its arrival being past the deadline is the
+ * caller's signal). When the query carries a {@code latestHandover} after
+ * {@code earliestReady}, the search runs once per candidate handover day and
+ * merges across days, keeping the latest viable handover per distinct route
+ * (step 5, the flexible window — see {@link #findOptions}).
  *
  * <p>Mechanics: labels ({@link Label}) expand from the origin at
  * {@code earliestReady} (start of day, origin zone). Scheduled edges come
@@ -84,6 +86,10 @@ public class RoutePlanner {
      *  where LocalDate.plusDays / Instant.plus arithmetic overflow. Keeps an
      *  out-of-range date a 400, consistent with the other input validation. */
     static final LocalDate MAX_PLAN_DATE = LocalDate.of(4000, 1, 1);
+    /** Cap on candidate handover days in a flexible-window search (README:
+     *  "a 30-day window ≈ 30 fast searches"). A longer window is capped (and
+     *  logged) rather than silently run unbounded. */
+    static final int MAX_WINDOW_DAYS = 30;
 
     private static final Logger log = LoggerFactory.getLogger(RoutePlanner.class);
 
@@ -103,6 +109,13 @@ public class RoutePlanner {
      * ascending; or, when nothing does, a single fastest-possible option; or
      * an empty list when the destination is unreachable. Arrival any time on
      * the deadline day counts as meeting it.
+     *
+     * <p>Flexible window (step 5): when the query carries a {@code
+     * latestHandover} after {@code earliestReady}, the search runs once per
+     * candidate handover day and merges across days, keeping the <em>latest
+     * viable handover</em> for each distinct route (the shipper holds cargo
+     * as long as possible in a free warehouse rather than dwelling at a paid
+     * terminal). A single-day query (no window) is just the one-element case.
      */
     public List<RouteOption> findOptions(RouteQuery query) {
         LocationNode origin = require(query.originLocationId(), "origin");
@@ -117,26 +130,83 @@ public class RoutePlanner {
                 || afterHorizon(query.arrivalDeadline())) {
             throw new IllegalArgumentException("Query dates must be before " + MAX_PLAN_DATE);
         }
-        Instant start = query.earliestReady().atStartOfDay(origin.zone()).toInstant();
+        if (query.latestHandover() != null && query.latestHandover().isBefore(query.earliestReady())) {
+            throw new IllegalArgumentException("latestHandover is before earliestReady");
+        }
         Instant deadline = query.arrivalDeadline() != null
                 ? query.arrivalDeadline().plusDays(1).atStartOfDay(destination.zone()).toInstant()
                 : null;
 
-        List<Label> feasible = searchParetoFront(query.cargo(), origin, destination, start, deadline);
-        if (!feasible.isEmpty()) {
-            return toOptions(feasible, start);
+        // One search per candidate handover day; a route found on several days
+        // is the same leg sequence catching a different departure — merged to
+        // its latest viable handover below.
+        List<RouteOption> collected = new ArrayList<>();
+        for (LocalDate day : candidateDays(query.earliestReady(), query.latestHandover())) {
+            Instant start = day.atStartOfDay(origin.zone()).toInstant();
+            for (Label label : searchParetoFront(query.cargo(), origin, destination, start, deadline)) {
+                collected.add(toOption(label, start));
+            }
+        }
+        if (!collected.isEmpty()) {
+            return finalizeFront(mergeLatestHandoverPerRoute(collected));
         }
         if (deadline == null) {
-            return List.of(); // unreachable, not just late
+            return List.of(); // unreachable across the whole window, not just late
         }
-        // Nothing satisfies the deadline — rerun without it and report the
-        // single fastest achievable arrival (README: the deadline is a hard
-        // filter, but the shipper should learn what IS possible).
-        List<Label> anyArrival = searchParetoFront(query.cargo(), origin, destination, start, null);
-        return anyArrival.stream()
-                .min(Comparator.comparing(Label::arrivalTime).thenComparingDouble(Label::cost))
-                .map(fastest -> List.of(toOption(fastest, start)))
+        // Nothing satisfies the deadline — report the single fastest achievable
+        // arrival. It's reached from the earliest handover (you can't arrive
+        // sooner by handing over later), so one search suffices.
+        Instant earliest = query.earliestReady().atStartOfDay(origin.zone()).toInstant();
+        return searchParetoFront(query.cargo(), origin, destination, earliest, null).stream()
+                .map(label -> toOption(label, earliest))
+                .min(Comparator.comparing(RouteOption::arrival).thenComparingDouble(RouteOption::totalCost))
+                .map(List::of)
                 .orElse(List.of());
+    }
+
+    /** Candidate handover days: {@code [earliest .. min(latest, earliest +
+     *  MAX_WINDOW_DAYS-1)]}, or just {@code [earliest]} with no usable window.
+     *  A window longer than the cap is truncated and logged, never run
+     *  unbounded. */
+    private List<LocalDate> candidateDays(LocalDate earliest, LocalDate latest) {
+        if (latest == null || !latest.isAfter(earliest)) {
+            return List.of(earliest);
+        }
+        LocalDate cap = earliest.plusDays(MAX_WINDOW_DAYS - 1);
+        LocalDate end = latest.isAfter(cap) ? cap : latest;
+        if (latest.isAfter(cap)) {
+            log.warn("Flexible window {}..{} exceeds {} days; capping candidate handover days at {}",
+                    earliest, latest, MAX_WINDOW_DAYS, end);
+        }
+        List<LocalDate> days = new ArrayList<>();
+        for (LocalDate day = earliest; !day.isAfter(end); day = day.plusDays(1)) {
+            days.add(day);
+        }
+        return days;
+    }
+
+    /** Collapse per-day options of the same route (leg sequence) to a single
+     *  entry with the latest handover — same cost/CO2 either way, so a later
+     *  departure that still meets the deadline is strictly more flexible. */
+    private List<RouteOption> mergeLatestHandoverPerRoute(List<RouteOption> options) {
+        Map<String, RouteOption> byRoute = new LinkedHashMap<>();
+        for (RouteOption option : options) {
+            String key = routeKey(option.legs());
+            RouteOption kept = byRoute.get(key);
+            if (kept == null || option.handoverBy().isAfter(kept.handoverBy())) {
+                byRoute.put(key, option);
+            }
+        }
+        return new ArrayList<>(byRoute.values());
+    }
+
+    private static String routeKey(List<ServiceEdge> legs) {
+        StringBuilder key = new StringBuilder();
+        for (ServiceEdge edge : legs) {
+            key.append(edge.originLocationId()).append('>').append(edge.destinationLocationId())
+                    .append(':').append(edge.mode()).append('|');
+        }
+        return key.toString();
     }
 
     /** Bucket for dominance: labels are only comparable at the same location
@@ -279,34 +349,30 @@ public class RoutePlanner {
         return false;
     }
 
-    /** Project the (cost, co2, time) destination front onto its (cost, CO2)
-     *  Pareto front, thin near-duplicates, and map to options — cost
-     *  ascending. Time is not an output axis (it's only ever a hard filter),
-     *  so same-(cost,co2) labels keep their earliest arrival. */
-    private List<RouteOption> toOptions(List<Label> destinationFront, Instant start) {
-        List<Label> chosen = thinFront(costCo2Front(destinationFront));
-        List<RouteOption> options = new ArrayList<>();
-        for (Label label : chosen) {
-            options.add(toOption(label, start));
-        }
-        return options;
+    /** Project the merged options onto their (cost, CO2) Pareto front and thin
+     *  near-duplicates — cost ascending. */
+    private List<RouteOption> finalizeFront(List<RouteOption> options) {
+        return thinFront(costCo2Front(options));
     }
 
-    /** The (cost, CO2) Pareto staircase of the front, cost ascending, keeping
-     *  the earliest-arriving representative of each (cost, co2) point. */
-    static List<Label> costCo2Front(List<Label> front) {
-        List<Label> sorted = new ArrayList<>(front);
-        sorted.sort(Comparator.comparingDouble(Label::cost)
-                .thenComparingDouble(Label::co2)
-                .thenComparing(Label::arrivalTime));
-        List<Label> result = new ArrayList<>();
+    /** The (cost, CO2) Pareto staircase, cost ascending, keeping the
+     *  latest-handover representative of each (cost, co2) point (time is not
+     *  an output axis — only ever a hard filter — so a later handover is the
+     *  tiebreak, matching the flexible-window "hold cargo as long as
+     *  possible" preference). */
+    static List<RouteOption> costCo2Front(List<RouteOption> options) {
+        List<RouteOption> sorted = new ArrayList<>(options);
+        sorted.sort(Comparator.comparingDouble(RouteOption::totalCost)
+                .thenComparingDouble(RouteOption::totalCo2)
+                .thenComparing(Comparator.comparing(RouteOption::handoverBy).reversed()));
+        List<RouteOption> result = new ArrayList<>();
         double minCo2 = Double.POSITIVE_INFINITY;
-        for (Label label : sorted) {
-            // Cost-ascending: keep a label only when it is strictly greener
+        for (RouteOption option : sorted) {
+            // Cost-ascending: keep an option only when it is strictly greener
             // than everything at least as cheap — the lower staircase.
-            if (label.co2() < minCo2 - 1e-9) {
-                result.add(label);
-                minCo2 = label.co2();
+            if (option.totalCo2() < minCo2 - 1e-9) {
+                result.add(option);
+                minCo2 = option.totalCo2();
             }
         }
         return result;
@@ -316,18 +382,18 @@ public class RoutePlanner {
      *  ε-grid cell (README's ~5%), then, if still over {@link #MAX_OPTIONS},
      *  evenly sample the cost-sorted front keeping both endpoints (cheapest +
      *  greenest). Input must be the cost-ascending (cost, CO2) front. */
-    static List<Label> thinFront(List<Label> costSortedFront) {
+    static List<RouteOption> thinFront(List<RouteOption> costSortedFront) {
         if (costSortedFront.size() <= 1) return costSortedFront;
         record Cell(long cost, long co2) {}
-        List<Label> deduped = new ArrayList<>();
+        List<RouteOption> deduped = new ArrayList<>();
         Set<Cell> seen = new HashSet<>();
-        for (Label label : costSortedFront) {
-            if (seen.add(new Cell(gridCell(label.cost()), gridCell(label.co2())))) {
-                deduped.add(label);
+        for (RouteOption option : costSortedFront) {
+            if (seen.add(new Cell(gridCell(option.totalCost()), gridCell(option.totalCo2())))) {
+                deduped.add(option);
             }
         }
         if (deduped.size() <= MAX_OPTIONS) return deduped;
-        List<Label> capped = new ArrayList<>();
+        List<RouteOption> capped = new ArrayList<>();
         int n = deduped.size();
         long last = -1;
         for (int i = 0; i < MAX_OPTIONS; i++) {
@@ -353,11 +419,10 @@ public class RoutePlanner {
             legs.addFirst(label.edgeTaken());
         }
         List<ServiceEdge> legList = List.copyOf(legs);
-        // When the first leg of the computed plan actually departs — the
-        // handover time for THIS option (no transfer precedes the first leg).
-        // The design's "latest viable handover" (back-propagating slack so a
-        // shipper can hold cargo in a free warehouse) is step-5 flexible-
-        // window work; v1 reports the plan's own first departure.
+        // When the first leg of this plan actually departs (no transfer
+        // precedes it) — the cargo's handover/departure instant for this
+        // option. The flexible-window loop keeps the latest such instant per
+        // route across candidate days, which is the "latest viable handover".
         Instant handoverBy = legList.get(0).nextDeparture(start);
         return new RouteOption(legList, winning.cost(), winning.co2(), handoverBy,
                 winning.arrivalTime());
