@@ -1,17 +1,26 @@
 package com.driverdirect.service;
 
+import com.driverdirect.dto.AcceptRouteRequest;
+import com.driverdirect.dto.CreateIntermodalLoadRequest;
+import com.driverdirect.dto.CreateLegRequest;
 import com.driverdirect.dto.RouteOptionResponse;
+import com.driverdirect.model.ChargeUnit;
 import com.driverdirect.model.Location;
+import com.driverdirect.model.Shipment;
 import com.driverdirect.model.Shipper;
 import com.driverdirect.repository.LocationRepository;
+import com.driverdirect.routing.LocationNode;
 import com.driverdirect.routing.RouteOption;
 import com.driverdirect.routing.RoutePlanner;
 import com.driverdirect.routing.RouteQuery;
 import com.driverdirect.routing.RoutingGraph;
 import com.driverdirect.routing.RoutingGraphBuilder;
+import com.driverdirect.routing.ServiceEdge;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -41,6 +50,7 @@ public class RoutePlannerService {
 
     private final RoutingGraphBuilder graphBuilder;
     private final LocationRepository locationRepository;
+    private final PricingPolicy pricingPolicy;
 
     /** Low-level entry: the raw Pareto front. Internal/test callers; the
      *  controllers use {@link #planRoutes}. */
@@ -96,4 +106,137 @@ public class RoutePlannerService {
     }
 
     private record Planned(RoutingGraph graph, List<RouteOption> options) {}
+
+    /**
+     * Materialise an accepted route into an intermodal-create request (the
+     * "integration point"): re-plan the query (tenant-scoped), match the
+     * client's selected leg sequence to a <em>current</em> option, and map
+     * that server-computed option's legs — mode, endpoint names/countries,
+     * and distance — onto {@link CreateIntermodalLoadRequest}, carrying the
+     * query's cargo onto each leg so it re-prices on its mode's basis.
+     * Re-planning (not trusting the client's legs) guarantees only a route
+     * the engine actually proposed can be accepted; the caller then hands the
+     * result to {@code LoadService.createIntermodalLoad} unchanged.
+     *
+     * <p>Note: per-leg carrier costs are re-priced by PricingService, so the
+     * itinerary total tracks the estimate's leg costs but omits the terminal
+     * transfer costs the estimate included — transfers aren't billable Loads
+     * in this model.
+     */
+    public CreateIntermodalLoadRequest buildAcceptedItinerary(AcceptRouteRequest accept, Shipper shipper) {
+        if (accept.getLegs() == null || accept.getLegs().isEmpty()) {
+            throw new IllegalArgumentException("Select a route (its legs) to accept");
+        }
+        RouteQuery query = accept.toQuery();
+        requireAccessible(query.originLocationId(), shipper);
+        requireAccessible(query.destinationLocationId(), shipper);
+
+        Planned p = planned(query);
+        RouteOption chosen = p.options().stream()
+                .filter(option -> legsMatch(option.legs(), accept.getLegs()))
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "That route is no longer available — re-plan and accept a current option"));
+        // Booking creates real priced Loads, so the cargo must carry the
+        // quantity each chosen leg's mode meters — otherwise PricingService
+        // can't price it and the leg would post at €0. The propose estimate
+        // tolerates sparse cargo (it floors to the card minimum); acceptance
+        // does not. Reject with a clear ask rather than invent a quantity.
+        for (ServiceEdge edge : chosen.legs()) {
+            requireCargoForLeg(edge, accept);
+        }
+        return toIntermodalRequest(chosen, accept, p.graph());
+    }
+
+    private void requireCargoForLeg(ServiceEdge edge, AcceptRouteRequest accept) {
+        PricingPolicy.RateCard card = pricingPolicy.rateCardFor(edge.mode());
+        if (card == null) return; // no rate card → hourly fallback path, nothing to require
+        ChargeUnit unit = card.unit();
+        Shipment.Mode mode = edge.mode();
+        switch (unit) {
+            case PER_CONTAINER:
+                if (accept.getContainerCount() == null || accept.getContainerCount() <= 0) {
+                    throw new IllegalArgumentException("This route has a " + mode
+                            + " leg priced per container — provide containerCount to accept");
+                }
+                break;
+            case PER_PIECE:
+                if (accept.getPieceCount() == null || accept.getPieceCount() <= 0) {
+                    throw new IllegalArgumentException("This route has a " + mode
+                            + " leg priced per piece — provide pieceCount to accept");
+                }
+                break;
+            case PER_CHARGEABLE_KG:
+                if (accept.getWeightKg() == null && accept.getVolumeM3() == null) {
+                    throw new IllegalArgumentException("This route has a " + mode
+                            + " leg priced per chargeable-kg — provide weightKg (or volumeM3) to accept");
+                }
+                break;
+            case PER_KM:
+                if (edge.distanceKm() <= 0) {
+                    throw new IllegalArgumentException("The " + mode
+                            + " leg has no known distance and can't be priced — re-plan");
+                }
+                break;
+            default: // PER_HOUR / FLAT — no metered quantity required
+                break;
+        }
+    }
+
+    /** An option matches iff its edges are the same (origin, destination,
+     *  mode) sequence the client selected. */
+    private boolean legsMatch(List<ServiceEdge> edges, List<AcceptRouteRequest.AcceptedLeg> selector) {
+        if (edges.size() != selector.size()) return false;
+        for (int i = 0; i < edges.size(); i++) {
+            ServiceEdge edge = edges.get(i);
+            AcceptRouteRequest.AcceptedLeg leg = selector.get(i);
+            if (!edge.originLocationId().equals(leg.getOriginLocationId())
+                    || !edge.destinationLocationId().equals(leg.getDestinationLocationId())
+                    || edge.mode() == null || leg.getMode() == null
+                    || !edge.mode().name().equalsIgnoreCase(leg.getMode().trim())) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private CreateIntermodalLoadRequest toIntermodalRequest(
+            RouteOption chosen, AcceptRouteRequest accept, RoutingGraph graph) {
+        CreateIntermodalLoadRequest request = new CreateIntermodalLoadRequest();
+        request.setTitle(accept.getTitle() != null && !accept.getTitle().isBlank()
+                ? accept.getTitle() : defaultTitle(chosen, graph));
+        request.setDescription(accept.getDescription());
+        request.setDateNeeded(accept.getEarliestReady()); // the handover day is authoritative
+        request.setEarliestReadyDate(accept.getEarliestReady());
+        request.setLatestHandoverDate(accept.getLatestHandover());
+        request.setArrivalDeadline(accept.getArrivalDeadline());
+        request.setCurrency(accept.getCurrency());
+
+        List<CreateLegRequest> legs = new ArrayList<>();
+        for (ServiceEdge edge : chosen.legs()) {
+            LocationNode from = graph.location(edge.originLocationId());
+            LocationNode to = graph.location(edge.destinationLocationId());
+            CreateLegRequest leg = new CreateLegRequest();
+            leg.setTransportMode(edge.mode() != null ? edge.mode().name() : null);
+            leg.setPickupLocation(from != null ? from.name() : null);
+            leg.setPickupCountry(from != null ? from.country() : null);
+            leg.setDeliveryLocation(to != null ? to.name() : null);
+            leg.setDeliveryCountry(to != null ? to.country() : null);
+            leg.setDistanceKm(BigDecimal.valueOf(edge.distanceKm()));
+            leg.setWeightKg(accept.getWeightKg());
+            leg.setVolumeM3(accept.getVolumeM3());
+            leg.setContainerCount(accept.getContainerCount());
+            leg.setPieceCount(accept.getPieceCount());
+            legs.add(leg);
+        }
+        request.setLegs(legs);
+        return request;
+    }
+
+    private String defaultTitle(RouteOption chosen, RoutingGraph graph) {
+        LocationNode from = graph.location(chosen.legs().get(0).originLocationId());
+        LocationNode to = graph.location(chosen.legs().get(chosen.legs().size() - 1).destinationLocationId());
+        return "Proposed route: " + (from != null ? from.name() : "?")
+                + " → " + (to != null ? to.name() : "?");
+    }
 }

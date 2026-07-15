@@ -1,5 +1,8 @@
 package com.driverdirect.routing;
 
+import com.driverdirect.dto.AcceptRouteRequest;
+import com.driverdirect.dto.CreateIntermodalLoadRequest;
+import com.driverdirect.dto.ItineraryResponse;
 import com.driverdirect.dto.RouteOptionResponse;
 import com.driverdirect.dto.RouteQueryRequest;
 import com.driverdirect.model.Location;
@@ -7,6 +10,7 @@ import com.driverdirect.model.Shipment;
 import com.driverdirect.model.Shipper;
 import com.driverdirect.repository.LocationRepository;
 import com.driverdirect.repository.ShipperRepository;
+import com.driverdirect.service.LoadService;
 import com.driverdirect.service.RoutePlannerService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -39,6 +43,8 @@ class RoutingSeedIntegrationTest {
     private LocationRepository locationRepository;
     @Autowired
     private ShipperRepository shipperRepository;
+    @Autowired
+    private LoadService loadService;
 
     private Long locationId(String name, String country) {
         return locationRepository.findFirstByNameIgnoreCaseAndCountry(name, country)
@@ -154,5 +160,119 @@ class RoutingSeedIntegrationTest {
                                 LocalDate.now().plusDays(1), null, null), acme))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Unknown location");
+    }
+
+    @Test
+    void acceptingAProposedRouteCreatesAPlannedItinerary() {
+        Shipper acme = shipperRepository.findByEmail("employer@company.com").orElseThrow();
+        Long dublinPort = locationId("Dublin Port", "IE");
+        Long parisCdg = locationId("Paris Charles de Gaulle", "FR");
+
+        RouteQueryRequest q = new RouteQueryRequest();
+        q.setOriginLocationId(dublinPort);
+        q.setDestinationLocationId(parisCdg);
+        q.setWeightKg(BigDecimal.valueOf(15000));
+        q.setContainerCount(1);
+        q.setEarliestReady(LocalDate.now().plusDays(1));
+        List<RouteOptionResponse> options = routePlannerService.planRoutesForShipper(q.toQuery(), acme);
+
+        // Accept the multi-leg (sea + last-mile road) option.
+        RouteOptionResponse chosen = options.stream()
+                .filter(o -> o.getLegs().size() > 1)
+                .findFirst().orElseThrow();
+
+        AcceptRouteRequest accept = new AcceptRouteRequest();
+        accept.setOriginLocationId(dublinPort);
+        accept.setDestinationLocationId(parisCdg);
+        accept.setWeightKg(BigDecimal.valueOf(15000));
+        accept.setContainerCount(1);
+        accept.setEarliestReady(LocalDate.now().plusDays(1));
+        accept.setLegs(chosen.getLegs().stream().map(l -> {
+            AcceptRouteRequest.AcceptedLeg al = new AcceptRouteRequest.AcceptedLeg();
+            al.setOriginLocationId(l.getOriginLocationId());
+            al.setDestinationLocationId(l.getDestinationLocationId());
+            al.setMode(l.getMode());
+            return al;
+        }).toList());
+
+        CreateIntermodalLoadRequest req = routePlannerService.buildAcceptedItinerary(accept, acme);
+        ItineraryResponse itinerary = loadService.createIntermodalLoad(acme, req);
+
+        List<String> expectedModes = chosen.getLegs().stream()
+                .map(com.driverdirect.dto.RouteLegResponse::getMode).toList();
+        assertThat(itinerary.getStatus()).isEqualTo("PLANNED");
+        assertThat(itinerary.getLegCount()).isEqualTo(chosen.getLegs().size());
+        assertThat(itinerary.getMode()).isEqualTo("INTERMODAL"); // spans >1 mode
+        assertThat(itinerary.getLegs()).extracting(l -> l.getMode())
+                .containsExactlyElementsOf(expectedModes);
+        assertThat(itinerary.getGrandTotal()).isGreaterThan(BigDecimal.ZERO);
+        // Persisted and visible to the owner.
+        assertThat(loadService.getItinerariesByShipper(acme))
+                .anyMatch(i -> i.getId().equals(itinerary.getId()));
+    }
+
+    @Test
+    void acceptingARouteTheEngineDidNotProposeIsRejected() {
+        Shipper acme = shipperRepository.findByEmail("employer@company.com").orElseThrow();
+        Long dublinPort = locationId("Dublin Port", "IE");
+        Long parisCdg = locationId("Paris Charles de Gaulle", "FR");
+
+        // A single direct AIR leg Dublin Port → CDG is not an edge the engine
+        // produces (air departs from Cork), so no option matches this selector.
+        AcceptRouteRequest accept = new AcceptRouteRequest();
+        accept.setOriginLocationId(dublinPort);
+        accept.setDestinationLocationId(parisCdg);
+        accept.setWeightKg(BigDecimal.valueOf(15000));
+        accept.setContainerCount(1);
+        accept.setEarliestReady(LocalDate.now().plusDays(1));
+        AcceptRouteRequest.AcceptedLeg fake = new AcceptRouteRequest.AcceptedLeg();
+        fake.setOriginLocationId(dublinPort);
+        fake.setDestinationLocationId(parisCdg);
+        fake.setMode("AIR");
+        accept.setLegs(List.of(fake));
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() ->
+                routePlannerService.buildAcceptedItinerary(accept, acme))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("no longer available");
+    }
+
+    @Test
+    void acceptingASeaRouteWithoutAContainerCountIsRejectedNotZeroPriced() {
+        // The estimate floors a container leg to the card minimum even with
+        // weight-only cargo, but booking creates a real priced Load — so
+        // acceptance must demand the container count rather than post a €0 sea
+        // leg. Regression guard for the estimate-vs-reprice divergence.
+        Shipper acme = shipperRepository.findByEmail("employer@company.com").orElseThrow();
+        Long dublinPort = locationId("Dublin Port", "IE");
+        Long parisCdg = locationId("Paris Charles de Gaulle", "FR");
+
+        RouteQueryRequest q = new RouteQueryRequest();
+        q.setOriginLocationId(dublinPort);
+        q.setDestinationLocationId(parisCdg);
+        q.setWeightKg(BigDecimal.valueOf(15000)); // weight only — no containerCount
+        q.setEarliestReady(LocalDate.now().plusDays(1));
+        List<RouteOptionResponse> options = routePlannerService.planRoutesForShipper(q.toQuery(), acme);
+        RouteOptionResponse seaOption = options.stream()
+                .filter(o -> o.getLegs().stream().anyMatch(l -> "OCEAN".equals(l.getMode())))
+                .findFirst().orElseThrow();
+
+        AcceptRouteRequest accept = new AcceptRouteRequest();
+        accept.setOriginLocationId(dublinPort);
+        accept.setDestinationLocationId(parisCdg);
+        accept.setWeightKg(BigDecimal.valueOf(15000)); // still no containerCount
+        accept.setEarliestReady(LocalDate.now().plusDays(1));
+        accept.setLegs(seaOption.getLegs().stream().map(l -> {
+            AcceptRouteRequest.AcceptedLeg al = new AcceptRouteRequest.AcceptedLeg();
+            al.setOriginLocationId(l.getOriginLocationId());
+            al.setDestinationLocationId(l.getDestinationLocationId());
+            al.setMode(l.getMode());
+            return al;
+        }).toList());
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() ->
+                routePlannerService.buildAcceptedItinerary(accept, acme))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("per container");
     }
 }

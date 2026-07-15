@@ -78,6 +78,23 @@ public class ShipperController {
         return ResponseEntity.ok(routePlannerService.planRoutesForShipper(request.toQuery(), shipper));
     }
 
+    /**
+     * Accept a proposed route (the routing engine's integration point): the
+     * chosen option is re-planned + matched server-side, materialised as a
+     * draft PLANNED {@code Itinerary} through the existing intermodal-create
+     * flow, and its legs then fill through the normal Load-per-leg
+     * marketplace. Read-only planning becomes a real posting here.
+     */
+    @PostMapping("/route-options/accept")
+    public ResponseEntity<ItineraryResponse> acceptRoute(
+            Authentication auth,
+            @RequestBody AcceptRouteRequest request) {
+        Shipper shipper = getShipper(auth);
+        CreateIntermodalLoadRequest itinerary = routePlannerService.buildAcceptedItinerary(request, shipper);
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(loadService.createIntermodalLoad(shipper, itinerary));
+    }
+
     // ---- Intermodal (M2b): post a multi-leg movement ----
 
     @PostMapping("/itineraries")

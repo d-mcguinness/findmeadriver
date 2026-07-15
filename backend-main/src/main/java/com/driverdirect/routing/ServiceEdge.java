@@ -32,4 +32,10 @@ public interface ServiceEdge {
     double cost(CargoDetails cargo);
 
     double co2(CargoDetails cargo);
+
+    /** Leg distance in km — great-circle for a scheduled edge, great-circle ×
+     *  road circuity for a virtual road edge; 0 when either endpoint has no
+     *  coordinates. Carried onto the {@code Shipment} when a route is
+     *  accepted, so the leg re-prices on the same basis the estimate used. */
+    double distanceKm();
 }
