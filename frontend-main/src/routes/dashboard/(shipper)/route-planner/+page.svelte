@@ -4,13 +4,17 @@
 		Button, Tile, Tag, Select, SelectItem, NumberInput, TextInput,
 		InlineNotification, InlineLoading
 	} from 'carbon-components-svelte';
-	import { ArrowLeft, Search, ArrowRight, CheckmarkOutline, Money, Cloud } from 'carbon-icons-svelte';
+	import { ArrowLeft, Search, ArrowRight, CheckmarkOutline, Money, Cloud, Map as MapIcon } from 'carbon-icons-svelte';
 	import { api } from '$lib/api';
 	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';
-	import type { RoutableLocation, RouteOption } from '$lib/types';
+	import type { RoutableLocation, RouteOption, RouteLeg } from '$lib/types';
 	import { transportModeLabel, modeTagColor } from '$lib/transport-modes';
 	import { formatMoney } from '$lib/money';
+	import RouteTransferMap from '$lib/components/RouteTransferMap.svelte';
+
+	// The stop shape RouteTransferMap plots (matches its Stop type).
+	type MapStop = { type: string; address: string; country?: string; coords: { lat: number; lng: number } | null };
 
 	let locations = $state<RoutableLocation[]>([]);
 	let loadingLocations = $state(true);
@@ -43,6 +47,16 @@
 	// against THIS, never the live form, so a booked itinerary always matches
 	// the card the shipper clicked.
 	let searchedQuery = $state<Record<string, unknown> | null>(null);
+	// Which option is drawn on the map (defaults to the cheapest after a search).
+	let focusedIndex = $state<number | null>(null);
+	let mapWrapEl = $state<HTMLDivElement>();
+
+	// Focus an option on the map and bring the (top-of-column) map into view, so
+	// clicking "View on map" on a lower card shows the redraw it triggers.
+	function viewOnMap(index: number) {
+		focusedIndex = index;
+		mapWrapEl?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+	}
 
 	// Editing any query field invalidates the shown options: clear them so a
 	// stale card can't be accepted (Accept would otherwise re-plan a different
@@ -55,7 +69,44 @@
 		searched = false;
 		searchedQuery = null;
 		acceptError = '';
+		focusedIndex = null;
 	});
+
+	// ---- Reactive map: selected origin/destination, or the focused option ----
+	let locById = $derived(new Map(locations.map((l) => [l.id, l])));
+	let originLoc = $derived(locById.get(Number(form.originLocationId)));
+	let destLoc = $derived(locById.get(Number(form.destinationLocationId)));
+
+	function coordsOf(loc: RoutableLocation | undefined): { lat: number; lng: number } | null {
+		return loc && loc.latitude != null && loc.longitude != null
+			? { lat: loc.latitude, lng: loc.longitude }
+			: null;
+	}
+
+	// Before/without a focused option: a straight origin→destination preview.
+	let previewStops = $derived<MapStop[]>(
+		[
+			originLoc && { type: 'PICKUP', address: originLoc.name, country: originLoc.country, coords: coordsOf(originLoc) },
+			destLoc && { type: 'DELIVERY', address: destLoc.name, country: destLoc.country, coords: coordsOf(destLoc) }
+		].filter(Boolean) as MapStop[]
+	);
+
+	function legStops(leg: RouteLeg): MapStop[] {
+		const o = locById.get(leg.originLocationId);
+		const d = locById.get(leg.destinationLocationId);
+		return [
+			{ type: 'PICKUP', address: leg.originLocationName, country: o?.country, coords: coordsOf(o) },
+			{ type: 'DELIVERY', address: leg.destinationLocationName, country: d?.country, coords: coordsOf(d) }
+		];
+	}
+
+	// The focused option drawn as a multi-leg overview (each leg its own mode).
+	let focusedLegs = $derived(
+		focusedIndex != null && options[focusedIndex]
+			? options[focusedIndex].legs.map((l) => ({ mode: l.mode, stops: legStops(l) }))
+			: null
+	);
+	let showMap = $derived(!!focusedLegs || previewStops.length === 2);
 
 	async function loadLocations() {
 		try {
@@ -110,6 +161,7 @@
 			options = await api.post<RouteOption[]>('/api/shipper/route-options', payload);
 			searchedQuery = payload; // snapshot the query these options came from
 			searched = true;
+			focusedIndex = options.length > 0 ? 0 : null; // show the cheapest on the map
 		} catch (e: any) {
 			error = e.message || 'Route search failed';
 			options = [];
@@ -236,6 +288,16 @@
 
 		<!-- Results -->
 		<Column lg={7} md={8} sm={4}>
+			{#if showMap}
+				<div class="map-wrap" bind:this={mapWrapEl}>
+					{#if focusedLegs}
+						<RouteTransferMap legs={focusedLegs} showRouteOptions={false} />
+					{:else}
+						<RouteTransferMap stops={previewStops} mode="ROAD" showRouteOptions={false} />
+					{/if}
+				</div>
+			{/if}
+
 			{#if searching}
 				<InlineLoading description="Searching for routes…" />
 			{:else if searched && options.length === 0}
@@ -255,7 +317,7 @@
 				<div class="options">
 					{#each options as option, i}
 						{@const badge = optionBadge(i)}
-						<Tile class="fmad-card">
+						<Tile class={i === focusedIndex ? 'fmad-card focused' : 'fmad-card'}>
 							<div class="opt-head">
 								<div class="opt-metrics">
 									<span class="metric"><Money size={16} /> <strong>{formatMoney(option.totalCost)}</strong> <em>est.</em></span>
@@ -280,6 +342,11 @@
 							</div>
 
 							<div class="opt-actions">
+								<Button size="small" kind="ghost" icon={MapIcon}
+									disabled={i === focusedIndex}
+									on:click={() => viewOnMap(i)}>
+									{i === focusedIndex ? 'On map' : 'View on map'}
+								</Button>
 								<Button size="small" icon={CheckmarkOutline}
 									disabled={acceptingIndex !== null}
 									on:click={() => acceptRoute(option, i)}>
@@ -305,7 +372,14 @@
 	.hint { font-size: 0.75rem; color: var(--cds-text-secondary); margin: 0.4rem 0 0.9rem; }
 	.cargo-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-top: 1rem; }
 	:global(.route-planner .bx--form-item) { margin-bottom: 0.9rem; }
+	/* Sticky so the map stays visible while browsing the option list below it. */
+	.map-wrap { margin-bottom: 1rem; position: sticky; top: 1rem; z-index: 1; }
 	.options { display: flex; flex-direction: column; gap: 1rem; }
+	:global(.route-planner .fmad-card.focused),
+	.options :global(.fmad-card.focused) {
+		outline: 2px solid var(--fmad-accent, #0f62fe);
+		outline-offset: -2px;
+	}
 	.opt-head { display: flex; justify-content: space-between; align-items: flex-start; }
 	.opt-metrics { display: flex; align-items: center; gap: 1.25rem; flex-wrap: wrap; }
 	.metric { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.9375rem; }
