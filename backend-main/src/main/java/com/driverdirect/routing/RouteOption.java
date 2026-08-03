@@ -10,6 +10,19 @@ import java.util.List;
  * CreateIntermodalLoadRequest-shaped submission, unchanged (README.md,
  * "Integration point").
  *
+ * <p><strong>Money.</strong> {@code totalCost} is what the shipper pays — the
+ * search's objective — broken out into {@code carrierCostTotal} (what the
+ * carriers earn), {@code commissionTotal} (each leg's fee at <em>its own</em>
+ * mode's rate, since commission runs ROAD 10% … AIR 20%) and
+ * {@code transferCostTotal} (terminal handling at interchanges). The three sum
+ * to {@code totalCost}. Accepting this option materialises legs that
+ * PricingService re-prices, and its Itinerary will roll up
+ * {@code carrierCostTotal + commissionTotal}: <em>terminal handling is not a
+ * billable item in the TMS model yet</em>, so an accepted route's grand total
+ * comes out lower than the estimate by {@code transferCostTotal}. It is
+ * reported separately rather than hidden so that difference is visible instead
+ * of looking like a pricing bug.
+ *
  * <p>{@code handoverBy} is the departure instant of this plan's first leg.
  * For a flexible-window query (step 5) the planner keeps, per route, the
  * option whose first leg departs latest while still meeting the deadline —
@@ -21,6 +34,9 @@ import java.util.List;
 public record RouteOption(
         List<ServiceEdge> legs,
         double totalCost,
+        double carrierCostTotal,
+        double commissionTotal,
+        double transferCostTotal,
         double totalCo2,
         Instant handoverBy,
         Instant arrival,

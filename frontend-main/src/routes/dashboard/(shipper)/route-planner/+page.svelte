@@ -211,6 +211,21 @@
 	// re-derive that from a UTC instant, so we trust the server's verdict).
 	let deadlineMissed = $derived(options.some((o) => !o.meetsDeadline));
 
+	// The quoted figure is shipper-payable, so show what it is made of. Terminal
+	// handling is part of the estimate but isn't billed on a booked itinerary
+	// (handling isn't a billable item yet), so it's called out separately rather
+	// than folded into the fee.
+	function costBreakdown(o: RouteOption): string {
+		const parts = [
+			`Carrier ${formatMoney(o.carrierCostTotal)}`,
+			`platform fee ${formatMoney(o.commissionTotal)} (per leg, at each mode's rate)`
+		];
+		if (o.transferCostTotal > 0) {
+			parts.push(`terminal handling ${formatMoney(o.transferCostTotal)} — estimated, not billed on booking`);
+		}
+		return `${parts.join(' + ')}. Re-priced on acceptance.`;
+	}
+
 	function optionBadge(index: number): { label: string; color: 'green' | 'teal' } | null {
 		if (options.length < 2) return null;
 		if (index === 0) return { label: 'Cheapest', color: 'teal' };
@@ -320,9 +335,21 @@
 						<Tile class={i === focusedIndex ? 'fmad-card focused' : 'fmad-card'}>
 							<div class="opt-head">
 								<div class="opt-metrics">
-									<span class="metric"><Money size={16} /> <strong>{formatMoney(option.totalCost)}</strong> <em>est.</em></span>
+									<span class="metric" title={costBreakdown(option)}>
+										<Money size={16} /> <strong>{formatMoney(option.totalCost)}</strong>
+										<em>est. you pay</em>
+									</span>
 									<span class="metric"><Cloud size={16} /> <strong>{Math.round(option.totalCo2Kg)} kg</strong> CO₂</span>
 									{#if badge}<Tag type={badge.color}>{badge.label}</Tag>{/if}
+								</div>
+								<div class="opt-money">
+									Carrier {formatMoney(option.carrierCostTotal)}
+									<span class="fee">+ {formatMoney(option.commissionTotal)} platform fee</span>
+									{#if option.transferCostTotal > 0}
+										<span class="handling" title="Terminal handling at interchanges. Part of this estimate, but not billed on a booked itinerary — handling isn't a chargeable item in the TMS model yet.">
+											+ {formatMoney(option.transferCostTotal)} handling (est. only)
+										</span>
+									{/if}
 								</div>
 							</div>
 
@@ -384,6 +411,16 @@
 	.opt-metrics { display: flex; align-items: center; gap: 1.25rem; flex-wrap: wrap; }
 	.metric { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.9375rem; }
 	.metric em { color: var(--cds-text-secondary); font-style: normal; font-size: 0.75rem; }
+	.opt-money {
+		margin-top: 0.25rem;
+		font-size: 0.75rem;
+		color: var(--cds-text-secondary);
+		display: flex; gap: 0.4rem; flex-wrap: wrap;
+	}
+	.opt-money .handling {
+		border-bottom: 1px dotted var(--cds-text-secondary, #6f6f6f);
+		cursor: help;
+	}
 	.legs { display: flex; flex-direction: column; gap: 0.35rem; margin: 0.85rem 0; }
 	.leg {
 		display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap;

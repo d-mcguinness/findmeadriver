@@ -40,8 +40,18 @@ public record RoadEdge(
     }
 
     @Override
-    public double cost(CargoDetails cargo) {
-        return rates.cost(cargo, distanceKm);
+    public double carrierCost(CargoDetails cargo) {
+        return rates.carrierCost(cargo, distanceKm);
+    }
+
+    @Override
+    public double commission(CargoDetails cargo) {
+        return rates.commission(cargo, distanceKm);
+    }
+
+    @Override
+    public double shipperCost(CargoDetails cargo) {
+        return rates.shipperCost(cargo, distanceKm);
     }
 
     @Override

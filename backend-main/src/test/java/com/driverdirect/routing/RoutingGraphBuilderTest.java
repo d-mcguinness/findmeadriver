@@ -207,7 +207,7 @@ class RoutingGraphBuilderTest {
     void recordDeepFreezesHandBuiltGraphsToo() {
         // The immutability guarantee lives in the record's compact
         // constructor, not in the builder: mutable inputs are frozen.
-        LegRates road = new LegRates(new Tariff(ChargeUnit.PER_KM, 50, 1.20, 150), 0.075);
+        LegRates road = new LegRates(new Tariff(ChargeUnit.PER_KM, 50, 1.20, 150), 0.075, 0);
         ServiceEdge edge = new RoadEdge(1L, 2L, 100, 70, road);
         RoutingGraph graph = new RoutingGraph(
                 new HashMap<>(Map.of(1L, new ArrayList<>(List.of(edge)))),

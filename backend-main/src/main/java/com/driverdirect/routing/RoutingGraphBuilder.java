@@ -79,7 +79,8 @@ public class RoutingGraphBuilder {
         // deep-freezes the maps and lists.
         return new RoutingGraph(edges, defaultTransferProfiles(locations), locations,
                 LegRates.from(pricingPolicy.rateCardFor(Shipment.Mode.ROAD),
-                        emissionPolicy.kgCo2ePerTonneKm(Shipment.Mode.ROAD)));
+                        emissionPolicy.kgCo2ePerTonneKm(Shipment.Mode.ROAD),
+                        pricingPolicy.commissionPercentFor(Shipment.Mode.ROAD).doubleValue()));
     }
 
     /** TransferPolicy defaults per typed terminal: every ordered pair of the
@@ -157,6 +158,7 @@ public class RoutingGraphBuilder {
                 // search chain hops without advancing time.
                 Duration.ofMinutes(Math.max(1, Math.round(transitHours * 60))),
                 distanceKm,
-                LegRates.from(card, emissionPolicy.kgCo2ePerTonneKm(lane.getServiceMode())));
+                LegRates.from(card, emissionPolicy.kgCo2ePerTonneKm(lane.getServiceMode()),
+                        pricingPolicy.commissionPercentFor(lane.getServiceMode()).doubleValue()));
     }
 }

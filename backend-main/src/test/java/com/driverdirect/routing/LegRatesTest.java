@@ -16,7 +16,7 @@ import static org.assertj.core.api.Assertions.within;
 class LegRatesTest {
 
     private final LegRates ocean =
-            new LegRates(new Tariff(ChargeUnit.PER_CONTAINER, 350, 1800, 1800), 0.012);
+            new LegRates(new Tariff(ChargeUnit.PER_CONTAINER, 350, 1800, 1800), 0.012, 0);
 
     @Test
     void co2IsDistanceByTonnesByFactor() {
@@ -35,6 +35,6 @@ class LegRatesTest {
     @Test
     void costDelegatesToTariff() {
         CargoDetails twoContainers = new CargoDetails(null, null, 2, null);
-        assertThat(ocean.cost(twoContainers, 0)).isEqualTo(350 + 1800 * 2);
+        assertThat(ocean.carrierCost(twoContainers, 0)).isEqualTo(350 + 1800 * 2);
     }
 }

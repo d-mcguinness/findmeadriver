@@ -36,10 +36,10 @@ import static org.assertj.core.api.Assertions.within;
 class RoutePlannerTest {
 
     private static final LegRates ROAD =
-            new LegRates(new Tariff(ChargeUnit.PER_KM, 50, 1.20, 150), 0.075);
+            new LegRates(new Tariff(ChargeUnit.PER_KM, 50, 1.20, 150), 0.075, 0);
     /** Deliberately cheap sailing so intermodal beats direct road on cost. */
     private static final LegRates CHEAP_OCEAN =
-            new LegRates(new Tariff(ChargeUnit.PER_CONTAINER, 0, 10, 10), 0.012);
+            new LegRates(new Tariff(ChargeUnit.PER_CONTAINER, 0, 10, 10), 0.012, 0);
     private static final CargoDetails ONE_CONTAINER = new CargoDetails(null, null, 1, null);
     /** 20 tonnes in one container — weight makes CO2 (and the Pareto front) real. */
     private static final CargoDetails LADEN = new CargoDetails(BigDecimal.valueOf(20000), null, 1, null);
@@ -95,6 +95,78 @@ class RoutePlannerTest {
                 .isBefore(Instant.parse("2026-07-07T10:00:00Z"));
     }
 
+    /** A daily service with a flat carrier cost and an explicit commission rate,
+     *  so a test can set the two independently. */
+    private ScheduledServiceEdge flatService(long from, long to, Shipment.Mode mode,
+                                             double carrierCost, double commissionPercent) {
+        return new ScheduledServiceEdge(from, to, mode, EnumSet.allOf(DayOfWeek.class),
+                LocalTime.of(6, 0), ZoneId.of("Europe/Dublin"), Duration.ofHours(12), 700.0,
+                new LegRates(new Tariff(ChargeUnit.FLAT, carrierCost, 0, 0), 0.02, commissionPercent));
+    }
+
+    @Test
+    void theCheapestOptionIsCheapestForTheShipperNotForTheCarrier() {
+        // Two direct services between the same pair, both boardable from the
+        // origin (no transfer needed). OCEAN hauls cheaper but carries a 15%
+        // fee; RAIL hauls dearer at 5%. Ranking on carrier cost picks OCEAN
+        // (1000 < 1040); the shipper actually pays less on RAIL
+        // (1040 × 1.05 = 1092 < 1000 × 1.15 = 1150). The search must return
+        // the one the shipper pays less for — that is the whole point of
+        // optimising shipperCost.
+        LocationNode portA = node(1, Location.LocationType.SEAPORT, 53.34, -6.20, "Europe/Dublin");
+        LocationNode portB = node(2, Location.LocationType.SEAPORT, 51.95, 4.14, "Europe/Amsterdam");
+        RoutingGraph graph = new RoutingGraph(
+                Map.of(1L, List.of(flatService(1L, 2L, Shipment.Mode.OCEAN, 1000, 15),
+                                   flatService(1L, 2L, Shipment.Mode.RAIL, 1040, 5))),
+                Map.of(), Map.of(1L, portA, 2L, portB), ROAD);
+
+        List<RouteOption> options = new RoutePlanner(graph)
+                .findOptions(new RouteQuery(1L, 2L, LADEN, MONDAY, null, null));
+
+        RouteOption cheapest = options.get(0);
+        assertThat(cheapest.legs()).extracting(ServiceEdge::mode)
+                .containsExactly(Shipment.Mode.RAIL);
+        assertThat(cheapest.totalCost()).isEqualTo(1092.0);
+        assertThat(cheapest.carrierCostTotal()).isEqualTo(1040.0);
+        assertThat(cheapest.commissionTotal()).isEqualTo(52.0);
+        // Equal CO2 and arrival, strictly cheaper to the shipper → the
+        // carrier-cheaper OCEAN option is dominated and never offered.
+        assertThat(options).allSatisfy(o -> assertThat(o.legs())
+                .extracting(ServiceEdge::mode).doesNotContain(Shipment.Mode.OCEAN));
+    }
+
+    @Test
+    void optionMoneySplitsIntoCarrierCostPerModeCommissionAndHandling() {
+        // The intermodal fixture with real per-mode rates on its two modes:
+        // road feeders at 10%, the sailing at 15%. Commission must be charged
+        // per leg at that leg's own rate — a blended route-level rate would be
+        // wrong for every route spanning modes.
+        LegRates road10 = new LegRates(new Tariff(ChargeUnit.PER_KM, 50, 1.20, 150), 0.075, 10);
+        LegRates ocean15 = new LegRates(new Tariff(ChargeUnit.PER_CONTAINER, 0, 10, 10), 0.012, 15);
+        RoutingGraph graph = new RoutingGraph(
+                Map.of(2L, List.of(new ScheduledServiceEdge(2L, 3L, Shipment.Mode.OCEAN,
+                        EnumSet.allOf(DayOfWeek.class), LocalTime.of(8, 0),
+                        ZoneId.of("Europe/Dublin"), Duration.ofHours(24), 718.0, ocean15))),
+                Map.of(2L, List.of(new TransferProfile(2L, Shipment.Mode.ROAD, Shipment.Mode.OCEAN, 50, 60)),
+                        3L, List.of(new TransferProfile(3L, Shipment.Mode.OCEAN, Shipment.Mode.ROAD, 50, 60))),
+                Map.of(1L, origin, 2L, dublinPort, 3L, rotterdam, 4L, destination),
+                road10);
+
+        RouteOption option = new RoutePlanner(graph)
+                .findOptions(new RouteQuery(1L, 4L, ONE_CONTAINER, MONDAY, null, null)).get(0);
+
+        // Carrier: 150 (feeder min) + 10 (sailing) + 150 (last-mile min).
+        assertThat(option.carrierCostTotal()).isEqualTo(310.0);
+        // Commission: each leg at its own mode's rate — 15 + 1.5 + 15, not one
+        // blended rate over 310.
+        assertThat(option.commissionTotal()).isEqualTo(150 * 0.10 + 10 * 0.15 + 150 * 0.10);
+        // Handling: the two terminal transfers, at 50 each.
+        assertThat(option.transferCostTotal()).isEqualTo(100.0);
+        // And the three account for the whole objective.
+        assertThat(option.totalCost()).isEqualTo(
+                option.carrierCostTotal() + option.commissionTotal() + option.transferCostTotal());
+    }
+
     @Test
     void returnsTheCostCo2ParetoFrontWhenOptionsTradeOff() {
         // Two direct sailings-of-different-mode between one port pair: RAIL is
@@ -103,11 +175,11 @@ class RoutePlannerTest {
         ScheduledServiceEdge rail = new ScheduledServiceEdge(1L, 2L, Shipment.Mode.RAIL,
                 EnumSet.allOf(DayOfWeek.class), LocalTime.of(8, 0), ZoneId.of("Europe/Dublin"),
                 Duration.ofHours(12), 800.0,
-                new LegRates(new Tariff(ChargeUnit.PER_CONTAINER, 0, 600, 600), 0.025));
+                new LegRates(new Tariff(ChargeUnit.PER_CONTAINER, 0, 600, 600), 0.025, 0));
         ScheduledServiceEdge ocean = new ScheduledServiceEdge(1L, 2L, Shipment.Mode.OCEAN,
                 EnumSet.allOf(DayOfWeek.class), LocalTime.of(8, 0), ZoneId.of("Europe/Dublin"),
                 Duration.ofHours(24), 800.0,
-                new LegRates(new Tariff(ChargeUnit.PER_CONTAINER, 350, 1800, 1800), 0.012));
+                new LegRates(new Tariff(ChargeUnit.PER_CONTAINER, 350, 1800, 1800), 0.012, 0));
         LocationNode portA = node(1, Location.LocationType.SEAPORT, 53.34, -6.20, "Europe/Dublin");
         LocationNode portB = node(2, Location.LocationType.SEAPORT, 51.95, 4.14, "Europe/Amsterdam");
         RoutingGraph graph = new RoutingGraph(
@@ -292,8 +364,10 @@ class RoutePlannerTest {
 
     // ---- Output projection + thinning (package-private statics) ----
 
+    // Front projection/thinning only reads (totalCost, totalCo2), so the money
+    // breakdown is irrelevant here: attribute the whole cost to the carrier.
     private static RouteOption opt(double cost, double co2) {
-        return new RouteOption(List.of(), cost, co2,
+        return new RouteOption(List.of(), cost, cost, 0, 0, co2,
                 Instant.parse("2026-07-06T00:00:00Z"), Instant.parse("2026-07-06T00:00:00Z"), true);
     }
 
@@ -337,7 +411,7 @@ class RoutePlannerTest {
         ScheduledServiceEdge sailing = new ScheduledServiceEdge(1L, 2L, Shipment.Mode.OCEAN,
                 EnumSet.of(DayOfWeek.MONDAY), LocalTime.of(8, 0), ZoneId.of("Europe/Dublin"),
                 Duration.ofHours(24), 800.0,
-                new LegRates(new Tariff(ChargeUnit.PER_CONTAINER, 350, 1800, 1800), 0.012));
+                new LegRates(new Tariff(ChargeUnit.PER_CONTAINER, 350, 1800, 1800), 0.012, 0));
         return new RoutePlanner(new RoutingGraph(
                 Map.of(1L, List.of(sailing)), Map.of(),
                 Map.of(1L, portA, 2L, portB), ROAD));

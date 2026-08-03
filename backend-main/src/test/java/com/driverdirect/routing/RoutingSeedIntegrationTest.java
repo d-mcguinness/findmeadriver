@@ -28,6 +28,7 @@ import java.util.Comparator;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.within;
 
 /**
  * End-to-end proof that the seeded graph (typed terminals with coordinates +
@@ -482,6 +483,66 @@ class RoutingSeedIntegrationTest {
                 loadService.createIntermodalLoad(acme, req))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Unknown location");
+    }
+
+    @Test
+    @Transactional
+    void aQuotedRouteReconcilesWithWhatTheAcceptedItineraryBills() {
+        // The point of quoting shipper-payable cost: the figure a shipper picks
+        // a route by must be the figure they are billed. carrierCostTotal +
+        // commissionTotal is what the Itinerary rolls up; totalCost exceeds it
+        // by exactly transferCostTotal, terminal handling not being a billable
+        // item in the TMS model yet.
+        Shipper acme = shipperRepository.findByEmail("employer@company.com").orElseThrow();
+        Long dublinPort = locationId("Dublin Port", "IE");
+        Long parisCdg = locationId("Paris Charles de Gaulle", "FR");
+
+        RouteQueryRequest q = new RouteQueryRequest();
+        q.setOriginLocationId(dublinPort);
+        q.setDestinationLocationId(parisCdg);
+        q.setWeightKg(BigDecimal.valueOf(15000));
+        q.setContainerCount(1);
+        q.setEarliestReady(LocalDate.now().plusDays(1));
+        RouteOptionResponse chosen = routePlannerService.planRoutesForShipper(q.toQuery(), acme).stream()
+                .filter(o -> o.getLegs().size() > 1)
+                .findFirst().orElseThrow();
+
+        // The quote is shipper-payable, so it must exceed bare carrier cost.
+        assertThat(chosen.getCommissionTotal()).isPositive();
+        assertThat(chosen.getTotalCost()).isGreaterThan(chosen.getCarrierCostTotal());
+        assertThat(chosen.getTotalCost()).isCloseTo(
+                chosen.getCarrierCostTotal() + chosen.getCommissionTotal()
+                        + chosen.getTransferCostTotal(), within(0.01));
+
+        AcceptRouteRequest accept = new AcceptRouteRequest();
+        accept.setOriginLocationId(dublinPort);
+        accept.setDestinationLocationId(parisCdg);
+        accept.setWeightKg(BigDecimal.valueOf(15000));
+        accept.setContainerCount(1);
+        accept.setEarliestReady(LocalDate.now().plusDays(1));
+        accept.setLegs(chosen.getLegs().stream().map(l -> {
+            AcceptRouteRequest.AcceptedLeg al = new AcceptRouteRequest.AcceptedLeg();
+            al.setOriginLocationId(l.getOriginLocationId());
+            al.setDestinationLocationId(l.getDestinationLocationId());
+            al.setMode(l.getMode());
+            return al;
+        }).toList());
+
+        ItineraryResponse itinerary = loadService.createIntermodalLoad(
+                acme, routePlannerService.buildAcceptedItinerary(accept, acme));
+
+        // What PricingService actually charged, against what was quoted. Cents
+        // of tolerance for the double → BigDecimal boundary; anything larger
+        // would mean the quote and the bill disagree on substance.
+        assertThat(itinerary.getCarrierCostTotal().doubleValue())
+                .as("carrier cost quoted vs billed")
+                .isCloseTo(chosen.getCarrierCostTotal(), within(0.05));
+        assertThat(itinerary.getCommissionTotal().doubleValue())
+                .as("commission quoted vs billed")
+                .isCloseTo(chosen.getCommissionTotal(), within(0.05));
+        assertThat(itinerary.getGrandTotal().doubleValue())
+                .as("shipper total quoted vs billed, net of unbillable handling")
+                .isCloseTo(chosen.getCarrierCostTotal() + chosen.getCommissionTotal(), within(0.05));
     }
 
     @Test
