@@ -57,6 +57,16 @@ public class Shipment {
     @Column(name = "distance_km")
     private BigDecimal distanceKm;
 
+    // How distanceKm was arrived at. Two paths write this column with numbers
+    // of different kinds — a client's measured driving distance and the routing
+    // engine's coordinate model, which for road differ by the circuity factor
+    // (~30%) — and PER_KM pricing turns whichever one lands here into real
+    // money. Recording the basis keeps a model from silently reading as a
+    // measurement. Null on legacy/seed rows and on legs with no distance.
+    @Enumerated(EnumType.STRING)
+    @Column(name = "distance_source")
+    private DistanceSource distanceSource;
+
     @Column(name = "weight_kg")
     private BigDecimal weightKg;
 
@@ -149,4 +159,22 @@ public class Shipment {
     public enum ShipmentStatus {
         PLANNED, TENDERED, ACCEPTED, DISPATCHED, IN_TRANSIT, DELIVERED, CANCELLED
     }
+
+    /**
+     * Where {@link #distanceKm} came from — what the server can actually
+     * vouch for, not what it wishes were true.
+     *
+     * <p>{@code CLIENT_SUPPLIED}: the distance arrived on the request. The
+     * post-a-load form fills it from the Google Routes API, i.e. measured
+     * driving distance along a real path, but the shipper may edit it, so the
+     * server can only say a client stated it.
+     *
+     * <p>{@code GREAT_CIRCLE_ESTIMATE}: the routing engine derived it from the
+     * endpoints' coordinates — haversine for a scheduled rail/sea/air leg, and
+     * haversine × {@code RoutePlanner.ROAD_CIRCUITY} for a virtual road leg.
+     * A model, not a measurement: no server-side routing API exists (and none
+     * exists at all for maritime), so an accepted route's road legs read short
+     * of true driving distance and its sea legs ignore canals and straits.
+     */
+    public enum DistanceSource { CLIENT_SUPPLIED, GREAT_CIRCLE_ESTIMATE }
 }

@@ -228,7 +228,11 @@ public class RoutePlannerService {
             leg.setPickupCountry(from != null ? from.country() : null);
             leg.setDeliveryLocation(to != null ? to.name() : null);
             leg.setDeliveryCountry(to != null ? to.country() : null);
+            // This distance is persisted and then re-priced on the PER_KM
+            // basis, so it must declare what it is: a coordinate model, not a
+            // measurement along the path the truck or vessel will take.
             leg.setDistanceKm(BigDecimal.valueOf(edge.distanceKm()));
+            leg.setDistanceSource(Shipment.DistanceSource.GREAT_CIRCLE_ESTIMATE.name());
             leg.setWeightKg(accept.getWeightKg());
             leg.setVolumeM3(accept.getVolumeM3());
             leg.setContainerCount(accept.getContainerCount());

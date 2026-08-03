@@ -30,11 +30,18 @@ public record Tariff(ChargeUnit unit, double baseFee, double ratePerUnit, double
      * charge stands in as the best-known floor — the planner needs an
      * estimate, not a refusal.
      *
-     * <p>PER_KM caveat: {@code distanceKm} here is whatever the caller
-     * supplies — great-circle km at graph-build time — while PricingService's
-     * PER_KM basis meters the stored route km (real driving distance,
-     * typically 20–40% longer). PER_KM estimates from this class are
-     * therefore a lower bound on the authoritative reprice.
+     * <p>PER_KM caveat: {@code distanceKm} here is a coordinate model —
+     * haversine, times {@code RoutePlanner.ROAD_CIRCUITY} for a virtual road
+     * edge — not measured driving distance. It does <em>not</em> make the
+     * estimate a lower bound on the reprice, because accepting a route
+     * persists this very number onto the {@code Shipment} (tagged
+     * {@code DistanceSource.GREAT_CIRCLE_ESTIMATE}) and PricingService then
+     * meters PER_KM off it: estimate and reprice agree by construction. What
+     * the caveat costs is absolute accuracy against the real world — a road
+     * leg still reads short of true driving distance, and a sea leg ignores
+     * canals and straits entirely. Compare against a hand-posted load, whose
+     * distance is CLIENT_SUPPLIED (the form measures it via the Routes API),
+     * only with that difference in mind.
      */
     public double cost(CargoDetails cargo, double distanceKm) {
         Double quantity = quantityFor(cargo, distanceKm);

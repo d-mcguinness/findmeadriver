@@ -352,7 +352,23 @@ public class TmsTreeService {
             String requiredLicenceCategory,
             BigDecimal distanceKm, BigDecimal weightKg, BigDecimal volumeM3,
             Integer containerCount, Integer pieceCount,
-            Long pickupLocationId, Long deliveryLocationId) {
+            Long pickupLocationId, Long deliveryLocationId,
+            Shipment.DistanceSource distanceSource) {
+
+        /** Back-compat constructor for legs with no declared distance basis —
+         *  a present distance records as CLIENT_SUPPLIED. */
+        public LegInput(Shipment.Mode mode, String pickupLocation, String deliveryLocation,
+                        String pickupCountry, String deliveryCountry, BigDecimal ratePerHour,
+                        Double estimatedDurationHours, String requiredLicenceCategory,
+                        BigDecimal distanceKm, BigDecimal weightKg, BigDecimal volumeM3,
+                        Integer containerCount, Integer pieceCount,
+                        Long pickupLocationId, Long deliveryLocationId) {
+            this(mode, pickupLocation, deliveryLocation, pickupCountry, deliveryCountry,
+                    ratePerHour, estimatedDurationHours, requiredLicenceCategory,
+                    distanceKm, weightKg, volumeM3, containerCount, pieceCount,
+                    pickupLocationId, deliveryLocationId,
+                    distanceKm == null ? null : Shipment.DistanceSource.CLIENT_SUPPLIED);
+        }
 
         /** Back-compat constructor for name-addressed legs (no endpoint ids). */
         public LegInput(Shipment.Mode mode, String pickupLocation, String deliveryLocation,
@@ -446,6 +462,7 @@ public class TmsTreeService {
             shipment.setOriginCountry(countryOf(leg.pickupCountry(), pickupLoc));
             shipment.setDestinationCountry(countryOf(leg.deliveryCountry(), deliveryLoc));
             shipment.setDistanceKm(leg.distanceKm());
+            shipment.setDistanceSource(leg.distanceSource());
             shipment.setWeightKg(leg.weightKg());
             shipment.setVolumeM3(leg.volumeM3());
             shipment.setContainerCount(leg.containerCount());
@@ -525,6 +542,7 @@ public class TmsTreeService {
             leg.setOriginCountry(countryOf(li.pickupCountry(), pickupLoc));
             leg.setDestinationCountry(countryOf(li.deliveryCountry(), deliveryLoc));
             leg.setDistanceKm(li.distanceKm());
+            leg.setDistanceSource(li.distanceSource());
             leg.setWeightKg(li.weightKg());
             leg.setVolumeM3(li.volumeM3());
             leg.setContainerCount(li.containerCount());

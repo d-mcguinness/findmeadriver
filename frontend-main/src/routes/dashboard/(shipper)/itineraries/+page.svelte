@@ -24,11 +24,35 @@
 		PER_HOUR: 'per hour',
 		FLAT: 'flat'
 	};
-	function basisLabel(unit: string | undefined, qty: number | undefined): string {
+	// A leg whose distance the route planner modelled from the endpoints'
+	// coordinates rather than measuring along the road/sea path. Shown as such:
+	// for a per-km leg that model is what the price was computed from.
+	function isEstimatedDistance(leg: { distanceSource?: string }): boolean {
+		return leg.distanceSource === 'GREAT_CIRCLE_ESTIMATE';
+	}
+	const ESTIMATE_HINT =
+		'Distance modelled from the endpoints’ coordinates — a straight line, plus a road-circuity allowance for road legs — rather than measured along the route. Edit the itinerary to set a measured distance.';
+
+	function basisLabel(
+		unit: string | undefined,
+		qty: number | undefined,
+		leg: { distanceSource?: string }
+	): string {
 		if (!unit) return '';
 		const l = BASIS_LABELS[unit] ?? unit;
-		return qty != null ? `${l} × ${qty}` : l;
+		if (qty == null) return l;
+		// A PER_KM chargeable quantity *is* the leg's distance, so an estimated
+		// distance makes the priced quantity approximate too.
+		const approx = unit === 'PER_KM' && isEstimatedDistance(leg);
+		return `${l} × ${approx ? '≈' : ''}${qty}`;
 	}
+	// Only worth flagging on the totals when an estimate actually moved the
+	// money — i.e. a per-km leg. On other bases the distance is informational and
+	// the per-leg marker says enough.
+	function pricedOnEstimatedDistance(it: Itinerary): boolean {
+		return (it.legs ?? []).some((l) => l.chargeUnit === 'PER_KM' && isEstimatedDistance(l));
+	}
+
 	function nodeName(name: string | undefined, code: string | undefined): string {
 		if (!name) return '?';
 		return code ? `${name} (${code})` : name;
@@ -128,7 +152,8 @@
 										<Tag type={modeTagColor(leg.mode)} size="sm">{transportModeLabel(leg.mode)}</Tag>
 										<span class="leg-route">
 											{nodeName(leg.pickupLocation, leg.pickupCode)} → {nodeName(leg.deliveryLocation, leg.deliveryCode)}
-											{#if leg.chargeUnit}<span class="leg-basis">{basisLabel(leg.chargeUnit, leg.chargeableQuantity)}</span>{/if}
+											{#if leg.chargeUnit}<span class="leg-basis">{basisLabel(leg.chargeUnit, leg.chargeableQuantity, leg)}</span>{/if}
+											{#if isEstimatedDistance(leg)}<em class="leg-est" title={ESTIMATE_HINT}>est. distance</em>{/if}
 										</span>
 										<span class="leg-money">
 											{formatMoney(leg.carrierCost, leg.currency)}
@@ -143,6 +168,12 @@
 								<span>Carrier <strong>{formatMoney(it.carrierCostTotal, it.currency)}</strong></span>
 								<span>Platform fee <strong>{formatMoney(it.commissionTotal, it.currency)}</strong></span>
 								<span class="grand">Total <strong>{formatMoney(it.grandTotal, it.currency)}</strong></span>
+								{#if pricedOnEstimatedDistance(it)}
+									<span class="it-estimate-note" title={ESTIMATE_HINT}>
+										Includes per-km legs priced on an estimated distance — set a measured
+										distance to firm these figures up.
+									</span>
+								{/if}
 							</div>
 
 							<div class="it-actions">
@@ -201,6 +232,19 @@
 	}
 	.leg-money { color: var(--cds-text-secondary); }
 	.leg-fee { font-size: 0.75rem; }
+	.leg-est {
+		margin-left: 0.35rem;
+		font-size: 0.6875rem;
+		font-style: normal;
+		color: var(--cds-text-secondary);
+		border-bottom: 1px dotted var(--cds-text-secondary, #6f6f6f);
+		cursor: help;
+	}
+	.it-estimate-note {
+		flex-basis: 100%;
+		font-size: 0.75rem;
+		color: var(--cds-text-secondary);
+	}
 	.it-totals {
 		display: flex; gap: 1.5rem; flex-wrap: wrap;
 		border-top: 1px solid var(--cds-border-subtle, #e0e0e0); padding-top: 0.6rem; font-size: 0.875rem;

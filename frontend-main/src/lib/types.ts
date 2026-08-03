@@ -108,6 +108,11 @@ export interface Load {
 	shipperTotal?: number;
 	/** Per-mode pricing quantities (M3b) — present so the edit form can prefill. */
 	distanceKm?: number;
+	/** How distanceKm was arrived at: 'CLIENT_SUPPLIED' (measured or stated on
+	 *  the request) or 'GREAT_CIRCLE_ESTIMATE' (modelled by the server's route
+	 *  planner from endpoint coordinates). Label an estimate as one before
+	 *  showing it as a distance. */
+	distanceSource?: string;
 	weightKg?: number;
 	volumeM3?: number;
 	containerCount?: number;
@@ -153,6 +158,12 @@ export interface ItineraryLeg {
 	// Per-mode pricing quantities + the Load-side fields — present only when
 	// fetched via GET one itinerary (the edit form's prefill), not in lists.
 	distanceKm?: number;
+	// See LoadResponse.distanceSource. Unlike the Load-side fields above, this and
+	// distanceKm come off the Shipment and so are present in list responses too.
+	// An itinerary built by accepting a route planner proposal is
+	// GREAT_CIRCLE_ESTIMATE on every leg; echo it back on an edit to keep the
+	// label, or it re-records as CLIENT_SUPPLIED.
+	distanceSource?: string;
 	weightKg?: number;
 	volumeM3?: number;
 	containerCount?: number;

@@ -334,6 +334,133 @@ class RoutingSeedIntegrationTest {
     }
 
     @Test
+    @Transactional
+    void anAcceptedRoutesLegsRecordTheirDistanceAsAnEstimateNotAMeasurement() {
+        // Shipment.distanceKm is written by two paths with numbers of different
+        // kinds — a client's measured driving distance and the engine's
+        // coordinate model (haversine, × ROAD_CIRCUITY for road) — and PER_KM
+        // pricing turns whichever lands there into real money. Each leg must
+        // therefore say which it is.
+        Shipper acme = shipperRepository.findByEmail("employer@company.com").orElseThrow();
+        Long dublinPort = locationId("Dublin Port", "IE");
+        Long parisCdg = locationId("Paris Charles de Gaulle", "FR");
+
+        RouteQueryRequest q = new RouteQueryRequest();
+        q.setOriginLocationId(dublinPort);
+        q.setDestinationLocationId(parisCdg);
+        q.setWeightKg(BigDecimal.valueOf(15000));
+        q.setContainerCount(1);
+        q.setEarliestReady(LocalDate.now().plusDays(1));
+        RouteOptionResponse chosen = routePlannerService.planRoutesForShipper(q.toQuery(), acme).stream()
+                .filter(o -> o.getLegs().size() > 1)
+                .findFirst().orElseThrow();
+
+        AcceptRouteRequest accept = new AcceptRouteRequest();
+        accept.setOriginLocationId(dublinPort);
+        accept.setDestinationLocationId(parisCdg);
+        accept.setWeightKg(BigDecimal.valueOf(15000));
+        accept.setContainerCount(1);
+        accept.setEarliestReady(LocalDate.now().plusDays(1));
+        accept.setLegs(chosen.getLegs().stream().map(l -> {
+            AcceptRouteRequest.AcceptedLeg al = new AcceptRouteRequest.AcceptedLeg();
+            al.setOriginLocationId(l.getOriginLocationId());
+            al.setDestinationLocationId(l.getDestinationLocationId());
+            al.setMode(l.getMode());
+            return al;
+        }).toList());
+
+        CreateIntermodalLoadRequest req = routePlannerService.buildAcceptedItinerary(accept, acme);
+        assertThat(req.getLegs()).allSatisfy(leg ->
+                assertThat(leg.getDistanceSource()).isEqualTo("GREAT_CIRCLE_ESTIMATE"));
+
+        ItineraryResponse response = loadService.createIntermodalLoad(acme, req);
+
+        // Persisted on every leg, and surfaced on the response so a consumer can
+        // label it rather than read a model as a measurement.
+        assertThat(itineraryRepository.findById(response.getId()).orElseThrow().getLegs())
+                .allSatisfy(persisted -> {
+                    assertThat(persisted.getDistanceKm()).isNotNull();
+                    assertThat(persisted.getDistanceSource())
+                            .isEqualTo(Shipment.DistanceSource.GREAT_CIRCLE_ESTIMATE);
+                });
+        assertThat(response.getLegs()).allSatisfy(leg ->
+                assertThat(leg.getDistanceSource()).isEqualTo("GREAT_CIRCLE_ESTIMATE"));
+    }
+
+    @Test
+    @Transactional
+    void editingAnItineraryKeepsAnEstimateLabelOnlyWhenTheClientEchoesIt() {
+        // The contract the itineraries UI relies on: an edit re-records the basis
+        // from the request, so echoing distanceSource keeps an untouched
+        // estimate labelled, and omitting it hands ownership to the client.
+        Shipper acme = shipperRepository.findByEmail("employer@company.com").orElseThrow();
+
+        CreateLegRequest leg = new CreateLegRequest();
+        leg.setTransportMode("ROAD");
+        leg.setPickupLocationId(locationId("Dublin Port", "IE"));
+        leg.setDeliveryLocationId(locationId("Cork Airport", "IE"));
+        leg.setDistanceKm(BigDecimal.valueOf(255));
+        leg.setDistanceSource("GREAT_CIRCLE_ESTIMATE");
+
+        CreateIntermodalLoadRequest req = new CreateIntermodalLoadRequest();
+        req.setTitle("Estimate-priced leg");
+        req.setDateNeeded(LocalDate.now().plusDays(2));
+        req.setLegs(List.of(leg));
+        Long id = loadService.createIntermodalLoad(acme, req).getId();
+
+        // Edit something unrelated, echoing the basis back: still an estimate.
+        req.setTitle("Renamed, distance untouched");
+        loadService.updateIntermodalLoad(id, acme, req);
+        assertThat(itineraryRepository.findById(id).orElseThrow().getLegs())
+                .singleElement()
+                .satisfies(l -> assertThat(l.getDistanceSource())
+                        .isEqualTo(Shipment.DistanceSource.GREAT_CIRCLE_ESTIMATE));
+
+        // Same edit without the echo — the client now owns the number.
+        leg.setDistanceSource(null);
+        loadService.updateIntermodalLoad(id, acme, req);
+        assertThat(itineraryRepository.findById(id).orElseThrow().getLegs())
+                .singleElement()
+                .satisfies(l -> {
+                    assertThat(l.getDistanceSource())
+                            .isEqualTo(Shipment.DistanceSource.CLIENT_SUPPLIED);
+                    // ...and the distance itself survived the edit either way.
+                    assertThat(l.getDistanceKm()).isEqualByComparingTo(BigDecimal.valueOf(255));
+                });
+    }
+
+    @Test
+    @Transactional
+    void aClientPostedDistanceRecordsAsClientSuppliedAndGarbageIsRejected() {
+        Shipper acme = shipperRepository.findByEmail("employer@company.com").orElseThrow();
+
+        CreateLegRequest leg = new CreateLegRequest();
+        leg.setTransportMode("ROAD");
+        leg.setPickupLocationId(locationId("Dublin Port", "IE"));
+        leg.setDeliveryLocationId(locationId("Cork Airport", "IE"));
+        leg.setDistanceKm(BigDecimal.valueOf(255)); // as the post form measures it
+
+        CreateIntermodalLoadRequest req = new CreateIntermodalLoadRequest();
+        req.setTitle("Client-measured leg");
+        req.setDateNeeded(LocalDate.now().plusDays(2));
+        req.setLegs(List.of(leg));
+
+        ItineraryResponse response = loadService.createIntermodalLoad(acme, req);
+        assertThat(itineraryRepository.findById(response.getId()).orElseThrow().getLegs())
+                .singleElement()
+                .satisfies(persisted -> assertThat(persisted.getDistanceSource())
+                        .isEqualTo(Shipment.DistanceSource.CLIENT_SUPPLIED));
+
+        // A basis nobody recognises is refused, not quietly downgraded — a
+        // mislabelled basis is the thing this column exists to prevent.
+        leg.setDistanceSource("MEASURED_BY_VIBES");
+        org.assertj.core.api.Assertions.assertThatThrownBy(() ->
+                loadService.createIntermodalLoad(acme, req))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Unknown distance source");
+    }
+
+    @Test
     void anEndpointIdTheShipperMayNotReferenceIsRejectedLikeAnUnknownOne() {
         // The endpoint ids are reachable from the public itinerary POST, not
         // only from an accepted route, so they carry the same tenant scoping
