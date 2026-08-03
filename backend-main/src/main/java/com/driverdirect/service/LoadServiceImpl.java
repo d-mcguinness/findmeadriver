@@ -68,6 +68,7 @@ public class LoadServiceImpl implements LoadService {
         Shipment shipment = load.getShipment();
         if (shipment != null) {
             shipment.setDistanceKm(request.getDistanceKm());
+            shipment.setDistanceSource(distanceSourceFor(request.getDistanceKm()));
             shipment.setWeightKg(request.getWeightKg());
             shipment.setVolumeM3(request.getVolumeM3());
             shipment.setContainerCount(request.getContainerCount());
@@ -161,6 +162,36 @@ public class LoadServiceImpl implements LoadService {
         return ItineraryResponse.from(itinerary);
     }
 
+    /** The basis for a distance that arrived on a request: CLIENT_SUPPLIED, or
+     *  null when there is no distance to describe. A leg whose distance the
+     *  routing engine modelled is marked GREAT_CIRCLE_ESTIMATE upstream, on the
+     *  CreateLegRequest itself, and that marking is preserved — see
+     *  {@link #buildLegInputs}. */
+    private static Shipment.DistanceSource distanceSourceFor(java.math.BigDecimal distanceKm) {
+        return distanceKm == null ? null : Shipment.DistanceSource.CLIENT_SUPPLIED;
+    }
+
+    /** Resolve a leg's declared distance basis: the routing engine's
+     *  GREAT_CIRCLE_ESTIMATE when it set one, else CLIENT_SUPPLIED for a
+     *  distance that simply arrived, else null when there is no distance.
+     *  Unrecognised names are rejected rather than silently downgraded — a
+     *  mislabelled basis is exactly what this column exists to prevent.
+     *
+     *  <p>Editing an itinerary re-records the basis from what the client sends,
+     *  so a client re-submitting an accepted route's legs should echo the
+     *  distanceSource it read back (it is on ItineraryResponse's legs);
+     *  otherwise an untouched estimate re-records as CLIENT_SUPPLIED. Single
+     *  loads need no such echo — they are never built from a route proposal, so
+     *  their distance is client-supplied by construction. */
+    private static Shipment.DistanceSource parseDistanceSource(String raw, java.math.BigDecimal distanceKm) {
+        if (raw == null || raw.isBlank()) return distanceSourceFor(distanceKm);
+        try {
+            return Shipment.DistanceSource.valueOf(raw.trim().toUpperCase());
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("Unknown distance source: " + raw);
+        }
+    }
+
     /** Validate + map the client's leg list to {@link TmsTreeService.LegInput},
      *  shared by create and update — same checks either way. */
     private List<TmsTreeService.LegInput> buildLegInputs(List<com.driverdirect.dto.CreateLegRequest> rawLegs) {
@@ -194,7 +225,8 @@ public class LoadServiceImpl implements LoadService {
                     leg.getRequiredLicenceCategory(),
                     leg.getDistanceKm(), leg.getWeightKg(), leg.getVolumeM3(),
                     leg.getContainerCount(), leg.getPieceCount(),
-                    leg.getPickupLocationId(), leg.getDeliveryLocationId()));
+                    leg.getPickupLocationId(), leg.getDeliveryLocationId(),
+                    parseDistanceSource(leg.getDistanceSource(), leg.getDistanceKm())));
             i++;
         }
         return legs;
@@ -307,6 +339,7 @@ public class LoadServiceImpl implements LoadService {
         // Re-attach the per-mode pricing quantities (null clears) then re-price —
         // identical order to createLoad.
         shipment.setDistanceKm(request.getDistanceKm());
+        shipment.setDistanceSource(distanceSourceFor(request.getDistanceKm()));
         shipment.setWeightKg(request.getWeightKg());
         shipment.setVolumeM3(request.getVolumeM3());
         shipment.setContainerCount(request.getContainerCount());

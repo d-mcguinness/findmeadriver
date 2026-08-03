@@ -4,7 +4,8 @@
 	import {
 		loadGoogleMaps,
 		findNearbyTransfers,
-		haversineKm,
+		estimatedRoadKm,
+		ROAD_CIRCUITY,
 		calculateRoutePath,
 		recommendedSeaLane,
 		type TransferOption
@@ -85,13 +86,22 @@
 	// using the nearest transfer point already found near each end of the route.
 	// A mode with no transfer point within 50 km of either end is left unpriced
 	// rather than hidden, so the shipper can see it isn't a realistic option here.
+	// A nearby transfer's straight-line proximity, modelled as the road haul to
+	// reach it. Undefined when the proximity is unknown.
+	function feederHaulKm(t: TransferOption): number | undefined {
+		return t.distanceKm != null ? t.distanceKm * ROAD_CIRCUITY : undefined;
+	}
+
 	function computeComboOptions(
 		originPos: google.maps.LatLngLiteral,
 		destPos: google.maps.LatLngLiteral,
 		originTransfers: TransferOption[],
 		destTransfers: TransferOption[]
 	): ComboOption[] {
-		const roadKm = quantities?.distanceKm ?? haversineKm(originPos, destPos);
+		// A measured distance (the form fills it from the Routes API) is used as
+		// is; otherwise model it the way the server's planner does, so this
+		// panel and a route proposal don't quote road differently.
+		const roadKm = quantities?.distanceKm ?? estimatedRoadKm(originPos, destPos);
 		const options: ComboOption[] = [
 			{
 				key: 'ROAD',
@@ -108,8 +118,13 @@
 				options.push({ key, label, route: `No ${noun} within 50 km of both ends`, totalPrice: null });
 				continue;
 			}
-			const leg1 = estimateLegCarrierCost('ROAD', { distanceKm: originT.distanceKm });
-			const leg3 = estimateLegCarrierCost('ROAD', { distanceKm: destT.distanceKm });
+			// The transfer's own distanceKm is straight-line proximity (that's what
+			// the "N km" label means); as a feeder *haul* it needs the circuity
+			// factor, matching how the server prices a virtual road feeder. An
+			// unknown proximity stays unknown — estimateLegCarrierCost then falls
+			// back to the card minimum, exactly as before.
+			const leg1 = estimateLegCarrierCost('ROAD', { distanceKm: feederHaulKm(originT) });
+			const leg3 = estimateLegCarrierCost('ROAD', { distanceKm: feederHaulKm(destT) });
 			const longHaul =
 				key === 'AIR'
 					? estimateLegCarrierCost('AIR', { weightKg: quantities?.weightKg ?? 500, volumeM3: quantities?.volumeM3 ?? undefined })

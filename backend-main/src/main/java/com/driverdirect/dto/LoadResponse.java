@@ -45,6 +45,8 @@ public class LoadResponse {
     private BigDecimal chargeableQuantity;
     // Per-mode pricing quantities (M3b) — surfaced so the edit form can prefill.
     private BigDecimal distanceKm;
+    /** Basis for distanceKm — see Shipment.DistanceSource. */
+    private String distanceSource;
     private BigDecimal weightKg;
     private BigDecimal volumeM3;
     private Integer containerCount;
@@ -91,6 +93,8 @@ public class LoadResponse {
                     ? load.getShipment().getChargeUnit().name() : null);
             r.setChargeableQuantity(load.getShipment().getChargeableQuantity());
             r.setDistanceKm(load.getShipment().getDistanceKm());
+            r.setDistanceSource(load.getShipment().getDistanceSource() != null
+                    ? load.getShipment().getDistanceSource().name() : null);
             r.setWeightKg(load.getShipment().getWeightKg());
             r.setVolumeM3(load.getShipment().getVolumeM3());
             r.setContainerCount(load.getShipment().getContainerCount());

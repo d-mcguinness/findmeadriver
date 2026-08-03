@@ -71,6 +71,9 @@ public class ItineraryResponse {
         // on the leg's Load rather than its Shipment — surfaced (Load present)
         // so the edit form can prefill, mirroring LoadResponse.
         private BigDecimal distanceKm;
+        /** Basis for distanceKm — see Shipment.DistanceSource. An accepted route's
+         *  legs are GREAT_CIRCLE_ESTIMATE. */
+        private String distanceSource;
         private BigDecimal weightKg;
         private BigDecimal volumeM3;
         private Integer containerCount;
@@ -111,6 +114,7 @@ public class ItineraryResponse {
             l.commissionAmount = s.getCommissionAmount();
             l.shipperTotal = s.getShipperTotal();
             l.distanceKm = s.getDistanceKm();
+            l.distanceSource = s.getDistanceSource() != null ? s.getDistanceSource().name() : null;
             l.weightKg = s.getWeightKg();
             l.volumeM3 = s.getVolumeM3();
             l.containerCount = s.getContainerCount();

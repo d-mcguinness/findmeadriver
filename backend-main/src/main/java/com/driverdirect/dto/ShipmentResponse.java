@@ -26,6 +26,10 @@ public class ShipmentResponse {
     private String chargeUnit;
     private BigDecimal chargeableQuantity;
     private BigDecimal distanceKm;
+    /** How distanceKm was arrived at — CLIENT_SUPPLIED (measured/stated on the
+     *  request) or GREAT_CIRCLE_ESTIMATE (modelled by the routing engine from
+     *  endpoint coordinates). Null on legacy rows and legs with no distance. */
+    private String distanceSource;
     private BigDecimal weightKg;
     private BigDecimal volumeM3;
     private Integer containerCount;
@@ -94,6 +98,7 @@ public class ShipmentResponse {
         r.setChargeUnit(s.getChargeUnit() != null ? s.getChargeUnit().name() : null);
         r.setChargeableQuantity(s.getChargeableQuantity());
         r.setDistanceKm(s.getDistanceKm());
+        r.setDistanceSource(s.getDistanceSource() != null ? s.getDistanceSource().name() : null);
         r.setWeightKg(s.getWeightKg());
         r.setVolumeM3(s.getVolumeM3());
         r.setContainerCount(s.getContainerCount());

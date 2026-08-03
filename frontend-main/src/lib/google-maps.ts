@@ -255,6 +255,25 @@ export function haversineKm(a: google.maps.LatLngLiteral, b: google.maps.LatLngL
 }
 
 /**
+ * Mirror of `RoutePlanner.ROAD_CIRCUITY` (backend). Roads don't run
+ * great-circle, so a modelled road distance is the straight line inflated by
+ * this factor — the same model the server's route planner uses for a virtual
+ * road leg, and the same one it persists (tagged `GREAT_CIRCLE_ESTIMATE`) when
+ * a proposed route is accepted. Keep the two in step: a client estimate built
+ * on raw haversine reads ~23% under what the server will quote for the same
+ * pair. Like the commission/rate-card mirrors in `pricing.ts`, the server
+ * stays authoritative.
+ */
+export const ROAD_CIRCUITY = 1.3;
+
+/** Modelled road distance between two points — straight line × circuity. Use
+ *  only as a fallback: a measured distance from `calculateRoute` (Routes API)
+ *  is always better, and must not be inflated again. */
+export function estimatedRoadKm(a: google.maps.LatLngLiteral, b: google.maps.LatLngLiteral): number {
+	return haversineKm(a, b) * ROAD_CIRCUITY;
+}
+
+/**
  * Check which transport modes have a transfer point near a stop's coordinates,
  * via the Google Places API (nearest airport / rail station / ferry terminal
  * within 50 km). Road is always available (the marketplace baseline). Each

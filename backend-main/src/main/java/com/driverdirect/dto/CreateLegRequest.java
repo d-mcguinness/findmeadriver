@@ -33,6 +33,11 @@ public class CreateLegRequest {
     // on its mode's basis (km / containers / chargeable-kg / pieces) instead of
     // rate × hours.
     private BigDecimal distanceKm;
+    // How distanceKm was arrived at (Shipment.DistanceSource name). Set to
+    // GREAT_CIRCLE_ESTIMATE by the routing engine, whose distances are modelled
+    // from endpoint coordinates rather than measured along a path. Leave null
+    // when posting a distance of your own — it records as CLIENT_SUPPLIED.
+    private String distanceSource;
     private BigDecimal weightKg;
     private BigDecimal volumeM3;
     private Integer containerCount;
