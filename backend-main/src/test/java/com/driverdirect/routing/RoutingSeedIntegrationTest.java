@@ -389,6 +389,48 @@ class RoutingSeedIntegrationTest {
 
     @Test
     @Transactional
+    void editingAnItineraryKeepsAnEstimateLabelOnlyWhenTheClientEchoesIt() {
+        // The contract the itineraries UI relies on: an edit re-records the basis
+        // from the request, so echoing distanceSource keeps an untouched
+        // estimate labelled, and omitting it hands ownership to the client.
+        Shipper acme = shipperRepository.findByEmail("employer@company.com").orElseThrow();
+
+        CreateLegRequest leg = new CreateLegRequest();
+        leg.setTransportMode("ROAD");
+        leg.setPickupLocationId(locationId("Dublin Port", "IE"));
+        leg.setDeliveryLocationId(locationId("Cork Airport", "IE"));
+        leg.setDistanceKm(BigDecimal.valueOf(255));
+        leg.setDistanceSource("GREAT_CIRCLE_ESTIMATE");
+
+        CreateIntermodalLoadRequest req = new CreateIntermodalLoadRequest();
+        req.setTitle("Estimate-priced leg");
+        req.setDateNeeded(LocalDate.now().plusDays(2));
+        req.setLegs(List.of(leg));
+        Long id = loadService.createIntermodalLoad(acme, req).getId();
+
+        // Edit something unrelated, echoing the basis back: still an estimate.
+        req.setTitle("Renamed, distance untouched");
+        loadService.updateIntermodalLoad(id, acme, req);
+        assertThat(itineraryRepository.findById(id).orElseThrow().getLegs())
+                .singleElement()
+                .satisfies(l -> assertThat(l.getDistanceSource())
+                        .isEqualTo(Shipment.DistanceSource.GREAT_CIRCLE_ESTIMATE));
+
+        // Same edit without the echo — the client now owns the number.
+        leg.setDistanceSource(null);
+        loadService.updateIntermodalLoad(id, acme, req);
+        assertThat(itineraryRepository.findById(id).orElseThrow().getLegs())
+                .singleElement()
+                .satisfies(l -> {
+                    assertThat(l.getDistanceSource())
+                            .isEqualTo(Shipment.DistanceSource.CLIENT_SUPPLIED);
+                    // ...and the distance itself survived the edit either way.
+                    assertThat(l.getDistanceKm()).isEqualByComparingTo(BigDecimal.valueOf(255));
+                });
+    }
+
+    @Test
+    @Transactional
     void aClientPostedDistanceRecordsAsClientSuppliedAndGarbageIsRejected() {
         Shipper acme = shipperRepository.findByEmail("employer@company.com").orElseThrow();
 

@@ -44,6 +44,11 @@
 		weightKg: number;
 		volumeM3: number;
 		containerCount: number;
+		// Only set when editing an existing itinerary: the distance basis the
+		// server reported, and the distance it came with. On submit the basis is
+		// echoed back only while the number is untouched — see submitPayloadLeg.
+		loadedDistanceSource?: string;
+		loadedDistanceKm?: number;
 	};
 
 	const STOP_TYPE_OPTIONS: { value: LoadStopType; label: string }[] = [
@@ -304,12 +309,42 @@
 				distanceKm: l.distanceKm ?? 100,
 				weightKg: l.weightKg ?? 100,
 				volumeM3: l.volumeM3 ?? 1,
-				containerCount: l.containerCount ?? 1
+				containerCount: l.containerCount ?? 1,
+				loadedDistanceSource: l.distanceSource,
+				loadedDistanceKm: l.distanceKm
 			}));
 			editingItineraryId = it.id;
 		} catch (e: any) {
 			postError = e.message || 'Failed to load the itinerary for editing';
 		}
+	}
+
+	// One leg, shaped for POST/PUT. The mode-specific quantity drives the
+	// rate-card carrier cost; the distance goes along for *every* mode, not just
+	// road, because it is the leg's measured length (used for CO2 and for the
+	// route planner's own figures) — sending it only for road would blank it on
+	// every non-road leg each time an itinerary is edited.
+	function submitPayloadLeg(l: LegDraft) {
+		return {
+			transportMode: l.transportMode,
+			pickupLocation: l.pickupLocation,
+			deliveryLocation: l.deliveryLocation,
+			pickupCountry: l.pickupCountry,
+			deliveryCountry: l.deliveryCountry,
+			requiredLicenceCategory: l.requiredLicenceCategory,
+			distanceKm: l.distanceKm,
+			// Keep the server's basis only while the distance is exactly what it
+			// gave us; the moment the shipper changes the number it is theirs, and
+			// omitting this records it as CLIENT_SUPPLIED.
+			distanceSource:
+				l.loadedDistanceSource && Number(l.distanceKm) === Number(l.loadedDistanceKm)
+					? l.loadedDistanceSource
+					: undefined,
+			weightKg: l.transportMode === 'AIR' ? l.weightKg : undefined,
+			volumeM3: l.transportMode === 'AIR' ? l.volumeM3 : undefined,
+			containerCount:
+				l.transportMode === 'OCEAN' || l.transportMode === 'RAIL' ? l.containerCount : undefined
+		};
 	}
 
 	let routeInfo = $state<RouteInfo | null>(null);
@@ -539,22 +574,7 @@
 					title: loadForm.title,
 					description: loadForm.description,
 					dateNeeded: loadForm.dateNeeded,
-					legs: legs.map((l) => ({
-						transportMode: l.transportMode,
-						pickupLocation: l.pickupLocation,
-						deliveryLocation: l.deliveryLocation,
-						pickupCountry: l.pickupCountry,
-						deliveryCountry: l.deliveryCountry,
-						requiredLicenceCategory: l.requiredLicenceCategory,
-						// Mode-specific quantity drives the rate-card carrier cost.
-						distanceKm: l.transportMode === 'ROAD' ? l.distanceKm : undefined,
-						weightKg: l.transportMode === 'AIR' ? l.weightKg : undefined,
-						volumeM3: l.transportMode === 'AIR' ? l.volumeM3 : undefined,
-						containerCount:
-							l.transportMode === 'OCEAN' || l.transportMode === 'RAIL'
-								? l.containerCount
-								: undefined
-					}))
+					legs: legs.map(submitPayloadLeg)
 				};
 				if (editingItineraryId) {
 					await api.put(
