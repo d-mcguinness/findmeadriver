@@ -338,7 +338,12 @@ public class TmsTreeService {
 
     /** One leg of an intermodal movement: its mode, route endpoints, the carrier
      *  rate, and optional per-mode pricing quantities (priced independently,
-     *  then rolled up). */
+     *  then rolled up).
+     *
+     *  <p>{@code pickupLocationId}/{@code deliveryLocationId} pin the endpoints
+     *  to existing Location rows and win over the names when set — see
+     *  {@link #resolveLegLocation}. Null for every caller that identifies its
+     *  endpoints by name (the seed, the post-a-load form). */
     public record LegInput(
             Shipment.Mode mode,
             String pickupLocation, String deliveryLocation,
@@ -346,7 +351,19 @@ public class TmsTreeService {
             BigDecimal ratePerHour, Double estimatedDurationHours,
             String requiredLicenceCategory,
             BigDecimal distanceKm, BigDecimal weightKg, BigDecimal volumeM3,
-            Integer containerCount, Integer pieceCount) {
+            Integer containerCount, Integer pieceCount,
+            Long pickupLocationId, Long deliveryLocationId) {
+
+        /** Back-compat constructor for name-addressed legs (no endpoint ids). */
+        public LegInput(Shipment.Mode mode, String pickupLocation, String deliveryLocation,
+                        String pickupCountry, String deliveryCountry, BigDecimal ratePerHour,
+                        Double estimatedDurationHours, String requiredLicenceCategory,
+                        BigDecimal distanceKm, BigDecimal weightKg, BigDecimal volumeM3,
+                        Integer containerCount, Integer pieceCount) {
+            this(mode, pickupLocation, deliveryLocation, pickupCountry, deliveryCountry,
+                    ratePerHour, estimatedDurationHours, requiredLicenceCategory,
+                    distanceKm, weightKg, volumeM3, containerCount, pieceCount, null, null);
+        }
 
         /** Back-compat constructor for legs priced by rate × hours (no quantities). */
         public LegInput(Shipment.Mode mode, String pickupLocation, String deliveryLocation,
@@ -397,6 +414,15 @@ public class TmsTreeService {
 
         int seq = 1;
         for (LegInput leg : input.legs()) {
+            // Resolve the endpoints before building the leg: an id carried
+            // through from an accepted route pins the exact Location the
+            // planner used, and that row's country then stands in below when
+            // the caller didn't send one.
+            Location pickupLoc = resolveLegLocation(
+                    leg.pickupLocationId(), leg.pickupLocation(), leg.pickupCountry(), shipper);
+            Location deliveryLoc = resolveLegLocation(
+                    leg.deliveryLocationId(), leg.deliveryLocation(), leg.deliveryCountry(), shipper);
+
             // Carrier assignment (Load) for this leg.
             Load load = new Load();
             load.setShipper(shipper);
@@ -417,8 +443,8 @@ public class TmsTreeService {
             shipment.setCurrency(currency);
             shipment.setItinerary(itinerary);
             shipment.setLegSequence(seq);
-            shipment.setOriginCountry(CountryCodes.normalize(leg.pickupCountry()));
-            shipment.setDestinationCountry(CountryCodes.normalize(leg.deliveryCountry()));
+            shipment.setOriginCountry(countryOf(leg.pickupCountry(), pickupLoc));
+            shipment.setDestinationCountry(countryOf(leg.deliveryCountry(), deliveryLoc));
             shipment.setDistanceKm(leg.distanceKm());
             shipment.setWeightKg(leg.weightKg());
             shipment.setVolumeM3(leg.volumeM3());
@@ -426,8 +452,7 @@ public class TmsTreeService {
             shipment.setPieceCount(leg.pieceCount());
             shipment = shipmentRepository.save(shipment);
 
-            persistPickupDelivery(shipment, leg.pickupLocation(), leg.pickupCountry(),
-                    leg.deliveryLocation(), leg.deliveryCountry(), input.dateNeeded());
+            persistPickupDelivery(shipment, pickupLoc, deliveryLoc, input.dateNeeded());
 
             ShipmentLine line = new ShipmentLine();
             line.setShipment(shipment);
@@ -489,9 +514,16 @@ public class TmsTreeService {
             Shipment leg = legs.get(i);
             LegInput li = input.legs().get(i);
 
+            // Same id-wins endpoint resolution as the create path, scoped to
+            // the itinerary's own shipper.
+            Location pickupLoc = resolveLegLocation(li.pickupLocationId(), li.pickupLocation(),
+                    li.pickupCountry(), itinerary.getShipper());
+            Location deliveryLoc = resolveLegLocation(li.deliveryLocationId(), li.deliveryLocation(),
+                    li.deliveryCountry(), itinerary.getShipper());
+
             leg.setMode(li.mode() != null ? li.mode() : Shipment.Mode.ROAD);
-            leg.setOriginCountry(CountryCodes.normalize(li.pickupCountry()));
-            leg.setDestinationCountry(CountryCodes.normalize(li.deliveryCountry()));
+            leg.setOriginCountry(countryOf(li.pickupCountry(), pickupLoc));
+            leg.setDestinationCountry(countryOf(li.deliveryCountry(), deliveryLoc));
             leg.setDistanceKm(li.distanceKm());
             leg.setWeightKg(li.weightKg());
             leg.setVolumeM3(li.volumeM3());
@@ -503,8 +535,7 @@ public class TmsTreeService {
             List<Stop> existingStops = stopRepository.findByShipmentOrderBySequenceAsc(leg);
             if (!existingStops.isEmpty()) stopRepository.deleteAllInBatch(existingStops);
             leg.getStops().clear();
-            persistPickupDelivery(leg, li.pickupLocation(), li.pickupCountry(),
-                    li.deliveryLocation(), li.deliveryCountry(), input.dateNeeded());
+            persistPickupDelivery(leg, pickupLoc, deliveryLoc, input.dateNeeded());
 
             leg = shipmentRepository.save(leg);
 
@@ -563,13 +594,18 @@ public class TmsTreeService {
                 input.deliveryLocation(), input.deliveryCountry(), input.dateNeeded());
     }
 
-    /** A single PICKUP + DELIVERY pair for one shipment leg. Shared by the
-     *  legacy single-leg path and the intermodal builder. */
+    /** Name-addressed pair: upsert both endpoints, then delegate. Used by the
+     *  legacy single-leg path, which has no endpoint ids to carry. */
     private void persistPickupDelivery(Shipment shipment, String pickupName, String pickupCountry,
                                        String deliveryName, String deliveryCountry, LocalDate dateNeeded) {
-        Location pickupLoc = upsertLocation(pickupName, pickupCountry);
-        Location deliveryLoc = upsertLocation(deliveryName, deliveryCountry);
+        persistPickupDelivery(shipment, upsertLocation(pickupName, pickupCountry),
+                upsertLocation(deliveryName, deliveryCountry), dateNeeded);
+    }
 
+    /** A single PICKUP + DELIVERY pair for one shipment leg, against endpoints
+     *  the caller has already resolved (by id, or upserted from a name above). */
+    private void persistPickupDelivery(Shipment shipment, Location pickupLoc, Location deliveryLoc,
+                                       LocalDate dateNeeded) {
         if (pickupLoc != null) {
             Stop pickup = new Stop();
             pickup.setShipment(shipment);
@@ -599,6 +635,37 @@ public class TmsTreeService {
             stopRepository.save(delivery);
             shipment.getStops().add(delivery);
         }
+    }
+
+    /**
+     * Resolve one leg endpoint to a Location. A supplied {@code locationId}
+     * wins — that is the point of carrying it: the Stop binds to the exact row
+     * the caller meant (typed terminal, coordinates, timezone, UN/LOCODE
+     * intact) instead of being re-derived by name. The name+country upsert
+     * below is a lossy round-trip: it matches on name+country only, so a
+     * near-miss silently creates a second, untyped, coordinate-less ADDRESS
+     * that the routing graph then treats as a different node.
+     *
+     * <p>Ids are tenant-checked here as well as at the routing entry point —
+     * this method is reachable from the public itinerary POST, not only from
+     * an accepted route — and an inaccessible id fails exactly like an unknown
+     * one, revealing nothing. Falling back to the name path keeps every
+     * pre-routing caller behaving unchanged.
+     */
+    private Location resolveLegLocation(Long locationId, String name, String country, Shipper owner) {
+        if (locationId == null) return upsertLocation(name, country);
+        return locationRepository.findById(locationId)
+                .filter(loc -> loc.isAccessibleBy(owner))
+                .orElseThrow(() -> new IllegalArgumentException("Unknown location: " + locationId));
+    }
+
+    /** The country to stamp on a leg: the caller's when given, otherwise the
+     *  resolved Location's — so an endpoint identified by id alone needn't
+     *  echo a country the row already knows. */
+    private String countryOf(String explicit, Location resolved) {
+        String normalized = CountryCodes.normalize(explicit);
+        if (normalized != null) return normalized;
+        return resolved != null ? resolved.getCountry() : null;
     }
 
     private Location upsertLocation(String name, String country) {

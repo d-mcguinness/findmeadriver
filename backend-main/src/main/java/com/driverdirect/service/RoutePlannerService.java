@@ -78,12 +78,10 @@ public class RoutePlannerService {
         if (locationId == null) return; // the planner's own require() 400s on null
         Location loc = locationRepository.findById(locationId).orElse(null);
         if (loc == null) return; // let the planner 400 it as unknown (uniform message)
-        boolean publicNode = loc.getLocationType() != null
-                && loc.getLocationType() != Location.LocationType.ADDRESS;
-        boolean ownedByCaller = loc.getOwnerShipper() != null
-                && loc.getOwnerShipper().getId().equals(shipper.getId());
-        if (!publicNode && !ownedByCaller) {
+        if (!loc.isAccessibleBy(shipper)) {
             // Same shape as an unknown id — never reveal existence or the name.
+            // Shared with TmsTreeService, which re-checks the ids an accepted
+            // route carries into leg creation.
             throw new IllegalArgumentException("Unknown location: " + locationId);
         }
     }
@@ -219,6 +217,13 @@ public class RoutePlannerService {
             LocationNode to = graph.location(edge.destinationLocationId());
             CreateLegRequest leg = new CreateLegRequest();
             leg.setTransportMode(edge.mode() != null ? edge.mode().name() : null);
+            // The ids are what bind the leg's Stops — the planner routed
+            // through these exact rows, so the booked leg must land on them
+            // rather than on whatever a name+country lookup happens to find.
+            // The names/countries ride along for display and for any consumer
+            // that still reads them.
+            leg.setPickupLocationId(edge.originLocationId());
+            leg.setDeliveryLocationId(edge.destinationLocationId());
             leg.setPickupLocation(from != null ? from.name() : null);
             leg.setPickupCountry(from != null ? from.country() : null);
             leg.setDeliveryLocation(to != null ? to.name() : null);
