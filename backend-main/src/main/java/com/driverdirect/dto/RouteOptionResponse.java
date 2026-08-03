@@ -10,16 +10,31 @@ import java.util.stream.Collectors;
 
 /**
  * One proposed door-to-door route — a Pareto-best point on (cost, CO2) — as
- * returned to a shipper. {@code totalCost} is carrier cost in the query's
- * implied currency (estimate; the authoritative price is re-computed by
- * PricingService when a leg is accepted and posted as a Load).
- * {@code totalCo2Kg} is kg CO2e. {@code handoverBy} is when this plan's first
- * leg departs; {@code arrival} when it reaches the destination.
+ * returned to a shipper. {@code totalCost} is <strong>what the shipper
+ * pays</strong> in the query's implied currency, broken out below; it is not
+ * carrier cost, because commission varies by mode (ROAD 10% … AIR 20%) and a
+ * shipper comparing routes is comparing what they are billed. Still an
+ * estimate: PricingService re-computes the authoritative price when a leg is
+ * accepted and posted as a Load. {@code totalCo2Kg} is kg CO2e.
+ * {@code handoverBy} is when this plan's first leg departs; {@code arrival}
+ * when it reaches the destination.
  */
 @Data
 public class RouteOptionResponse {
 
+    /** What the shipper pays: carrierCostTotal + commissionTotal +
+     *  transferCostTotal. The search's objective. */
     private double totalCost;
+    /** What the carriers earn across the legs. */
+    private double carrierCostTotal;
+    /** Platform fee, each leg at its own mode's rate. */
+    private double commissionTotal;
+    /** Terminal handling at interchanges. Included in totalCost, but
+     *  <em>not</em> billed on an accepted itinerary — handling is not a
+     *  billable item in the TMS model yet, so an accepted route's grand total
+     *  comes out lower than totalCost by exactly this. Surfaced so that gap is
+     *  visible rather than looking like a pricing bug. */
+    private double transferCostTotal;
     private double totalCo2Kg;
     private Instant handoverBy;
     private Instant arrival;
@@ -32,6 +47,9 @@ public class RouteOptionResponse {
     public static RouteOptionResponse from(RouteOption option, Map<Long, String> locationNames) {
         RouteOptionResponse r = new RouteOptionResponse();
         r.setTotalCost(option.totalCost());
+        r.setCarrierCostTotal(option.carrierCostTotal());
+        r.setCommissionTotal(option.commissionTotal());
+        r.setTransferCostTotal(option.transferCostTotal());
         r.setTotalCo2Kg(option.totalCo2());
         r.setHandoverBy(option.handoverBy());
         r.setArrival(option.arrival());

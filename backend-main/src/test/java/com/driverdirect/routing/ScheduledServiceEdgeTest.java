@@ -29,7 +29,7 @@ class ScheduledServiceEdgeTest {
     private static final ZoneId PARIS = ZoneId.of("Europe/Paris");
 
     private static final LegRates OCEAN_RATES =
-            new LegRates(new Tariff(ChargeUnit.PER_CONTAINER, 350, 1800, 1800), 0.012);
+            new LegRates(new Tariff(ChargeUnit.PER_CONTAINER, 350, 1800, 1800), 0.012, 0);
 
     private ScheduledServiceEdge edge(Set<DayOfWeek> days, LocalTime time, ZoneId zone) {
         return new ScheduledServiceEdge(1L, 2L, Shipment.Mode.OCEAN,
@@ -117,10 +117,10 @@ class ScheduledServiceEdgeTest {
     void costDelegatesToTheCompiledTariff() {
         ScheduledServiceEdge e = edge(Set.of(DayOfWeek.MONDAY), LocalTime.of(14, 0), DUBLIN);
         CargoDetails twoContainers = new CargoDetails(null, null, 2, null);
-        assertThat(e.cost(twoContainers)).isEqualTo(350 + 1800 * 2);
+        assertThat(e.carrierCost(twoContainers)).isEqualTo(350 + 1800 * 2);
         // Missing the metered quantity → the minimum charge stands in as floor.
         CargoDetails unknown = new CargoDetails(BigDecimal.valueOf(500), null, null, null);
-        assertThat(e.cost(unknown)).isEqualTo(1800);
+        assertThat(e.carrierCost(unknown)).isEqualTo(1800);
     }
 
     @Test

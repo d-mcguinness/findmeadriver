@@ -316,7 +316,18 @@ export interface RouteLeg {
 
 /** One proposed door-to-door option — a Pareto-best point on (cost, CO2). */
 export interface RouteOption {
+	/** What the shipper pays: carrierCostTotal + commissionTotal +
+	 *  transferCostTotal. Not carrier cost — commission varies by mode, so this
+	 *  is the figure to compare routes on. Still an estimate. */
 	totalCost: number;
+	/** What the carriers earn across the legs. */
+	carrierCostTotal: number;
+	/** Platform fee, each leg at its own mode's rate. */
+	commissionTotal: number;
+	/** Terminal handling at interchanges. In totalCost, but not billed on an
+	 *  accepted itinerary — handling isn't a billable item in the TMS model yet,
+	 *  so the booked grand total comes out lower by exactly this. */
+	transferCostTotal: number;
 	totalCo2Kg: number;
 	handoverBy: string;
 	arrival: string;

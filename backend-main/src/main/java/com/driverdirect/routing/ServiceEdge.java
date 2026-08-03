@@ -29,7 +29,18 @@ public interface ServiceEdge {
 
     Instant arrivalTime(Instant departure);
 
-    double cost(CargoDetails cargo);
+    /** What the carrier earns on this leg — the rate card alone. */
+    double carrierCost(CargoDetails cargo);
+
+    /** The platform's fee on this leg, at this mode's commission rate. */
+    double commission(CargoDetails cargo);
+
+    /** What the shipper pays for this leg: {@link #carrierCost} +
+     *  {@link #commission}. This — not carrier cost — is what the search
+     *  optimises, because commission varies by mode (ROAD 10% … AIR 20%) and
+     *  so a route that is cheaper to haul can cost the shipper more. Ranking
+     *  on carrier cost would hand the shipper the wrong "cheapest". */
+    double shipperCost(CargoDetails cargo);
 
     double co2(CargoDetails cargo);
 

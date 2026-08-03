@@ -146,7 +146,7 @@ public class RoutePlanner {
         for (LocalDate day : candidateDays(query.earliestReady(), query.latestHandover())) {
             Instant start = day.atStartOfDay(origin.zone()).toInstant();
             for (Label label : searchParetoFront(query.cargo(), origin, destination, start, deadline)) {
-                collected.add(toOption(label, start, true));
+                collected.add(toOption(label, query.cargo(), start, true));
             }
         }
         if (!collected.isEmpty()) {
@@ -161,7 +161,7 @@ public class RoutePlanner {
         // later), so one search suffices.
         Instant earliest = query.earliestReady().atStartOfDay(origin.zone()).toInstant();
         return searchParetoFront(query.cargo(), origin, destination, earliest, null).stream()
-                .map(label -> toOption(label, earliest, false))
+                .map(label -> toOption(label, query.cargo(), earliest, false))
                 .min(Comparator.comparing(RouteOption::arrival).thenComparingDouble(RouteOption::totalCost))
                 .map(List::of)
                 .orElse(List.of());
@@ -294,8 +294,12 @@ public class RoutePlanner {
             return; // even a jet from here can't make the deadline
         }
 
+        // The objective is what the shipper pays: each leg's carrier cost plus
+        // that mode's commission, plus any terminal handling. Optimising carrier
+        // cost alone would misrank routes, since commission runs 10% (road) to
+        // 20% (air) — see ServiceEdge.shipperCost.
         Label next = new Label(edge.destinationLocationId(), edge.mode(), arrival,
-                current.cost() + transferCost + edge.cost(cargo),
+                current.cost() + transferCost + edge.shipperCost(cargo),
                 current.co2() + edge.co2(cargo),
                 current, edge);
         List<Label> bucket = frontier.computeIfAbsent(
@@ -416,18 +420,31 @@ public class RoutePlanner {
         return (long) Math.floor(Math.log(value) / Math.log(1 + OUTPUT_EPSILON));
     }
 
-    private RouteOption toOption(Label winning, Instant start, boolean meetsDeadline) {
+    private RouteOption toOption(Label winning, CargoDetails cargo, Instant start,
+                                 boolean meetsDeadline) {
         Deque<ServiceEdge> legs = new ArrayDeque<>();
         for (Label label = winning; label.edgeTaken() != null; label = label.parent()) {
             legs.addFirst(label.edgeTaken());
         }
         List<ServiceEdge> legList = List.copyOf(legs);
+        // Break the objective down for the shipper. Per-leg, because commission
+        // is per-mode; handling is what the label's cost carries beyond the
+        // legs, so it falls out as the remainder rather than being re-walked.
+        double carrierCostTotal = 0;
+        double commissionTotal = 0;
+        for (ServiceEdge leg : legList) {
+            carrierCostTotal += leg.carrierCost(cargo);
+            commissionTotal += leg.commission(cargo);
+        }
+        double transferCostTotal = Math.max(0,
+                winning.cost() - carrierCostTotal - commissionTotal);
         // When the first leg of this plan actually departs (no transfer
         // precedes it) — the cargo's handover/departure instant for this
         // option. The flexible-window loop keeps the latest such instant per
         // route across candidate days, which is the "latest viable handover".
         Instant handoverBy = legList.get(0).nextDeparture(start);
-        return new RouteOption(legList, winning.cost(), winning.co2(), handoverBy,
+        return new RouteOption(legList, winning.cost(), carrierCostTotal, commissionTotal,
+                transferCostTotal, winning.co2(), handoverBy,
                 winning.arrivalTime(), meetsDeadline);
     }
 
