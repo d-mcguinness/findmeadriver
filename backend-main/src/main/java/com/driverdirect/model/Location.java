@@ -60,5 +60,21 @@ public class Location {
     @Column(length = 1024, name = "operating_hours")
     private String operatingHours; // "MO-FR 08:00-18:00" — parsed by a later phase
 
+    /**
+     * May {@code shipper} reference this location by id? A typed reference node
+     * (port, airport, rail/inland terminal) is public infrastructure any tenant
+     * may route through or post against; a plain ADDRESS is private to the
+     * shipper that curated it, and an ad-hoc one (null owner) belongs to nobody.
+     *
+     * <p>Callers must report a failure exactly the way they report an unknown
+     * id — never reveal that the row exists or what it is called.
+     */
+    public boolean isAccessibleBy(Shipper shipper) {
+        if (locationType != null && locationType != LocationType.ADDRESS) return true;
+        return shipper != null && ownerShipper != null
+                && ownerShipper.getId() != null
+                && ownerShipper.getId().equals(shipper.getId());
+    }
+
     public enum LocationType { ADDRESS, SEAPORT, AIRPORT, RAIL_TERMINAL, INLAND_TERMINAL }
 }

@@ -2,19 +2,25 @@ package com.driverdirect.routing;
 
 import com.driverdirect.dto.AcceptRouteRequest;
 import com.driverdirect.dto.CreateIntermodalLoadRequest;
+import com.driverdirect.dto.CreateLegRequest;
 import com.driverdirect.dto.ItineraryResponse;
+import com.driverdirect.dto.RouteLegResponse;
 import com.driverdirect.dto.RouteOptionResponse;
 import com.driverdirect.dto.RouteQueryRequest;
 import com.driverdirect.model.Location;
 import com.driverdirect.model.Shipment;
 import com.driverdirect.model.Shipper;
+import com.driverdirect.model.Stop;
+import com.driverdirect.repository.ItineraryRepository;
 import com.driverdirect.repository.LocationRepository;
 import com.driverdirect.repository.ShipperRepository;
+import com.driverdirect.repository.StopRepository;
 import com.driverdirect.service.LoadService;
 import com.driverdirect.service.RoutePlannerService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -45,6 +51,10 @@ class RoutingSeedIntegrationTest {
     private ShipperRepository shipperRepository;
     @Autowired
     private LoadService loadService;
+    @Autowired
+    private ItineraryRepository itineraryRepository;
+    @Autowired
+    private StopRepository stopRepository;
 
     private Long locationId(String name, String country) {
         return locationRepository.findFirstByNameIgnoreCaseAndCountry(name, country)
@@ -209,6 +219,142 @@ class RoutingSeedIntegrationTest {
         // Persisted and visible to the owner.
         assertThat(loadService.getItinerariesByShipper(acme))
                 .anyMatch(i -> i.getId().equals(itinerary.getId()));
+    }
+
+    @Test
+    @Transactional
+    void acceptedLegStopsBindToThePlannedLocationRowsNotNameLookalikes() {
+        // The planner routes over Location ids; the booked legs must land on
+        // those exact rows. Before endpoint ids were carried on CreateLegRequest
+        // the acceptance path handed the tree name+country strings, which
+        // TmsTreeService re-resolved via findFirstByNameIgnoreCaseAndCountry —
+        // a lossy round-trip that on a miss mints a duplicate, untyped,
+        // coordinate-less ADDRESS the next graph build sees as a different node.
+        Shipper acme = shipperRepository.findByEmail("employer@company.com").orElseThrow();
+        Long dublinPort = locationId("Dublin Port", "IE");
+        Long parisCdg = locationId("Paris Charles de Gaulle", "FR");
+
+        RouteQueryRequest q = new RouteQueryRequest();
+        q.setOriginLocationId(dublinPort);
+        q.setDestinationLocationId(parisCdg);
+        q.setWeightKg(BigDecimal.valueOf(15000));
+        q.setContainerCount(1);
+        q.setEarliestReady(LocalDate.now().plusDays(1));
+        RouteOptionResponse chosen = routePlannerService.planRoutesForShipper(q.toQuery(), acme).stream()
+                .filter(o -> o.getLegs().size() > 1)
+                .findFirst().orElseThrow();
+
+        AcceptRouteRequest accept = new AcceptRouteRequest();
+        accept.setOriginLocationId(dublinPort);
+        accept.setDestinationLocationId(parisCdg);
+        accept.setWeightKg(BigDecimal.valueOf(15000));
+        accept.setContainerCount(1);
+        accept.setEarliestReady(LocalDate.now().plusDays(1));
+        accept.setLegs(chosen.getLegs().stream().map(l -> {
+            AcceptRouteRequest.AcceptedLeg al = new AcceptRouteRequest.AcceptedLeg();
+            al.setOriginLocationId(l.getOriginLocationId());
+            al.setDestinationLocationId(l.getDestinationLocationId());
+            al.setMode(l.getMode());
+            return al;
+        }).toList());
+
+        CreateIntermodalLoadRequest req = routePlannerService.buildAcceptedItinerary(accept, acme);
+        // Every leg carries its endpoint ids, and they are the planned ones.
+        assertThat(req.getLegs()).extracting(CreateLegRequest::getPickupLocationId)
+                .containsExactlyElementsOf(chosen.getLegs().stream()
+                        .map(RouteLegResponse::getOriginLocationId).toList());
+        assertThat(req.getLegs()).extracting(CreateLegRequest::getDeliveryLocationId)
+                .containsExactlyElementsOf(chosen.getLegs().stream()
+                        .map(RouteLegResponse::getDestinationLocationId).toList());
+
+        long locationsBefore = locationRepository.count();
+        ItineraryResponse response = loadService.createIntermodalLoad(acme, req);
+
+        // Booking an already-known route invents no new Location rows.
+        assertThat(locationRepository.count())
+                .as("accepting a planned route must reuse existing Location rows")
+                .isEqualTo(locationsBefore);
+
+        // Each persisted leg's PICKUP/DELIVERY Stop points at the planned row.
+        List<Shipment> legs = itineraryRepository.findById(response.getId()).orElseThrow().getLegs();
+        assertThat(legs).hasSameSizeAs(chosen.getLegs());
+        for (int i = 0; i < legs.size(); i++) {
+            RouteLegResponse planned = chosen.getLegs().get(i);
+            List<Stop> stops = stopRepository.findByShipmentOrderBySequenceAsc(legs.get(i));
+            assertThat(stops).as("leg %d stops", i).hasSize(2);
+            assertThat(stops.get(0).getLocation().getId()).isEqualTo(planned.getOriginLocationId());
+            assertThat(stops.get(1).getLocation().getId()).isEqualTo(planned.getDestinationLocationId());
+            // ...and it is still the typed terminal, not a flattened ADDRESS.
+            assertThat(stops.get(0).getLocation().getName()).isEqualTo(planned.getOriginLocationName());
+            assertThat(stops.get(1).getLocation().getName()).isEqualTo(planned.getDestinationLocationName());
+        }
+    }
+
+    @Test
+    @Transactional
+    void anEndpointIdBeatsAConflictingNameAndSuppliesTheCountry() {
+        // The sharp edge of the old name round-trip, isolated: when the id and
+        // the name disagree, the name path would have upserted a brand-new
+        // "Nowhere"/FR ADDRESS and bound the Stop to that. The id must win, and
+        // the resolved row's own country must stand in when none is sent.
+        Shipper acme = shipperRepository.findByEmail("employer@company.com").orElseThrow();
+        Long dublinPort = locationId("Dublin Port", "IE");
+        Long corkAirport = locationId("Cork Airport", "IE");
+
+        CreateLegRequest leg = new CreateLegRequest();
+        leg.setTransportMode("ROAD");
+        leg.setPickupLocationId(dublinPort);
+        leg.setPickupLocation("Nowhere");      // deliberately wrong
+        leg.setPickupCountry("FR");            // deliberately wrong
+        leg.setDeliveryLocationId(corkAirport);
+        leg.setDeliveryLocation(null);         // id only — no name, no country
+        leg.setDistanceKm(BigDecimal.valueOf(250));
+
+        CreateIntermodalLoadRequest req = new CreateIntermodalLoadRequest();
+        req.setTitle("Id-addressed leg");
+        req.setDateNeeded(LocalDate.now().plusDays(2));
+        req.setLegs(List.of(leg));
+
+        long locationsBefore = locationRepository.count();
+        ItineraryResponse response = loadService.createIntermodalLoad(acme, req);
+
+        assertThat(locationRepository.count())
+                .as("the conflicting name must not mint a Location")
+                .isEqualTo(locationsBefore);
+
+        Shipment persisted = itineraryRepository.findById(response.getId()).orElseThrow().getLegs().get(0);
+        List<Stop> stops = stopRepository.findByShipmentOrderBySequenceAsc(persisted);
+        assertThat(stops.get(0).getLocation().getId()).isEqualTo(dublinPort);
+        assertThat(stops.get(0).getLocation().getName()).isEqualTo("Dublin Port");
+        assertThat(stops.get(1).getLocation().getId()).isEqualTo(corkAirport);
+        // Country: the caller's when given (wrong or not — it is theirs to
+        // state), the resolved row's when omitted.
+        assertThat(persisted.getOriginCountry()).isEqualTo("FR");
+        assertThat(persisted.getDestinationCountry()).isEqualTo("IE");
+    }
+
+    @Test
+    void anEndpointIdTheShipperMayNotReferenceIsRejectedLikeAnUnknownOne() {
+        // The endpoint ids are reachable from the public itinerary POST, not
+        // only from an accepted route, so they carry the same tenant scoping
+        // the route planner applies — and fail identically, leaking nothing.
+        Shipper acme = shipperRepository.findByEmail("employer@company.com").orElseThrow();
+
+        CreateLegRequest leg = new CreateLegRequest();
+        leg.setTransportMode("ROAD");
+        leg.setPickupLocationId(locationId("Cork City", "IE")); // ad-hoc ADDRESS, not acme's
+        leg.setDeliveryLocationId(locationId("Dublin Port", "IE"));
+        leg.setDistanceKm(BigDecimal.valueOf(250));
+
+        CreateIntermodalLoadRequest req = new CreateIntermodalLoadRequest();
+        req.setTitle("Should not be created");
+        req.setDateNeeded(LocalDate.now().plusDays(2));
+        req.setLegs(List.of(leg));
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() ->
+                loadService.createIntermodalLoad(acme, req))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Unknown location");
     }
 
     @Test

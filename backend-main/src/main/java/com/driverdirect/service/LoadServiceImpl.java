@@ -170,8 +170,13 @@ public class LoadServiceImpl implements LoadService {
         List<TmsTreeService.LegInput> legs = new ArrayList<>();
         int i = 1;
         for (var leg : rawLegs) {
-            if (leg.getPickupLocation() == null || leg.getPickupLocation().isBlank()
-                    || leg.getDeliveryLocation() == null || leg.getDeliveryLocation().isBlank()) {
+            // An endpoint may be given as a name (the post-a-load form) or as a
+            // Location id (an accepted route) — either identifies it.
+            boolean hasPickup = leg.getPickupLocationId() != null
+                    || (leg.getPickupLocation() != null && !leg.getPickupLocation().isBlank());
+            boolean hasDelivery = leg.getDeliveryLocationId() != null
+                    || (leg.getDeliveryLocation() != null && !leg.getDeliveryLocation().isBlank());
+            if (!hasPickup || !hasDelivery) {
                 throw new IllegalArgumentException("Leg " + i + " needs a pickup and delivery location");
             }
             boolean hasQuantity = leg.getDistanceKm() != null || leg.getWeightKg() != null
@@ -188,7 +193,8 @@ public class LoadServiceImpl implements LoadService {
                     leg.getRatePerHour(), leg.getEstimatedDurationHours(),
                     leg.getRequiredLicenceCategory(),
                     leg.getDistanceKm(), leg.getWeightKg(), leg.getVolumeM3(),
-                    leg.getContainerCount(), leg.getPieceCount()));
+                    leg.getContainerCount(), leg.getPieceCount(),
+                    leg.getPickupLocationId(), leg.getDeliveryLocationId()));
             i++;
         }
         return legs;
