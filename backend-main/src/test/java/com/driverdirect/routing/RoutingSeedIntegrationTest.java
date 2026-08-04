@@ -509,6 +509,9 @@ class RoutingSeedIntegrationTest {
 
         // The quote is shipper-payable, so it must exceed bare carrier cost.
         assertThat(chosen.getCommissionTotal()).isPositive();
+        // Guard against a vacuous reconciliation: this route really does change
+        // mode at a terminal, so handling must be a non-zero part of the quote.
+        assertThat(chosen.getTransferCostTotal()).isPositive();
         assertThat(chosen.getTotalCost()).isGreaterThan(chosen.getCarrierCostTotal());
         assertThat(chosen.getTotalCost()).isCloseTo(
                 chosen.getCarrierCostTotal() + chosen.getCommissionTotal()
@@ -540,9 +543,14 @@ class RoutingSeedIntegrationTest {
         assertThat(itinerary.getCommissionTotal().doubleValue())
                 .as("commission quoted vs billed")
                 .isCloseTo(chosen.getCommissionTotal(), within(0.05));
+        assertThat(itinerary.getHandlingTotal().doubleValue())
+                .as("terminal handling quoted vs billed")
+                .isCloseTo(chosen.getTransferCostTotal(), within(0.05));
+        // The whole point: the figure the shipper picked this route by is the
+        // figure they are billed — all three components, nothing left over.
         assertThat(itinerary.getGrandTotal().doubleValue())
-                .as("shipper total quoted vs billed, net of unbillable handling")
-                .isCloseTo(chosen.getCarrierCostTotal() + chosen.getCommissionTotal(), within(0.05));
+                .as("quoted shipper total vs billed grand total")
+                .isCloseTo(chosen.getTotalCost(), within(0.05));
     }
 
     @Test

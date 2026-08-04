@@ -1,5 +1,6 @@
 package com.driverdirect.dto;
 
+import com.driverdirect.model.HandlingCharge;
 import com.driverdirect.model.Itinerary;
 import com.driverdirect.model.Load;
 import com.driverdirect.model.Location;
@@ -38,13 +39,51 @@ public class ItineraryResponse {
     private String currency;
     private BigDecimal carrierCostTotal;
     private BigDecimal commissionTotal;
+    /** Terminal handling across the interchanges between legs — see
+     *  {@link #handling} for the per-interchange breakdown. Included in
+     *  grandTotal; uncommissioned (a pass-through terminal charge). */
+    private BigDecimal handlingTotal;
+    /** carrierCostTotal + commissionTotal + handlingTotal. */
     private BigDecimal grandTotal;
     private String originCountry;
     private String destinationCountry;
     private int legCount;
     private List<LegSummary> legs;
+    /** One entry per interchange, ordered by the leg it follows. Empty for a
+     *  single-leg or road-through itinerary (road→road needs no interchange). */
+    private List<HandlingSummary> handling = List.of();
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+
+    /** One terminal interchange the shipper is charged for. */
+    @Data
+    public static class HandlingSummary {
+        private Long id;
+        /** legSequence of the leg this interchange follows. */
+        private Integer afterLegSequence;
+        private String locationName;
+        private String locationType;
+        private String fromMode;
+        private String toMode;
+        private BigDecimal amount;
+        private String currency;
+
+        static HandlingSummary from(HandlingCharge c) {
+            HandlingSummary h = new HandlingSummary();
+            h.id = c.getId();
+            h.afterLegSequence = c.getAfterLegSequence();
+            if (c.getLocation() != null) {
+                h.locationName = c.getLocation().getName();
+                h.locationType = c.getLocation().getLocationType() != null
+                        ? c.getLocation().getLocationType().name() : null;
+            }
+            h.fromMode = c.getFromMode() != null ? c.getFromMode().name() : null;
+            h.toMode = c.getToMode() != null ? c.getToMode().name() : null;
+            h.amount = c.getAmount();
+            h.currency = c.getCurrency();
+            return h;
+        }
+    }
 
     @Data
     public static class LegSummary {
@@ -177,6 +216,7 @@ public class ItineraryResponse {
         r.setCurrency(it.getCurrency());
         r.setCarrierCostTotal(it.getCarrierCostTotal());
         r.setCommissionTotal(it.getCommissionTotal());
+        r.setHandlingTotal(it.getHandlingTotal());
         r.setGrandTotal(it.getGrandTotal());
         r.setOriginCountry(it.getOriginCountry());
         r.setDestinationCountry(it.getDestinationCountry());
@@ -185,6 +225,9 @@ public class ItineraryResponse {
         List<Shipment> legs = it.getLegs() != null ? it.getLegs() : List.of();
         r.setLegCount(legs.size());
         r.setLegs(legs.stream().map(s -> LegSummary.from(s, loadsByShipmentId.get(s.getId()))).toList());
+        List<HandlingCharge> charges =
+                it.getHandlingCharges() != null ? it.getHandlingCharges() : List.<HandlingCharge>of();
+        r.setHandling(charges.stream().map(HandlingSummary::from).toList());
         return r;
     }
 }

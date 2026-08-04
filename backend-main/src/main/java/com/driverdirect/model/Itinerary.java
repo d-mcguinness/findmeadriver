@@ -44,14 +44,23 @@ public class Itinerary {
     @Column(length = 3, nullable = false)
     private String currency = "EUR";
 
-    // Rolled up from the legs by PricingService.recalcItinerary:
+    // Rolled up by PricingService.recalcItinerary:
     //   carrierCostTotal = Σ leg carrier cost, commissionTotal = Σ leg fee,
-    //   grandTotal = Σ leg shipper total (what the customer pays end-to-end).
+    //   handlingTotal    = Σ terminal handling at the interchanges between legs,
+    //   grandTotal = carrierCostTotal + commissionTotal + handlingTotal
+    //                (what the customer pays end-to-end).
     @Column(name = "carrier_cost_total")
     private BigDecimal carrierCostTotal;
 
     @Column(name = "commission_total")
     private BigDecimal commissionTotal;
+
+    /** Terminal handling across this itinerary's interchanges — the sum of its
+     *  {@link HandlingCharge} rows. Zero for a single-leg or all-road-through
+     *  itinerary (road→road needs no interchange). Uncommissioned: it is a
+     *  pass-through terminal charge, not carrier earnings. */
+    @Column(name = "handling_total")
+    private BigDecimal handlingTotal;
 
     @Column(name = "grand_total")
     private BigDecimal grandTotal;
@@ -73,6 +82,14 @@ public class Itinerary {
     @OrderBy("legSequence ASC")
     @ToString.Exclude
     private List<Shipment> legs = new ArrayList<>();
+
+    /** Terminal handling between the legs, one row per interchange. Derived and
+     *  rebuilt by {@code PricingService.recalcItinerary}, so this is a read
+     *  view — no cascade (same as {@link #legs}). */
+    @OneToMany(mappedBy = "itinerary", fetch = FetchType.LAZY)
+    @OrderBy("afterLegSequence ASC")
+    @ToString.Exclude
+    private List<HandlingCharge> handlingCharges = new ArrayList<>();
 
     @PrePersist
     protected void onCreate() {

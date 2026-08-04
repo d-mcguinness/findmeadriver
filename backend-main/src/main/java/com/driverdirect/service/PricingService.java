@@ -1,11 +1,16 @@
 package com.driverdirect.service;
 
 import com.driverdirect.model.ChargeUnit;
+import com.driverdirect.model.HandlingCharge;
 import com.driverdirect.model.Itinerary;
 import com.driverdirect.model.Load;
+import com.driverdirect.model.Location;
 import com.driverdirect.model.Shipment;
+import com.driverdirect.model.Stop;
+import com.driverdirect.repository.HandlingChargeRepository;
 import com.driverdirect.repository.ItineraryRepository;
 import com.driverdirect.repository.ShipmentRepository;
+import com.driverdirect.repository.StopRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -13,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Computes the money on a Load's Shipment leg (M1b):
@@ -38,6 +44,9 @@ public class PricingService {
     private final PricingPolicy pricingPolicy;
     private final ShipmentRepository shipmentRepository;
     private final ItineraryRepository itineraryRepository;
+    private final StopRepository stopRepository;
+    private final HandlingChargeRepository handlingChargeRepository;
+    private final TransferPolicy transferPolicy;
 
     /**
      * Prices the leg of {@code load} and persists the result onto its Shipment.
@@ -110,14 +119,105 @@ public class PricingService {
             grand = grand.add(nz(leg.getShipperTotal()));
         }
 
+        // Terminal handling between the legs, derived from TransferPolicy — the
+        // same rates the route planner quotes, so an accepted route's bill
+        // matches its quote instead of coming out short by the handling.
+        BigDecimal handling = recalcHandling(itinerary, legs);
+
         itinerary.setCarrierCostTotal(scale(carrier));
         itinerary.setCommissionTotal(scale(commission));
-        itinerary.setGrandTotal(scale(grand));
+        itinerary.setHandlingTotal(scale(handling));
+        itinerary.setGrandTotal(scale(grand.add(handling)));
         if (!legs.isEmpty()) {
             itinerary.setOriginCountry(legs.get(0).getOriginCountry());
             itinerary.setDestinationCountry(legs.get(legs.size() - 1).getDestinationCountry());
         }
         itineraryRepository.save(itinerary);
+    }
+
+    /**
+     * Rebuild this itinerary's {@link HandlingCharge} rows from its legs and
+     * return their total. One charge per interchange — the stationary work of
+     * getting cargo off one leg and onto the next at the place they meet.
+     *
+     * <p>Charges are fully derived from {@link TransferPolicy}, never
+     * client-supplied, so they can't drift from the rates the route planner
+     * quoted. They're replaced wholesale rather than diffed: an itinerary edit
+     * can change any leg's mode, endpoints or order.
+     */
+    private BigDecimal recalcHandling(Itinerary itinerary, List<Shipment> legs) {
+        List<HandlingCharge> existing =
+                handlingChargeRepository.findByItineraryOrderByAfterLegSequenceAsc(itinerary);
+        if (!existing.isEmpty()) handlingChargeRepository.deleteAllInBatch(existing);
+        // Keep the inverse side in sync so a just-built itinerary reports its
+        // charges when mapped in this same session — the @OneToMany is
+        // mappedBy/inverse and isn't auto-populated (same reason legs are
+        // synced by hand in TmsTreeService).
+        if (itinerary.getHandlingCharges() != null) itinerary.getHandlingCharges().clear();
+
+        String currency = itinerary.getCurrency() != null ? itinerary.getCurrency() : "EUR";
+        BigDecimal total = BigDecimal.ZERO;
+        for (int i = 0; i + 1 < legs.size(); i++) {
+            Shipment from = legs.get(i);
+            Shipment to = legs.get(i + 1);
+            if (!needsInterchange(from.getMode(), to.getMode())) continue;
+            Location at = interchangeLocation(from, to);
+            if (at == null) continue; // consecutive legs don't actually meet
+            // Gate on the terminal's capability, exactly as the routing graph
+            // does: no profile there means no interchange is possible, so
+            // nothing is charged (a plain ADDRESS handles no modes at all).
+            Set<Shipment.Mode> handled = transferPolicy.modesHandledAt(at.getLocationType());
+            if (!handled.contains(from.getMode()) || !handled.contains(to.getMode())) continue;
+
+            BigDecimal amount = scale(BigDecimal.valueOf(
+                    transferPolicy.transferCost(from.getMode(), to.getMode())));
+            HandlingCharge charge = new HandlingCharge();
+            charge.setItinerary(itinerary);
+            charge.setLocation(at);
+            charge.setFromMode(from.getMode());
+            charge.setToMode(to.getMode());
+            charge.setAfterLegSequence(from.getLegSequence());
+            charge.setAmount(amount);
+            charge.setCurrency(currency);
+            charge = handlingChargeRepository.save(charge);
+            if (itinerary.getHandlingCharges() != null) itinerary.getHandlingCharges().add(charge);
+            total = total.add(amount);
+        }
+        return total;
+    }
+
+    /**
+     * Does moving from {@code from} to {@code to} need terminal handling?
+     * Mirrors {@code RoutePlanner.relax}'s transfer condition so a quote and a
+     * bill agree: a mode change, or boarding a scheduled service. ROAD is the
+     * one unscheduled mode in this model (road legs are virtual and
+     * untimetabled), so "the next leg is scheduled" is exactly "its mode isn't
+     * ROAD". Road→road is one truck driving on, and free.
+     */
+    private static boolean needsInterchange(Shipment.Mode from, Shipment.Mode to) {
+        if (from == null || to == null) return false;
+        return from != to || to != Shipment.Mode.ROAD;
+    }
+
+    /** The location two consecutive legs share — the first's DELIVERY and the
+     *  second's PICKUP. Null when either is missing or they differ, which means
+     *  the itinerary has a gap rather than an interchange, and nothing is
+     *  charged for work that isn't happening. */
+    private Location interchangeLocation(Shipment from, Shipment to) {
+        Location dropped = stopLocation(from, Stop.StopType.DELIVERY);
+        Location collected = stopLocation(to, Stop.StopType.PICKUP);
+        if (dropped == null || collected == null) return null;
+        if (dropped.getId() == null || !dropped.getId().equals(collected.getId())) return null;
+        return dropped;
+    }
+
+    private Location stopLocation(Shipment leg, Stop.StopType type) {
+        return stopRepository.findByShipmentOrderBySequenceAsc(leg).stream()
+                .filter(s -> s.getType() == type)
+                .map(Stop::getLocation)
+                .filter(java.util.Objects::nonNull)
+                .findFirst()
+                .orElse(null);
     }
 
     /** Resolve the chargeable quantity for a unit from the leg's metrics; null

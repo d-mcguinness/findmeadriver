@@ -16,12 +16,9 @@ import java.util.List;
  * mode's rate, since commission runs ROAD 10% … AIR 20%) and
  * {@code transferCostTotal} (terminal handling at interchanges). The three sum
  * to {@code totalCost}. Accepting this option materialises legs that
- * PricingService re-prices, and its Itinerary will roll up
- * {@code carrierCostTotal + commissionTotal}: <em>terminal handling is not a
- * billable item in the TMS model yet</em>, so an accepted route's grand total
- * comes out lower than the estimate by {@code transferCostTotal}. It is
- * reported separately rather than hidden so that difference is visible instead
- * of looking like a pricing bug.
+ * PricingService re-prices and {@code HandlingCharge} rows it derives from the
+ * same {@code TransferPolicy} rates, so the Itinerary's grand total reconciles
+ * with {@code totalCost} — quote and bill agree on all three components.
  *
  * <p>{@code handoverBy} is the departure instant of this plan's first leg.
  * For a flexible-window query (step 5) the planner keeps, per route, the

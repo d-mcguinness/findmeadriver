@@ -29,11 +29,10 @@ public class RouteOptionResponse {
     private double carrierCostTotal;
     /** Platform fee, each leg at its own mode's rate. */
     private double commissionTotal;
-    /** Terminal handling at interchanges. Included in totalCost, but
-     *  <em>not</em> billed on an accepted itinerary — handling is not a
-     *  billable item in the TMS model yet, so an accepted route's grand total
-     *  comes out lower than totalCost by exactly this. Surfaced so that gap is
-     *  visible rather than looking like a pricing bug. */
+    /** Terminal handling at interchanges. Billed on acceptance as
+     *  {@code HandlingCharge} rows off the same TransferPolicy rates, and
+     *  included in the Itinerary's handlingTotal — so this quote reconciles
+     *  with the bill. Uncommissioned: a pass-through terminal charge. */
     private double transferCostTotal;
     private double totalCo2Kg;
     private Instant handoverBy;
