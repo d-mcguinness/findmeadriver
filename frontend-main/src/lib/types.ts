@@ -173,6 +173,18 @@ export interface ItineraryLeg {
 	estimatedDurationHours?: number;
 }
 
+/** One terminal interchange the shipper is charged for. */
+export interface HandlingSummary {
+	id?: number;
+	afterLegSequence?: number;
+	locationName?: string;
+	locationType?: string;
+	fromMode?: string;
+	toMode?: string;
+	amount?: number;
+	currency?: string;
+}
+
 export interface Itinerary {
 	id: number;
 	shipperId?: number;
@@ -191,11 +203,18 @@ export interface Itinerary {
 	currency?: string;
 	carrierCostTotal?: number;
 	commissionTotal?: number;
+	/** Terminal handling across the interchanges between legs. Part of
+	 *  grandTotal; uncommissioned (a pass-through terminal charge). */
+	handlingTotal?: number;
+	/** carrierCostTotal + commissionTotal + handlingTotal. */
 	grandTotal?: number;
 	originCountry?: string;
 	destinationCountry?: string;
 	legCount?: number;
 	legs: ItineraryLeg[];
+	/** One entry per interchange, ordered by the leg it follows. Empty for a
+	 *  single-leg or road-through itinerary. */
+	handling?: HandlingSummary[];
 	createdAt?: string;
 	updatedAt?: string;
 }
@@ -324,9 +343,8 @@ export interface RouteOption {
 	carrierCostTotal: number;
 	/** Platform fee, each leg at its own mode's rate. */
 	commissionTotal: number;
-	/** Terminal handling at interchanges. In totalCost, but not billed on an
-	 *  accepted itinerary — handling isn't a billable item in the TMS model yet,
-	 *  so the booked grand total comes out lower by exactly this. */
+	/** Terminal handling at interchanges. Billed on acceptance as handling
+	 *  charges off the same rates, so the quote reconciles with the bill. */
 	transferCostTotal: number;
 	totalCo2Kg: number;
 	handoverBy: string;

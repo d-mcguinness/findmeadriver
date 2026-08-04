@@ -53,6 +53,19 @@
 		return (it.legs ?? []).some((l) => l.chargeUnit === 'PER_KM' && isEstimatedDistance(l));
 	}
 
+	// Terminal handling is charged per interchange — name them, so the figure
+	// isn't an unexplained line on the bill.
+	function handlingHint(it: Itinerary): string {
+		const rows = it.handling ?? [];
+		if (rows.length === 0) return 'Terminal handling.';
+		const lines = rows.map(
+			(h) =>
+				`${h.locationName ?? 'terminal'}: ${transportModeLabel(h.fromMode ?? '')} → ` +
+				`${transportModeLabel(h.toMode ?? '')} ${formatMoney(h.amount, h.currency)}`
+		);
+		return `Getting cargo off one leg and onto the next. ${lines.join('; ')}.`;
+	}
+
 	function nodeName(name: string | undefined, code: string | undefined): string {
 		if (!name) return '?';
 		return code ? `${name} (${code})` : name;
@@ -167,6 +180,14 @@
 							<div class="it-totals">
 								<span>Carrier <strong>{formatMoney(it.carrierCostTotal, it.currency)}</strong></span>
 								<span>Platform fee <strong>{formatMoney(it.commissionTotal, it.currency)}</strong></span>
+								{#if it.handlingTotal}
+									<span title={handlingHint(it)}>
+										Terminal handling <strong>{formatMoney(it.handlingTotal, it.currency)}</strong>
+										<span class="handling-count">
+											· {it.handling?.length ?? 0} interchange{(it.handling?.length ?? 0) === 1 ? '' : 's'}
+										</span>
+									</span>
+								{/if}
 								<span class="grand">Total <strong>{formatMoney(it.grandTotal, it.currency)}</strong></span>
 								{#if pricedOnEstimatedDistance(it)}
 									<span class="it-estimate-note" title={ESTIMATE_HINT}>
@@ -250,6 +271,7 @@
 		border-top: 1px solid var(--cds-border-subtle, #e0e0e0); padding-top: 0.6rem; font-size: 0.875rem;
 	}
 	.it-totals .grand { margin-left: auto; font-size: 1rem; }
+	.it-totals .handling-count { color: var(--cds-text-secondary); font-size: 0.75rem; }
 	.it-actions {
 		display: flex; gap: 0.5rem; justify-content: flex-end;
 		margin-top: 0.6rem;

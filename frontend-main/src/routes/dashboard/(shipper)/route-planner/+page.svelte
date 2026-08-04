@@ -221,7 +221,7 @@
 			`platform fee ${formatMoney(o.commissionTotal)} (per leg, at each mode's rate)`
 		];
 		if (o.transferCostTotal > 0) {
-			parts.push(`terminal handling ${formatMoney(o.transferCostTotal)} — estimated, not billed on booking`);
+			parts.push(`terminal handling ${formatMoney(o.transferCostTotal)}`);
 		}
 		return `${parts.join(' + ')}. Re-priced on acceptance.`;
 	}
@@ -346,8 +346,8 @@
 									Carrier {formatMoney(option.carrierCostTotal)}
 									<span class="fee">+ {formatMoney(option.commissionTotal)} platform fee</span>
 									{#if option.transferCostTotal > 0}
-										<span class="handling" title="Terminal handling at interchanges. Part of this estimate, but not billed on a booked itinerary — handling isn't a chargeable item in the TMS model yet.">
-											+ {formatMoney(option.transferCostTotal)} handling (est. only)
+										<span class="handling" title="Terminal handling: getting cargo off one leg and onto the next. Charged per interchange at the terminal's rate, and billed on the itinerary you book.">
+											+ {formatMoney(option.transferCostTotal)} handling
 										</span>
 									{/if}
 								</div>

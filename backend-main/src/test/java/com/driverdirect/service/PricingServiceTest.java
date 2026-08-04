@@ -4,8 +4,10 @@ import com.driverdirect.model.ChargeUnit;
 import com.driverdirect.model.Itinerary;
 import com.driverdirect.model.Load;
 import com.driverdirect.model.Shipment;
+import com.driverdirect.repository.HandlingChargeRepository;
 import com.driverdirect.repository.ItineraryRepository;
 import com.driverdirect.repository.ShipmentRepository;
+import com.driverdirect.repository.StopRepository;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
@@ -24,7 +26,10 @@ class PricingServiceTest {
     private final PricingPolicy policy = new PricingPolicy();
     private final ShipmentRepository shipmentRepo = mock(ShipmentRepository.class);
     private final ItineraryRepository itineraryRepo = mock(ItineraryRepository.class);
-    private final PricingService pricing = new PricingService(policy, shipmentRepo, itineraryRepo);
+    private final StopRepository stopRepo = mock(StopRepository.class);
+    private final HandlingChargeRepository handlingRepo = mock(HandlingChargeRepository.class);
+    private final PricingService pricing = new PricingService(
+            policy, shipmentRepo, itineraryRepo, stopRepo, handlingRepo, new TransferPolicy());
 
     private Shipment leg(Shipment.Mode mode) {
         Shipment s = new Shipment();
